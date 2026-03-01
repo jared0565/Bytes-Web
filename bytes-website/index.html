@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bytes Enterprises, Ltd | Modern SaaS Solutions</title>
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+  <!-- Top Navigation -->
+  <nav class="navbar glass-nav">
+    <!-- Menu on the left/center -->
+    <ul class="nav-links">
+      <li><a href="#home" class="nav-item">Home</a></li>
+      <li class="dropdown">
+        <a href="#" class="nav-item">Services <span class="caret">▼</span></a>
+        <ul class="dropdown-menu">
+          <li><a href="#lead-capture" data-service="Website Development">Website Development</a></li>
+          <li><a href="#lead-capture" data-service="Short Form VSL">Short Form VSL</a></li>
+          <li><a href="#lead-capture" data-service="LinkedIn Content Writing">LinkedIn Content Writing</a></li>
+          <li><a href="#lead-capture" data-service="Application Development">Application Development</a></li>
+        </ul>
+      </li>
+      <li><a href="#privacy" class="nav-item">Privacy Policy</a></li>
+      <li><a href="#terms" class="nav-item">Terms Of Use</a></li>
+      <li><a href="https://linkedin.com/in/fbmacagba" target="_blank" rel="noopener noreferrer"
+          class="btn-linkedin">Follow on LinkedIn</a></li>
+    </ul>
+
+    <!-- Logo explicitly placed on the upper right side -->
+    <div class="logo-container">
+      <a href="#home" class="logo">
+        Bytes<span class="highlight">FX</span>
+      </a>
+    </div>
+  </nav>
+
+  <!-- App Container for Single Page App views -->
+  <main id="app"></main>
+
+  <!-- Persistent Global Footer -->
+  <footer class="site-footer">
+    <div class="footer-content">
+      <div class="footer-brand">
+        <a href="#home" class="logo">
+          Bytes<span class="highlight">FX</span>
+        </a>
+        <p class="footer-description">Premium web and application experiences tailored to rapidly scale your business.
+        </p>
+      </div>
+
+      <div class="footer-links-group">
+        <h4>Company</h4>
+        <ul>
+          <li><a href="#home">Home</a></li>
+          <li><a href="#privacy">Privacy Policy</a></li>
+          <li><a href="#terms">Terms of Use</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-links-group">
+        <h4>Connect</h4>
+        <ul>
+          <li><a href="https://linkedin.com/in/fbmacagba" target="_blank" rel="noopener noreferrer">LinkedIn</a></li>
+          <li><a href="mailto:contact@bytesfx.com">Email Us</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-contact">
+        <h4>Contact</h4>
+        <a href="mailto:contact@bytesfx.com" class="contact-email">contact@bytesfx.com</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; <span id="currentYear"></span> Bytes Enterprises, Ltd. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <!-- Floating Cookie Consent Banner -->
+  <div id="cookieConsentBanner" class="cookie-banner glass-panel">
+    <div class="cookie-content">
+      <div class="cookie-text">
+        <h4>We Value Your Privacy</h4>
+        <p>Bytes Enterprises uses cookies to enhance your browsing experience, serve personalized ads or content, and
+          analyze our traffic. By clicking "Accept All", you consent to our use of cookies as described in our <a
+            href="#privacy" class="highlight">Privacy Policy</a>.</p>
+      </div>
+      <div class="cookie-actions">
+        <button id="btnAcceptCookies" class="btn btn-primary">Accept All</button>
+        <button id="btnDeclineCookies" class="btn btn-outline">Decline</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/main.js"></script>
+  <script>
+    document.getElementById('currentYear').textContent = new Date().getFullYear();
+  </script>
+</body>
+
+</html>
