@@ -342,12 +342,14 @@ function openContactModal() {
   overlay.classList.add('show');
 }
 
-function closeContactModal() {
+window.closeContactModal = function () {
   const overlay = document.getElementById('contactModalOverlay');
   if (overlay) {
     overlay.classList.remove('show');
   }
-}
+  // Optional: clear out form content or hash when closing
+  window.location.hash = lastHash || '#home';
+};
 
 // Track previous hash to cleanly exit the modal
 let lastHash = '';
@@ -456,14 +458,14 @@ window.addEventListener('DOMContentLoaded', () => {
   // Modal Close Button Logic
   const btnCloseModal = document.getElementById('btnCloseModal');
   if (btnCloseModal) {
-    btnCloseModal.addEventListener('click', closeContactModal);
+    btnCloseModal.addEventListener('click', window.closeContactModal);
   }
 
   // Modal Close on click outside content
   const overlay = document.getElementById('contactModalOverlay');
   if (overlay) {
     overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) closeContactModal();
+      if (e.target === overlay) window.closeContactModal();
     });
   }
 
@@ -512,22 +514,36 @@ window.handleContactSubmit = function (event) {
   const service = document.getElementById('serviceOfInterest').value;
   const details = document.getElementById('specialRequest').value;
 
-  const subject = encodeURIComponent(`New Inquiry from ${name}`);
-  const body = encodeURIComponent(
-    `Name: ${name}\n` +
-    `Email: ${email}\n` +
-    `Service of Interest: ${service}\n\n` +
-    `Project Details:\n${details}`
-  );
+  const submitBtn = document.querySelector('#contactForm button[type="submit"]');
+  const originalText = submitBtn.innerText;
+  submitBtn.innerText = "Sending...";
+  submitBtn.disabled = true;
 
-  // Trigger the default email client
-  window.location.href = `mailto:contact@bytesfx.com?subject=${subject}&body=${body}`;
+  const url = "https://docs.google.com/forms/d/e/1FAIpQLSfUBw3kAv2qoIC2Z45K8RNdzQlaIZYz_UALH4sEFnWDxfUETw/formResponse";
+  const formData = new URLSearchParams();
+  formData.append("entry.1698580962", name);
+  formData.append("entry.1399885084", email);
+  formData.append("entry.584713419", service);
+  formData.append("entry.31456989", details);
 
-  // Optionally reset the form after sending to the mail client
-  document.getElementById('contactForm').reset();
-
-  // Close the modal to give a feeling of completion
-  setTimeout(() => {
-    closeContactModal();
-  }, 500);
+  fetch(url, {
+    method: "POST",
+    mode: "no-cors",
+    body: formData
+  }).then(() => {
+    // Show success message inside the modal
+    const formContainer = document.getElementById('modalFormContainer');
+    formContainer.innerHTML = `
+      <div class="form-container" style="text-align: center; padding: 3rem 1rem;">
+        <h2 class="section-title">Thank <span class="highlight">You!</span></h2>
+        <p class="section-subtitle" style="margin-top: 1rem;">Your inquiry has been instantly sent to our secure database. We will be in touch shortly.</p>
+        <button class="btn btn-primary" style="margin-top: 2rem;" onclick="closeContactModal()">Close Window</button>
+      </div>
+    `;
+  }).catch(err => {
+    console.error(err);
+    alert("There was an error sending your message. Please try again.");
+    submitBtn.innerText = originalText;
+    submitBtn.disabled = false;
+  });
 };
