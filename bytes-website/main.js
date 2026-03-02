@@ -367,17 +367,62 @@ function renderPrivacy() {
       <p class="last-updated">Last updated: ` + new Date().toLocaleDateString() + `</p>
       
       <div class="legal-content">
-        <h3>1. Introduction</h3>
-        <p>Welcome to Bytes Enterprises, Ltd ("we," "our," or "us"). We respect your privacy and are committed to protecting your personal data.</p>
+        <p>This Privacy Policy explains how BytesFX (operated by Bytes Enterprises Ltd., "we", "us", or "our") collects, uses, and protects your personal information. We comply with the UK General Data Protection Regulation (UK GDPR), the EU GDPR, and the Privacy and Electronic Communications Regulations (PECR).</p>
         
-        <h3>2. Data Collection</h3>
-        <p>When you use our services or submit a lead capture form, we may ask you to provide us with certain personally identifiable information (e.g., Name, Email Address, Service Details).</p>
+        <h3>1. Information We Collect</h3>
+        <p><strong>1.1 Information You Provide Directly:</strong></p>
+        <ul>
+          <li>Name and email address provided via contact forms or newsletter sign-ups.</li>
+          <li>Any information voluntarily submitted through communication.</li>
+        </ul>
+        <p><strong>1.2 Automatically Collected Information & Cookies:</strong></p>
+        <p>Our website uses cookies and similar tracking technologies (such as the Meta/Facebook Pixel) to collect:</p>
+        <ul>
+          <li>IP address, browser type, and device information.</li>
+          <li>Interaction data (pages visited, time spent, and links clicked).</li>
+        </ul>
+        <p><strong>Consent:</strong> We will only fire non-essential cookies (including marketing and analytics pixels) if you provide explicit consent via our cookie banner. You can withdraw your consent at any time through your browser settings or our site's preference center.</p>
 
-        <h3>3. Use of Data</h3>
-        <p>Bytes Enterprises uses collected data to provide and maintain our Service, notify you about changes, provide customer support, and gather analysis so we can improve our Service.</p>
+        <h3>2. Legal Basis for Processing</h3>
+        <p>We process your data under the following lawful bases:</p>
+        <ul>
+          <li><strong>Consent:</strong> When you opt-in to marketing or non-essential cookies.</li>
+          <li><strong>Contract:</strong> To provide services or templates you have requested.</li>
+          <li><strong>Legitimate Interests:</strong> To improve our website performance and ensure security.</li>
+          <li><strong>Legal Obligation:</strong> To comply with tax, fraud prevention, or regulatory requirements.</li>
+        </ul>
 
-        <h3>4. Contact Us</h3>
-        <p>If you have any questions about this Privacy Policy, please contact us at <strong>contact@bytesfx.com</strong>.</p>
+        <h3>3. Sharing Your Information</h3>
+        <p>We do not sell your personal data. We share information only with:</p>
+        <ul>
+          <li><strong>Service Providers:</strong> Infrastructure and email tools (e.g., Groove, email marketing software).</li>
+          <li><strong>Advertising Partners:</strong> We use Meta (Facebook) for retargeting. This involves sharing hashed data or pixel events to show you relevant ads on social media.</li>
+          <li><strong>Legal Authorities:</strong> Only where required by law.</li>
+        </ul>
+
+        <h3>4. International Data Transfers</h3>
+        <p>As we use global service providers, your data may be transferred to or stored in countries outside the UK/EEA (such as the USA). We ensure these transfers are protected by Standard Contractual Clauses (SCCs) or the UK Extension to the Data Privacy Framework, ensuring your data receives an equivalent level of protection.</p>
+
+        <h3>5. Data Retention</h3>
+        <p>We retain personal data only for as long as necessary to fulfill the purposes outlined (e.g., as long as you are subscribed to our list) or to meet legal record-keeping obligations.</p>
+
+        <h3>6. Your Rights</h3>
+        <p>You have the right to:</p>
+        <ul>
+          <li>Access, Correct, or Delete your personal data.</li>
+          <li>Object to or restrict processing (including opting out of marketing).</li>
+          <li>Data Portability (requesting a copy of your data in a machine-readable format).</li>
+          <li>Withdraw Consent at any time.</li>
+        </ul>
+
+        <h3>7. How to Complain</h3>
+        <p>If you have concerns, please contact us at <strong>contact@bytesfx.com</strong> first. If you remain unsatisfied, you have the right to lodge a complaint with the Information Commissioner’s Office (ICO), the UK’s supervisory authority for data protection.</p>
+        <p><strong>ICO Website:</strong> <a href="https://www.ico.org.uk">https://www.ico.org.uk</a><br><strong>Address:</strong> Wycliffe House, Water Lane, Wilmslow, Cheshire, SK9 5AF.</p>
+
+        <h3>8. Contact Us</h3>
+        <p><strong>Business Name:</strong> Bytes Enterprises Ltd.<br>
+        <strong>Address:</strong> International House, 24 Holborn Viaduct, London, United Kingdom, EC1A 2BN<br>
+        <strong>Email:</strong> <strong>contact@bytesfx.com</strong></p>
       </div>
     </div >
         `;
@@ -390,17 +435,36 @@ function renderTerms() {
       <p class="last-updated">Last updated: ` + new Date().toLocaleDateString() + `</p>
       
       <div class="legal-content">
-        <h3>1. Agreement to Terms</h3>
-        <p>By accessing or using the services provided by Bytes Enterprises, you agree to be bound by these Terms.</p>
+        <h3>1. Introduction</h3>
+        <p>These Terms & Conditions govern the relationship between Bytes Enterprises Ltd ("BytesFX", "we", "us") and you. By using this website or purchasing our services, you agree to these terms.</p>
         
-        <h3>2. Intellectual Property</h3>
-        <p>The Service and its original content, features, and functionality are and will remain the exclusive property of Bytes Enterprises and its licensors.</p>
+        <h3>2. Services & Consumer Rights</h3>
+        <p>We provide digital web design and development services. In accordance with the Consumer Rights Act 2015, we warrant that all services will be provided with reasonable care and skill.</p>
 
-        <h3>3. Limitation of Liability</h3>
-        <p>In no event shall Bytes Enterprises, nor its directors, employees, partners, agents, suppliers, or affiliates, be liable for any indirect, incidental, special, consequential or punitive damages.</p>
+        <h3>3. Right to Cancel (Cooling-Off Period)</h3>
+        <p>If you are a consumer, you have the right to cancel your order within 14 days without giving a reason. However, if you request that we begin digital services immediately, you acknowledge that you waive your right to cancel once the service has been fully performed or once digital content download has begun.</p>
         
-        <h3>4. Contact Us</h3>
-        <p>For inquiries regarding these terms, send an email to <strong>contact@bytesfx.com</strong>.</p>
+        <h3>4. Intellectual Property</h3>
+        <p>All original tools, templates, and site code remain the property of BytesFX. Upon full payment, the specific "final design" and content created for a client project are transferred to the client, subject to a non-exclusive license for any BytesFX proprietary elements included therein.</p>
+        
+        <h3>5. Fees and Payment</h3>
+        <p>All prices are as stated at the time of purchase. In compliance with the Digital Markets, Competition and Consumers Act 2024, we do not practice "drip pricing." The total cost, including any applicable VAT, will be clearly displayed before you confirm your order.</p>
+
+        <h3>6. Affiliate Disclosure</h3>
+        <p>This site uses affiliate links. If you click a link and make a purchase, we may receive a commission. this does not affect the price you pay. We only recommend tools we use or believe in.</p>
+
+        <h3>7. Limitation of Liability</h3>
+        <p>To the maximum extent permitted by law (England and Wales), BytesFX shall not be liable for any indirect or consequential loss. We do not exclude liability for death or personal injury caused by our negligence, or for fraudulent misrepresentation.</p>
+
+        <h3>8. Governing Law & Disputes</h3>
+        <p>These terms are governed by the laws of England and Wales. If a dispute arises, we encourage you to contact us directly to reach an amicable solution. If we cannot resolve it, you may seek resolution through an Alternative Dispute Resolution (ADR) provider.</p>
+        
+        <h3>9. Contact Information</h3>
+        <p>
+          Bytes Enterprises Ltd.<br>
+          International House, 24 Holborn Viaduct, London, EC1A 2BN<br>
+          Email: <strong>contact@bytesfx.com</strong>
+        </p>
       </div>
     </div >
         `;
