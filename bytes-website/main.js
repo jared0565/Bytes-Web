@@ -1,34 +1,5 @@
 import './style.css'
 
-const routes = {
-  '': renderHome,
-  '#home': renderHome,
-  '#lead-capture': renderLeadCapture,
-  '#privacy': renderPrivacy,
-  '#terms': renderTerms
-};
-
-function router() {
-  const path = window.location.hash;
-  const app = document.getElementById('app');
-
-  const renderFn = routes[path] || routes['#home'];
-
-  window.scrollTo(0, 0);
-  app.innerHTML = renderFn();
-
-  // Replay view transition observers and interactions
-  initInteractions();
-
-  // If lead capture is rendered, pre-fill service if applicable
-  if (path === '#lead-capture') {
-    const serviceInput = document.getElementById('serviceOfInterest');
-    const savedService = sessionStorage.getItem('selectedService');
-    if (serviceInput && savedService) {
-      serviceInput.value = savedService;
-    }
-  }
-}
 
 function initInteractions() {
   // 1. Intersection Observer for elements fading in as you scroll
@@ -316,41 +287,70 @@ function renderHome() {
 
 function renderLeadCapture() {
   return `
-    <div class="page-view lead-capture-view">
-          <div class="form-container glass-panel">
-            <h2 class="section-title">Let's Build Something <span class="highlight">Amazing</span></h2>
-            <p class="section-subtitle">Fill out the form below or email us directly at <strong>contact@bytesfx.com</strong>.</p>
+    <div class="form-container">
+      <h2 class="section-title">Let's Build Something <span class="highlight">Amazing</span></h2>
+      <p class="section-subtitle">Fill out the form below or email us directly at <strong>contact@bytesfx.com</strong>.</p>
 
-            <form id="contactForm" class="contact-form" onsubmit="handleContactSubmit(event)">
-              <div class="form-group">
-                <label for="name">Full Name</label>
-                <input type="text" id="name" required placeholder="Jane Doe" />
-              </div>
-              <div class="form-group">
-                <label for="email">Email Address</label>
-                <input type="email" id="email" required pattern="[a-z0-9._%+\\-]+@[a-z0-9.\\-]+\\.[a-z]{2,}$" placeholder="jane@example.com" />
-              </div>
-              <div class="form-group">
-                <label for="serviceOfInterest">Service of Interest</label>
-                <select id="serviceOfInterest" required>
-                  <option value="" disabled selected>Select a Service</option>
-                  <option value="Website Development">Website Development</option>
-                  <option value="Short Form VSL">Short Form VSL</option>
-                  <option value="LinkedIn Content Writing">LinkedIn Content Writing</option>
-                  <option value="Application Development">Application Development</option>
-                  <option value="Other">Other Custom Request</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label for="specialRequest">Special Request / Project Details</label>
-                <textarea id="specialRequest" rows="4" placeholder="Tell us more about what you want to build..."></textarea>
-              </div>
-              <button type="submit" class="btn btn-primary btn-block">Submit Inquiry</button>
-            </form>
-          </div>
-    </div >
-        `;
+      <form id="contactForm" class="contact-form" onsubmit="handleContactSubmit(event)">
+        <div class="form-group">
+          <label for="name">Full Name</label>
+          <input type="text" id="name" required placeholder="Jane Doe" />
+        </div>
+        <div class="form-group">
+          <label for="email">Email Address</label>
+          <input type="email" id="email" required pattern="[a-z0-9._%+\\-]+@[a-z0-9.\\-]+\\.[a-z]{2,}$" placeholder="jane@example.com" />
+        </div>
+        <div class="form-group">
+          <label for="serviceOfInterest">Service of Interest</label>
+          <select id="serviceOfInterest" required>
+            <option value="" disabled selected>Select a Service</option>
+            <option value="Website Development">Website Development</option>
+            <option value="Short Form VSL">Short Form VSL</option>
+            <option value="LinkedIn Content Writing">LinkedIn Content Writing</option>
+            <option value="Application Development">Application Development</option>
+            <option value="Other">Other Custom Request</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="specialRequest">Special Request / Project Details</label>
+          <textarea id="specialRequest" rows="4" placeholder="Tell us more about what you want to build..."></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block">Submit Inquiry</button>
+      </form>
+    </div>
+  `;
 }
+
+// Modal Logic
+function openContactModal() {
+  const overlay = document.getElementById('contactModalOverlay');
+  const formContainer = document.getElementById('modalFormContainer');
+
+  if (!overlay || !formContainer) return;
+
+  // Inject the form inside the modal
+  formContainer.innerHTML = renderLeadCapture();
+
+  // Auto-select service if passed via sessionStorage
+  const storedService = sessionStorage.getItem('selectedService');
+  if (storedService) {
+    const selectEl = document.getElementById('serviceOfInterest');
+    if (selectEl) selectEl.value = storedService;
+  }
+
+  // Display the modal via CSS class
+  overlay.classList.add('show');
+}
+
+function closeContactModal() {
+  const overlay = document.getElementById('contactModalOverlay');
+  if (overlay) {
+    overlay.classList.remove('show');
+  }
+}
+
+// Track previous hash to cleanly exit the modal
+let lastHash = '';
 
 function renderPrivacy() {
   return `
@@ -397,6 +397,45 @@ function renderTerms() {
     </div >
         `;
 }
+function router() {
+  const hash = window.location.hash || '#home';
+
+  // Modal interception: if route is #lead-capture, show the modal but keep the current page underneath
+  if (hash === '#lead-capture') {
+    openContactModal();
+    // Revert the hash back to what it was (or home) so the user stays on the page
+    window.location.hash = lastHash || '#home';
+    return;
+  }
+
+  // Remember the last actual page route
+  lastHash = hash;
+
+  const app = document.getElementById('app');
+
+  // Cancel starfield animation if navigating away from home
+  if (starfieldAnimId) {
+    cancelAnimationFrame(starfieldAnimId);
+    starfieldAnimId = null;
+  }
+
+  // Clear previous observers or timeouts if needed
+  switch (hash) {
+    case '#home':
+      app.innerHTML = renderHome();
+      initInteractions();
+      break;
+    case '#privacy':
+      app.innerHTML = renderPrivacy();
+      break;
+    case '#terms':
+      app.innerHTML = renderTerms();
+      break;
+    default:
+      app.innerHTML = renderHome();
+      initInteractions();
+  }
+}
 
 // Event Listeners
 window.addEventListener('hashchange', router);
@@ -413,6 +452,20 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     }
   });
+
+  // Modal Close Button Logic
+  const btnCloseModal = document.getElementById('btnCloseModal');
+  if (btnCloseModal) {
+    btnCloseModal.addEventListener('click', closeContactModal);
+  }
+
+  // Modal Close on click outside content
+  const overlay = document.getElementById('contactModalOverlay');
+  if (overlay) {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeContactModal();
+    });
+  }
 
   // Initialize Cookie Consent Banner Logic
   initCookieConsent();
@@ -473,8 +526,8 @@ window.handleContactSubmit = function (event) {
   // Optionally reset the form after sending to the mail client
   document.getElementById('contactForm').reset();
 
-  // Navigate back home to give a feeling of completion
+  // Close the modal to give a feeling of completion
   setTimeout(() => {
-    window.location.hash = '#home';
+    closeContactModal();
   }, 500);
 };
