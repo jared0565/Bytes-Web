@@ -206,28 +206,28 @@ function renderHome() {
 
       <!-- Bento Grid Features -->
       <div class="bento-grid">
-        <div class="bento-card bento-wide reveal">
+        <div class="bento-card bento-wide reveal" onclick="window.openContactModal('Website Development')" style="cursor: pointer;">
           <div class="bento-content">
             <div class="feature-icon">🌐</div>
             <h3>Website Development</h3>
             <p>Cutting-edge, responsive designs integrated with modern performance standards to captivate your audience and turn clicks into recurring revenue.</p>
           </div>
         </div>
-        <div class="bento-card bento-tall reveal">
+        <div class="bento-card bento-tall reveal" onclick="window.openContactModal('Application Development')" style="cursor: pointer;">
           <div class="bento-content">
             <div class="feature-icon">📱</div>
             <h3>Application Development</h3>
             <p>Scalable and secure web and mobile applications engineered from the ground up for exceptional user experiences and robust enterprise functionality.</p>
           </div>
         </div>
-        <div class="bento-card reveal">
+        <div class="bento-card reveal" onclick="window.openContactModal('Short Form VSL')" style="cursor: pointer;">
           <div class="bento-content">
             <div class="feature-icon">🎬</div>
             <h3>Short Form VSL</h3>
             <p>Dynamic Video Sales Letters optimized for high engagement and supreme conversion rates.</p>
           </div>
         </div>
-        <div class="bento-card reveal">
+        <div class="bento-card reveal" onclick="window.openContactModal('LinkedIn Content Writing')" style="cursor: pointer;">
           <div class="bento-content">
             <div class="feature-icon">✍️</div>
             <h3>LinkedIn Content</h3>
@@ -322,7 +322,7 @@ function renderLeadCapture() {
 }
 
 // Modal Logic
-function openContactModal() {
+window.openContactModal = function (serviceOverride = null) {
   const overlay = document.getElementById('contactModalOverlay');
   const formContainer = document.getElementById('modalFormContainer');
 
@@ -331,16 +331,22 @@ function openContactModal() {
   // Inject the form inside the modal
   formContainer.innerHTML = renderLeadCapture();
 
-  // Auto-select service if passed via sessionStorage
-  const storedService = sessionStorage.getItem('selectedService');
-  if (storedService) {
-    const selectEl = document.getElementById('serviceOfInterest');
-    if (selectEl) selectEl.value = storedService;
+  // Auto-select service if passed via direct parameter or fallback to sessionStorage
+  const selectEl = document.getElementById('serviceOfInterest');
+  if (selectEl) {
+    if (serviceOverride) {
+      selectEl.value = serviceOverride;
+    } else {
+      const storedService = sessionStorage.getItem('selectedService');
+      if (storedService) {
+        selectEl.value = storedService;
+      }
+    }
   }
 
   // Display the modal via CSS class
   overlay.classList.add('show');
-}
+};
 
 window.closeContactModal = function () {
   const overlay = document.getElementById('contactModalOverlay');
