@@ -520,17 +520,19 @@ window.handleContactSubmit = function (event) {
   submitBtn.disabled = true;
 
   const url = "https://docs.google.com/forms/d/e/1FAIpQLSfUBw3kAv2qoIC2Z45K8RNdzQlaIZYz_UALH4sEFnWDxfUETw/formResponse";
-  const formData = new URLSearchParams();
-  formData.append("entry.1698580962", name);
-  formData.append("entry.1399885084", email);
-  formData.append("entry.584713419", service);
-  formData.append("entry.31456989", details);
 
-  fetch(url, {
-    method: "POST",
-    mode: "no-cors",
-    body: formData
-  }).then(() => {
+  // Create or reuse hidden iframe to bypass fetch CORS/no-cors payload dropping
+  let iframe = document.getElementById('hiddenConfirmIframe');
+  if (!iframe) {
+    iframe = document.createElement('iframe');
+    iframe.id = 'hiddenConfirmIframe';
+    iframe.name = 'hiddenConfirmIframe';
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+  }
+
+  // Set up the load event listener to detect when the Google Form finishes loading in the background
+  iframe.onload = function () {
     // Show success message inside the modal
     const formContainer = document.getElementById('modalFormContainer');
     formContainer.innerHTML = `
@@ -540,10 +542,51 @@ window.handleContactSubmit = function (event) {
         <button class="btn btn-primary" style="margin-top: 2rem;" onclick="closeContactModal()">Close Window</button>
       </div>
     `;
-  }).catch(err => {
+    // Clean up
+    iframe.onload = null;
+  };
+
+  // Create virtual form and submit
+  const form = document.createElement('form');
+  form.action = url;
+  form.method = 'POST';
+  form.target = 'hiddenConfirmIframe';
+  form.style.display = 'none';
+
+  // Map internal UI dropdown values to the strict exact strings expected by the Google Form
+  const serviceMap = {
+    "Website Development": "Web Design & Development",
+    "Short Form VSL": "Short Form Video Sales Letter (VSL)",
+    "LinkedIn Content Writing": "LinkedIn Management & Services",
+    "Application Development": "Customized Software Development",
+    "Other": "" // Google Form doesn't have an "Other" option enabled, leave blank or map to custom
+  };
+
+  const mappedService = serviceMap[service] !== undefined ? serviceMap[service] : service;
+
+  const inputs = {
+    "entry.1698580962": name,
+    "entry.1399885084": email,
+    "entry.584713419": mappedService,
+    "entry.31456989": details
+  };
+
+  for (let key in inputs) {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = key;
+    input.value = inputs[key];
+    form.appendChild(input);
+  }
+
+  document.body.appendChild(form);
+
+  try {
+    form.submit();
+  } catch (err) {
     console.error(err);
     alert("There was an error sending your message. Please try again.");
     submitBtn.innerText = originalText;
     submitBtn.disabled = false;
-  });
+  }
 };
