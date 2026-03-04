@@ -1029,6 +1029,13 @@ h3 {
     color: var(--accent-color);
 }
 
+.footer-address {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    margin-bottom: 0.8rem;
+    line-height: 1.6;
+}
+
 .contact-email {
     display: inline-block;
     color: var(--text-secondary);
