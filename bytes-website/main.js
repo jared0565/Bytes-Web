@@ -205,7 +205,7 @@ function renderHome() {
       </div>
 
       <!-- Bento Grid Features -->
-      <div class="bento-grid">
+      <div id="services" class="bento-grid">
         <div class="bento-card bento-wide reveal" onclick="window.openContactModal('Website Development')" style="cursor: pointer;">
           <div class="bento-content">
             <div class="feature-icon">🌐</div>
@@ -481,12 +481,15 @@ function router() {
   }
 
   // Remember the last actual page route
-  lastHash = hash;
+  // We don't overwrite lastHash on #services so backtracking is clean
+  if (hash !== '#services') {
+    lastHash = hash;
+  }
 
   const app = document.getElementById('app');
 
-  // Cancel starfield animation if navigating away from home
-  if (starfieldAnimId) {
+  // Cancel starfield animation if navigating away from home natively
+  if (starfieldAnimId && hash !== '#home' && hash !== '#services' && hash !== '') {
     cancelAnimationFrame(starfieldAnimId);
     starfieldAnimId = null;
   }
@@ -494,8 +497,26 @@ function router() {
   // Clear previous observers or timeouts if needed
   switch (hash) {
     case '#home':
-      app.innerHTML = renderHome();
-      initInteractions();
+    case '#services':
+    case '':
+      // Prevent full re-render if we are already on the home view (to preserve scroll and loaded assets)
+      if (!app.querySelector('.home-view')) {
+        app.innerHTML = renderHome();
+        initInteractions();
+      } else if (hash === '#home' || hash === '') {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      if (hash === '#services') {
+        setTimeout(() => {
+          const servicesEl = document.getElementById('services');
+          if (servicesEl) {
+            // Calculate position with 80px offset for the fixed navbar
+            const y = servicesEl.getBoundingClientRect().top + window.scrollY - 80;
+            window.scrollTo({ top: y, behavior: 'smooth' });
+          }
+        }, 10);
+      }
       break;
     case '#privacy':
       app.innerHTML = renderPrivacy();
