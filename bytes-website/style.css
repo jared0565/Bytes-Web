@@ -821,6 +821,159 @@ h3 {
 }
 
 /* ------------------------------------- */
+/* Inner Page (Legal) Styles */
+/* ------------------------------------- */
+.legal-page-wrapper {
+    min-height: 100vh;
+    padding: 180px 5% 80px;
+    max-width: 900px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 3rem;
+}
+
+.legal-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.legal-header .title-accent {
+    color: var(--accent-color);
+}
+
+.legal-header h2 {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    letter-spacing: -0.02em;
+}
+
+.legal-header .last-updated {
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+    font-weight: 300;
+}
+
+.legal-body {
+    padding: 3rem 4rem;
+    border-radius: 24px;
+    background: rgba(20, 20, 31, 0.4);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+}
+
+.legal-body h3 {
+    margin: 2.5rem 0 1.5rem;
+    color: #fff;
+    font-size: 1.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 0.5rem;
+}
+
+.legal-body h3:first-child {
+    margin-top: 0;
+}
+
+.legal-body p {
+    color: var(--text-secondary);
+    margin-bottom: 1.25rem;
+    line-height: 1.8;
+    font-size: 1.05rem;
+}
+
+.legal-body ul {
+    margin-bottom: 1.5rem;
+    padding-left: 1.5rem;
+    color: var(--text-secondary);
+    line-height: 1.8;
+}
+
+.legal-body li {
+    margin-bottom: 0.5rem;
+}
+
+.legal-body strong {
+    color: #fff;
+    font-weight: 500;
+}
+
+.legal-body a {
+    color: var(--accent-color);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+}
+
+/* ------------------------------------- */
+/* Revenue Center CTA (Inner Pages) */
+/* ------------------------------------- */
+.revenue-center-cta {
+    position: relative;
+    padding: 4rem;
+    border-radius: 24px;
+    text-align: center;
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(20, 20, 31, 0.8) 100%);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    box-shadow: 0 0 40px rgba(99, 102, 241, 0.15);
+    overflow: hidden;
+}
+
+.revenue-center-cta::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle at center, rgba(99, 102, 241, 0.1) 0%, transparent 50%);
+    z-index: 0;
+    animation: rotate 15s linear infinite;
+}
+
+.revenue-center-content {
+    position: relative;
+    z-index: 1;
+}
+
+.revenue-center-content h2 {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    color: #fff;
+}
+
+.revenue-center-content p {
+    font-size: 1.2rem;
+    color: var(--text-secondary);
+    margin-bottom: 2rem;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+@media (max-width: 768px) {
+    .legal-page-wrapper {
+        padding: 120px 5% 60px;
+    }
+
+    .legal-body {
+        padding: 2rem;
+    }
+
+    .revenue-center-cta {
+        padding: 3rem 1.5rem;
+    }
+
+    .revenue-center-content h2 {
+        font-size: 2rem;
+    }
+
+    .legal-header h2 {
+        font-size: 2.2rem;
+    }
+}
+
+/* ------------------------------------- */
 /* Comprehensive Footer */
 /* ------------------------------------- */
 .site-footer {

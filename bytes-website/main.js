@@ -362,11 +362,13 @@ let lastHash = '';
 
 function renderPrivacy() {
   return `
-    <div class="page-view legal-view glass-panel">
-      <h2>Privacy Policy</h2>
-      <p class="last-updated">Last updated: ` + new Date().toLocaleDateString() + `</p>
+    <div class="page-view legal-page-wrapper">
+      <div class="legal-header">
+        <h2>Privacy <span class="title-accent">Policy</span></h2>
+        <p class="last-updated">Last updated: ` + new Date().toLocaleDateString() + `</p>
+      </div>
       
-      <div class="legal-content">
+      <div class="legal-body glass-panel">
         <p>This Privacy Policy explains how BytesFX (operated by Bytes Enterprises Ltd., "we", "us", or "our") collects, uses, and protects your personal information. We comply with the UK General Data Protection Regulation (UK GDPR), the EU GDPR, and the Privacy and Electronic Communications Regulations (PECR).</p>
         
         <h3>1. Information We Collect</h3>
@@ -416,25 +418,36 @@ function renderPrivacy() {
         </ul>
 
         <h3>7. How to Complain</h3>
-        <p>If you have concerns, please contact us at <strong>contact@bytesfx.com</strong> first. If you remain unsatisfied, you have the right to lodge a complaint with the Information Commissioner’s Office (ICO), the UK’s supervisory authority for data protection.</p>
-        <p><strong>ICO Website:</strong> <a href="https://www.ico.org.uk">https://www.ico.org.uk</a><br><strong>Address:</strong> Wycliffe House, Water Lane, Wilmslow, Cheshire, SK9 5AF.</p>
+        <p>If you have concerns, please contact us at <a href="mailto:contact@bytesfx.com">contact@bytesfx.com</a> first. If you remain unsatisfied, you have the right to lodge a complaint with the Information Commissioner’s Office (ICO), the UK’s supervisory authority for data protection.</p>
+        <p><strong>ICO Website:</strong> <a href="https://www.ico.org.uk" target="_blank" rel="noopener noreferrer">https://www.ico.org.uk</a><br><strong>Address:</strong> Wycliffe House, Water Lane, Wilmslow, Cheshire, SK9 5AF.</p>
 
         <h3>8. Contact Us</h3>
         <p><strong>Business Name:</strong> Bytes Enterprises Ltd.<br>
         <strong>Address:</strong> International House, 24 Holborn Viaduct, London, United Kingdom, EC1A 2BN<br>
-        <strong>Email:</strong> <strong>contact@bytesfx.com</strong></p>
+        <strong>Email:</strong> <a href="mailto:contact@bytesfx.com">contact@bytesfx.com</a></p>
       </div>
-    </div >
-        `;
+
+      <!-- Revenue Center CTA -->
+      <div class="revenue-center-cta">
+        <div class="revenue-center-content">
+          <h2>Ready to scale your business?</h2>
+          <p>Don't let your digital presence hold you back. Let's discuss how we can engineer growth for your brand.</p>
+          <button class="btn btn-primary" onclick="window.location.hash='#lead-capture'">Book a Free Discovery Call</button>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function renderTerms() {
   return `
-    <div class="page-view legal-view glass-panel">
-      <h2>Terms of Service</h2>
-      <p class="last-updated">Last updated: ` + new Date().toLocaleDateString() + `</p>
+    <div class="page-view legal-page-wrapper">
+      <div class="legal-header">
+        <h2>Terms of <span class="title-accent">Service</span></h2>
+        <p class="last-updated">Last updated: ` + new Date().toLocaleDateString() + `</p>
+      </div>
       
-      <div class="legal-content">
+      <div class="legal-body glass-panel">
         <h3>1. Introduction</h3>
         <p>These Terms & Conditions govern the relationship between Bytes Enterprises Ltd ("BytesFX", "we", "us") and you. By using this website or purchasing our services, you agree to these terms.</p>
         
@@ -463,11 +476,20 @@ function renderTerms() {
         <p>
           Bytes Enterprises Ltd.<br>
           International House, 24 Holborn Viaduct, London, EC1A 2BN<br>
-          Email: <strong>contact@bytesfx.com</strong>
+          Email: <a href="mailto:contact@bytesfx.com">contact@bytesfx.com</a>
         </p>
       </div>
-    </div >
-        `;
+
+      <!-- Revenue Center CTA -->
+      <div class="revenue-center-cta">
+        <div class="revenue-center-content">
+          <h2>Ready to scale your business?</h2>
+          <p>Don't let your digital presence hold you back. Let's discuss how we can engineer growth for your brand.</p>
+          <button class="btn btn-primary" onclick="window.location.hash='#lead-capture'">Book a Free Discovery Call</button>
+        </div>
+      </div>
+    </div>
+  `;
 }
 function router() {
   const hash = window.location.hash || '#home';
