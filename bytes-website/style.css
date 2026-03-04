@@ -64,6 +64,18 @@ h3 {
     transition: all 0.3s ease;
 }
 
+.mobile-menu-btn {
+    position: relative;
+    display: none;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    z-index: 1001;
+    /* To sit above mobile menu if covers screen */
+    padding: 0.5rem;
+}
+
 .nav-links {
     display: flex;
     list-style: none;
@@ -77,6 +89,9 @@ h3 {
     color: var(--text-secondary);
     transition: color 0.3s ease;
     position: relative;
+    padding: 0.5rem 1rem;
+    /* Increase hit area for mobile/desktop */
+    display: inline-block;
 }
 
 .nav-item:hover {
@@ -690,30 +705,52 @@ h3 {
 
 @media (max-width: 768px) {
     .navbar {
-        flex-direction: column;
-        height: auto;
-        padding: 1rem;
-        gap: 1rem;
+        height: 80px;
+        padding: 0 5%;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .mobile-menu-btn {
+        display: block;
+        order: 2;
+        margin-left: auto;
     }
 
     .nav-links {
-        flex-wrap: wrap;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100vh;
+        background: rgba(10, 10, 15, 0.98);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        flex-direction: column;
         justify-content: center;
-        gap: 1rem;
-        order: 2;
-        /* Move links below logo */
+        align-items: center;
+        gap: 2rem;
+        transform: translateY(-100%);
+        transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        z-index: 1000;
+        padding: 2rem;
+    }
+
+    .nav-links.active {
+        transform: translateY(0);
     }
 
     .logo-container {
-        order: 1;
-        /* Keep logo on top for mobile */
-        align-self: flex-end;
-        /* explicitly upper right! */
+        position: relative;
+        z-index: 1001;
+        order: -1;
+        margin-right: auto;
     }
 
     #app {
-        margin-top: 130px;
-        min-height: calc(100vh - 130px);
+        margin-top: 80px;
+        min-height: calc(100vh - 80px);
     }
 
     .hero-title {
@@ -1255,6 +1292,7 @@ h3 {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
+    pointer-events: none;
 }
 
 .chatbot-launcher {
@@ -1270,6 +1308,7 @@ h3 {
     justify-content: center;
     box-shadow: 0 8px 32px rgba(189, 255, 0, 0.3);
     transition: transform 0.3s ease, box-shadow 0.3s ease;
+    pointer-events: auto;
 }
 
 .chatbot-launcher:hover {
@@ -1281,18 +1320,21 @@ h3 {
     width: 380px;
     height: 550px;
     max-height: 85vh;
-    background: rgba(10, 10, 10, 0.95);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
     margin-bottom: 20px;
     display: flex;
     flex-direction: column;
     overflow: hidden;
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
     transform-origin: bottom right;
-    transition: opacity 0.3s ease, transform 0.3s ease;
+    transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     padding: 0;
     /* Override any inherited padding causing the black border */
+    pointer-events: auto;
 }
 
 .chatbot-window.hidden {
@@ -1302,9 +1344,9 @@ h3 {
 }
 
 .chatbot-header {
-    padding: 1rem 1.25rem;
-    background: rgba(255, 255, 255, 0.05);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 1.25rem 1.5rem;
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid var(--glass-border);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1365,23 +1407,27 @@ h3 {
 }
 
 .bot-message {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
     align-self: flex-start;
-    border-bottom-left-radius: 2px;
+    border-bottom-left-radius: 4px;
 }
 
 .user-message {
-    background: var(--accent-color);
-    color: var(--dark-bg);
+    background: linear-gradient(135deg, var(--accent-hover) 0%, var(--accent-color) 100%);
+    color: #fff;
     align-self: flex-end;
-    border-bottom-right-radius: 2px;
+    border-bottom-right-radius: 4px;
     font-weight: 500;
+    box-shadow: 0 4px 15px var(--accent-glow);
 }
 
 .chatbot-input-area {
-    padding: 1rem;
-    background: rgba(255, 255, 255, 0.02);
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 1.25rem;
+    background: rgba(0, 0, 0, 0.2);
+    border-top: 1px solid var(--glass-border);
     margin: 0;
     width: 100%;
     box-sizing: border-box;
@@ -1394,36 +1440,40 @@ h3 {
 
 #chatInput {
     flex: 1;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 20px;
+    border-radius: 12px;
     padding: 0.8rem 1rem;
-    color: var(--text-color);
-    font-family: var(--font-primary);
+    color: var(--text-primary);
+    font-family: inherit;
     outline: none;
-    transition: border-color 0.3s ease;
+    transition: all 0.3s ease;
 }
 
 #chatInput:focus {
     border-color: var(--accent-color);
+    background: rgba(255, 255, 255, 0.08);
 }
 
 .btn-send-chat {
     background: var(--accent-color);
-    color: var(--dark-bg);
+    color: #fff;
     border: none;
-    border-radius: 50%;
-    width: 45px;
-    height: 45px;
+    border-radius: 12px;
+    width: 48px;
+    height: 48px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: transform 0.2s ease;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px var(--accent-glow);
 }
 
 .btn-send-chat:hover {
-    transform: scale(1.05);
+    background: var(--accent-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px var(--accent-glow);
 }
 
 .btn-send-chat:disabled {

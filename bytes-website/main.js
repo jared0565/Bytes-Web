@@ -206,18 +206,35 @@ function renderHome() {
 
       <!-- Bento Grid Features -->
       <div id="services" class="bento-grid">
-        <div class="bento-card bento-wide reveal" onclick="window.openContactModal('Website Development')" style="cursor: pointer;">
+        <!-- Top Row -->
+        <div class="bento-card bento-wide reveal" onclick="window.openContactModal('Application Development')" style="cursor: pointer;">
+          <div class="bento-content">
+            <div class="feature-icon">📱</div>
+            <h3>Application Development</h3>
+            <p>Scalable and secure web and mobile applications engineered from the ground up for exceptional user experiences and robust enterprise functionality.</p>
+          </div>
+        </div>
+        <div class="bento-card reveal" onclick="window.openContactModal('AI Chatbot Development')" style="cursor: pointer;">
+          <div class="bento-content">
+            <div class="feature-icon">🤖</div>
+            <h3>AI Chatbot Development</h3>
+            <p>Custom B2B Sales & Lead Gen bots that automatically qualify traffic and book calls 24/7.</p>
+          </div>
+        </div>
+
+        <!-- Bottom Row -->
+        <div class="bento-card reveal" onclick="window.openContactModal('Website Development')" style="cursor: pointer;">
           <div class="bento-content">
             <div class="feature-icon">🌐</div>
             <h3>Website Development</h3>
             <p>Cutting-edge, responsive designs integrated with modern performance standards to captivate your audience and turn clicks into recurring revenue.</p>
           </div>
         </div>
-        <div class="bento-card bento-tall reveal" onclick="window.openContactModal('Application Development')" style="cursor: pointer;">
+        <div class="bento-card reveal" onclick="window.openContactModal('LinkedIn Services')" style="cursor: pointer;">
           <div class="bento-content">
-            <div class="feature-icon">📱</div>
-            <h3>Application Development</h3>
-            <p>Scalable and secure web and mobile applications engineered from the ground up for exceptional user experiences and robust enterprise functionality.</p>
+            <div class="feature-icon">✍️</div>
+            <h3>LinkedIn Services</h3>
+            <p>Profile optimization, thought-leadership content, and complete management for maximum ROI.</p>
           </div>
         </div>
         <div class="bento-card reveal" onclick="window.openContactModal('Short Form VSL')" style="cursor: pointer;">
@@ -225,13 +242,6 @@ function renderHome() {
             <div class="feature-icon">🎬</div>
             <h3>Short Form VSL</h3>
             <p>Dynamic Video Sales Letters optimized for high engagement and supreme conversion rates.</p>
-          </div>
-        </div>
-        <div class="bento-card reveal" onclick="window.openContactModal('LinkedIn Content Writing')" style="cursor: pointer;">
-          <div class="bento-content">
-            <div class="feature-icon">✍️</div>
-            <h3>LinkedIn Content</h3>
-            <p>Strategic, thought-leadership content designed to skyrocket your professional network reach.</p>
           </div>
         </div>
       </div>
@@ -306,8 +316,9 @@ function renderLeadCapture() {
             <option value="" disabled selected>Select a Service</option>
             <option value="Website Development">Website Development</option>
             <option value="Short Form VSL">Short Form VSL</option>
-            <option value="LinkedIn Content Writing">LinkedIn Content Writing</option>
+            <option value="LinkedIn Services">LinkedIn Services</option>
             <option value="Application Development">Application Development</option>
+            <option value="AI Chatbot Development">AI Chatbot Development</option>
             <option value="Other">Other Custom Request</option>
           </select>
         </div>
@@ -525,7 +536,9 @@ function router() {
       if (!app.querySelector('.home-view')) {
         app.innerHTML = renderHome();
         initInteractions();
-      } else if (hash === '#home' || hash === '') {
+      }
+
+      if (hash === '#home' || hash === '') {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
 
@@ -575,6 +588,30 @@ function initApp() {
     btnCloseModal.addEventListener('click', window.closeContactModal);
   }
 
+  // Mobile Menu Logic
+  const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+  const navLinks = document.getElementById('navLinks');
+
+  if (mobileMenuBtn && navLinks) {
+    mobileMenuBtn.addEventListener('click', () => {
+      navLinks.classList.toggle('active');
+    });
+
+    // Close menu when a link is clicked
+    const navItems = navLinks.querySelectorAll('a');
+    navItems.forEach(item => {
+      item.addEventListener('click', () => {
+        navLinks.classList.remove('active');
+
+        // If clicking the link of the page we are currently on, manually trigger router to scroll up
+        const targetHash = item.getAttribute('href');
+        if (targetHash && (window.location.hash === targetHash || (window.location.hash === '' && targetHash === '#home'))) {
+          router();
+        }
+      });
+    });
+  }
+
   // Modal Close on click outside content
   const overlay = document.getElementById('contactModalOverlay');
   if (overlay) {
@@ -606,6 +643,11 @@ function initChatbot() {
   const messagesContainer = document.getElementById('chat-messages');
 
   if (!btnOpen || !btnClose || !chatWindow || !chatForm) return;
+
+  // Initialize with the hardcoded greeting from HTML
+  let chatHistory = [
+    { role: 'model', parts: [{ text: "Hi there! I'm BytesAI. How can I help you scale today?" }] }
+  ];
 
   // Toggle Window
   btnOpen.addEventListener('click', () => {
@@ -641,7 +683,7 @@ function initChatbot() {
       const response = await fetch(API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: message })
+        body: JSON.stringify({ message: message, history: chatHistory })
       });
 
       const data = await response.json();
@@ -649,7 +691,12 @@ function initChatbot() {
 
       // 4. Add Bot Message to UI
       if (response.ok && data.response) {
+        chatHistory.push({ role: 'user', parts: [{ text: message }] });
+        chatHistory.push({ role: 'model', parts: [{ text: data.response }] });
         appendMessage(data.response, 'bot-message');
+      } else if (response.status === 429) {
+        // Specific handling for our rate limiter
+        appendMessage(data.error || "You are sending messages too quickly. Please wait a moment.", 'bot-message');
       } else {
         appendMessage("I'm currently unable to connect to my brain. Please email us directly!", 'bot-message');
         console.error("Chat API Error:", data.error || data);
@@ -782,8 +829,9 @@ window.handleContactSubmit = function (event) {
   const serviceMap = {
     "Website Development": "Web Design & Development",
     "Short Form VSL": "Short Form Video Sales Letter (VSL)",
-    "LinkedIn Content Writing": "LinkedIn Management & Services",
+    "LinkedIn Services": "LinkedIn Management & Services",
     "Application Development": "Customized Software Development",
+    "AI Chatbot Development": "AI Chatbot Development",
     "Other": "" // Google Form doesn't have an "Other" option enabled, leave blank or map to custom
   };
 
