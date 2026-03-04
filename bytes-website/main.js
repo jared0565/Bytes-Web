@@ -511,7 +511,8 @@ function router() {
 
 // Event Listeners
 window.addEventListener('hashchange', router);
-window.addEventListener('DOMContentLoaded', () => {
+
+function initApp() {
   router(); // Initial render
 
   // Custom logic for service injection into lead capture
@@ -544,7 +545,14 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Initialize Chatbot UI Loop
   initChatbot();
-});
+}
+
+// Check if DOM is already loaded (common with async/module scripts in Vite production builds)
+if (document.readyState === 'loading') {
+  window.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
+}
 
 function initChatbot() {
   const btnOpen = document.getElementById('btnOpenChat');
