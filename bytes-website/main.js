@@ -541,7 +541,111 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Initialize Cookie Consent Banner Logic
   initCookieConsent();
+
+  // Initialize Chatbot UI Loop
+  initChatbot();
 });
+
+function initChatbot() {
+  const btnOpen = document.getElementById('btnOpenChat');
+  const btnClose = document.getElementById('btnCloseChat');
+  const chatWindow = document.getElementById('chatbot-window');
+  const chatForm = document.getElementById('chatForm');
+  const chatInput = document.getElementById('chatInput');
+  const messagesContainer = document.getElementById('chat-messages');
+
+  if (!btnOpen || !btnClose || !chatWindow || !chatForm) return;
+
+  // Toggle Window
+  btnOpen.addEventListener('click', () => {
+    chatWindow.classList.toggle('hidden');
+    if (!chatWindow.classList.contains('hidden')) {
+      chatInput.focus();
+    }
+  });
+
+  btnClose.addEventListener('click', () => {
+    chatWindow.classList.add('hidden');
+  });
+
+  // Handle Submit
+  chatForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const message = chatInput.value.trim();
+    if (!message) return;
+
+    // 1. Add User Message to UI
+    appendMessage(message, 'user-message');
+    chatInput.value = '';
+    chatInput.disabled = true;
+
+    // 2. Add Typing Indicator
+    const typingId = showTypingIndicator();
+
+    try {
+      // 3. Send to our custom Gemini API Worker (Currently running locally pointing to test port 8787)
+      // Note: When you deploy the worker to production, you will change this URL to your actual worker URL!
+      const API_URL = "https://chatbot-api.bmorris0565.workers.dev";
+
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: message })
+      });
+
+      const data = await response.json();
+      removeTypingIndicator(typingId);
+
+      // 4. Add Bot Message to UI
+      if (response.ok && data.response) {
+        appendMessage(data.response, 'bot-message');
+      } else {
+        appendMessage("I'm currently unable to connect to my brain. Please email us directly!", 'bot-message');
+        console.error("Chat API Error:", data.error || data);
+      }
+
+    } catch (err) {
+      removeTypingIndicator(typingId);
+      appendMessage("Connection error. Please try again later.", 'bot-message');
+      console.error("Chat Network Error:", err);
+    } finally {
+      chatInput.disabled = false;
+      chatInput.focus();
+    }
+  });
+
+  function appendMessage(text, className) {
+    const div = document.createElement('div');
+    div.className = `chat-message ${className}`;
+
+    // Simple markdown formatting for bold text from Gemini
+    const formattedText = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    div.innerHTML = `<p>${formattedText}</p>`;
+
+    messagesContainer.appendChild(div);
+    scrollToBottom();
+  }
+
+  function showTypingIndicator() {
+    const id = 'typing-' + Date.now();
+    const div = document.createElement('div');
+    div.id = id;
+    div.className = `chat-message bot-message typing-indicator`;
+    div.innerHTML = `<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>`;
+    messagesContainer.appendChild(div);
+    scrollToBottom();
+    return id;
+  }
+
+  function removeTypingIndicator(id) {
+    const el = document.getElementById(id);
+    if (el) el.remove();
+  }
+
+  function scrollToBottom() {
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  }
+}
 
 function initCookieConsent() {
   const banner = document.getElementById('cookieConsentBanner');

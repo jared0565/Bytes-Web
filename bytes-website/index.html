@@ -106,6 +106,43 @@
     </div>
   </div>
 
+  <!-- Custom Chatbot Widget UI -->
+  <div id="chatbot-widget" class="chatbot-widget">
+    <div id="chatbot-window" class="chatbot-window glass-panel hidden">
+      <div class="chatbot-header">
+        <div class="chatbot-title">
+          <span class="status-dot"></span>
+          Bytes<span class="highlight">AI</span>
+        </div>
+        <button id="btnCloseChat" class="btn-close-chat">&times;</button>
+      </div>
+      <div id="chat-messages" class="chatbot-messages">
+        <!-- Messages will be injected here -->
+        <div class="chat-message bot-message">
+          <p>Hi there! I'm BytesAI. How can I help you scale today?</p>
+        </div>
+      </div>
+      <div class="chatbot-input-area">
+        <form id="chatForm">
+          <input type="text" id="chatInput" placeholder="Type your message..." autocomplete="off" required>
+          <button type="submit" id="btnSendChat" class="btn-send-chat">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </form>
+      </div>
+    </div>
+    <button id="btnOpenChat" class="chatbot-launcher">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+      </svg>
+    </button>
+  </div>
+
   <script type="module" src="/main.js"></script>
   <script>
     document.getElementById('currentYear').textContent = new Date().getFullYear();
