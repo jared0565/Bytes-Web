@@ -447,10 +447,10 @@ h3 {
 .trusted-section {
     padding: 3rem 0;
     text-align: center;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
     margin: 2rem 0 4rem;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.02) 50%, transparent);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.04) 50%, transparent);
 }
 
 .trusted-label {
@@ -498,14 +498,15 @@ h3 {
     margin: 0 4rem;
     font-size: 1.6rem;
     font-weight: 700;
-    color: var(--text-secondary);
-    opacity: 0.4;
-    filter: grayscale(100%);
-    transition: opacity 0.3s;
+    color: var(--text-primary);
+    opacity: 0.72;
+    filter: grayscale(30%);
+    transition: opacity 0.3s ease, filter 0.3s ease;
 }
 
 .marquee-content span:hover {
-    opacity: 0.8;
+    opacity: 1;
+    filter: grayscale(0%);
 }
 
 @keyframes scroll {
