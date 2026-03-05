@@ -670,6 +670,7 @@ function initChatbot() {
     // 1. Add User Message to UI
     appendMessage(message, 'user-message');
     chatInput.value = '';
+    chatInput.blur(); // Hide mobile keypad immediately
     chatInput.disabled = true;
 
     // 2. Add Typing Indicator
@@ -708,7 +709,10 @@ function initChatbot() {
       console.error("Chat Network Error:", err);
     } finally {
       chatInput.disabled = false;
-      chatInput.focus();
+      // Only auto-focus on desktop to prevent the keypad from re-opening on mobile
+      if (window.innerWidth > 768) {
+        chatInput.focus();
+      }
     }
   });
 

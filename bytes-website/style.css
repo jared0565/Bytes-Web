@@ -1531,15 +1531,30 @@ h3 {
 }
 
 @media (max-width: 480px) {
+    .chatbot-launcher {
+        position: fixed;
+        bottom: 1.5rem;
+        right: 1.5rem;
+        z-index: 10000;
+    }
+
     .chatbot-window {
-        width: 100vw;
-        height: 100dvh;
-        /* dvh ensures it doesn't get hidden by mobile browser UI */
-        max-height: none;
-        right: 0;
-        bottom: 0;
-        border-radius: 0;
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) !important;
+        width: 90vw;
+        height: 75dvh;
+        max-height: 600px;
+        border-radius: 20px;
         margin-bottom: 0;
-        border: none;
+        border: 1px solid var(--glass-border);
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+    }
+
+    .chatbot-window.hidden {
+        transform: translate(-50%, -50%) scale(0.9) !important;
+        opacity: 0;
+        pointer-events: none;
     }
 }
