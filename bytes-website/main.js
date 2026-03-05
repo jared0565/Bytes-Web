@@ -709,9 +709,10 @@ function initChatbot() {
   btnOpen.addEventListener('click', () => {
     chatWindow.classList.toggle('hidden');
     if (!chatWindow.classList.contains('hidden')) {
-      // Lock background scroll on mobile
+      // Lock background scroll on mobile and hide the launcher
       if (isMobile()) {
         document.body.style.overflow = 'hidden';
+        btnOpen.style.display = 'none'; // hide launcher while chat is open
         handleViewportResize();
       } else {
         chatInput.focus();
@@ -723,9 +724,10 @@ function initChatbot() {
 
   btnClose.addEventListener('click', () => {
     chatWindow.classList.add('hidden');
-    // Restore scroll on mobile
+    // Restore scroll on mobile and show the launcher again
     if (isMobile()) {
       document.body.style.overflow = '';
+      btnOpen.style.display = 'flex'; // restore launcher
       // Reset any inline height set by the keyboard handler
       chatWindow.style.height = '';
       chatWindow.style.top = '';
