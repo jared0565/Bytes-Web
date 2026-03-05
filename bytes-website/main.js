@@ -651,6 +651,17 @@ function initApp() {
     });
   }
 
+  // Logo click — always navigate home (hashchange doesn't fire if hash is already #home)
+  const logoLink = document.querySelector('.logo-container a');
+  if (logoLink) {
+    logoLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      window.location.hash = '#home';
+      router();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }
+
   // Modal Close on click outside content
   const overlay = document.getElementById('contactModalOverlay');
   if (overlay) {
