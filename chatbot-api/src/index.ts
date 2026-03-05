@@ -110,8 +110,8 @@ export default {
 			// Add the new user message
 			contents.push({ role: 'user', parts: [{ text: body.message }] });
 
-			// Call Gemini REST API directly using gemini-2.5-flash (confirmed available for this API key)
-			const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`;
+			// Call Gemini REST API directly using gemini-3-flash-preview (confirmed available for this API key)
+			const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${env.GEMINI_API_KEY}`;
 
 			const geminiResponse = await fetch(geminiUrl, {
 				method: 'POST',
