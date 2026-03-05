@@ -741,6 +741,16 @@ h3 {
         transform: translateY(0);
     }
 
+    .nav-item {
+        font-size: 1.5rem;
+        padding: 0.8rem 1.5rem;
+    }
+
+    .btn-linkedin {
+        font-size: 1.1rem;
+        padding: 0.8rem 2rem;
+    }
+
     .logo-container {
         position: relative;
         z-index: 1001;
@@ -1532,10 +1542,7 @@ h3 {
 
 @media (max-width: 480px) {
     .chatbot-launcher {
-        position: fixed;
-        bottom: 1.5rem;
-        right: 1.5rem;
-        z-index: 10000;
+        display: none !important;
     }
 
     .chatbot-window {
