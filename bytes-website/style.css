@@ -1843,6 +1843,34 @@ h3 {
     cursor: not-allowed;
 }
 
+/* LinkedIn DM button rendered inside a bot message bubble */
+.chat-linkedin-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+    padding: 0.55rem 1.1rem;
+    background: #0a66c2;
+    color: #fff !important;
+    border-radius: 50px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 4px 14px rgba(10, 102, 194, 0.4);
+    white-space: nowrap;
+}
+
+.chat-linkedin-btn:hover {
+    background: #004182;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(10, 102, 194, 0.5);
+}
+
+.chat-linkedin-btn svg {
+    flex-shrink: 0;
+}
+
 /* Typing Indicator */
 .typing-indicator {
     display: flex;

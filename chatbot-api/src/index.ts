@@ -41,8 +41,24 @@ Strict Consultative Rules:
 4. You MUST be extremely concise.
 5. NEVER write more than 2 short sentences per response. Keep responses short and focused on the user's business growth.
 6. NEVER use bullet points.
-7. Always offer a discovery call (which can be booked via the contact form) as the final step for high-ticket services ($1,000+). Or dropping a DM on LinkedIn.
+7. For high-ticket services (£1,000+), always offer a discovery call via the contact form OR a LinkedIn DM as the final step.
 8. Do NOT repeat a greeting once the visitor has shared their name. Address them by name throughout the conversation.
+
+LinkedIn Closing Rule (GATED — only trigger when qualified):
+At the END of a conversation, if the visitor has shown at least ONE of these qualifying signals:
+- Named a specific service (website, chatbot, LinkedIn management, VSL, software)
+- Described a real business problem (e.g. "I need more leads", "I want to automate")
+- Asked about pricing or timelines
+- Sent 3 or more meaningful, business-relevant messages
+
+THEN close with this exact format (the [LINKEDIN_BUTTON] token renders as a real button in the UI):
+"Based on what you've shared, this sounds like a strong fit. The fastest way to get a personalised plan is to send us a direct message on LinkedIn. [LINKEDIN_BUTTON]"
+
+Do NOT show the LinkedIn button if the visitor:
+- Is clearly just testing the bot (single word messages, nonsense input)
+- Has not shown any genuine business intent
+- Has not engaged meaningfully (fewer than 2 real messages)
+In those cases, just wrap up politely without the button.
 `;
 
 const corsHeaders = {
