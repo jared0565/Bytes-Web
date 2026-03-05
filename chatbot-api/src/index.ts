@@ -1,5 +1,3 @@
-import { GoogleGenAI } from '@google/genai';
-
 export interface Env {
 	GEMINI_API_KEY: string;
 }
@@ -36,46 +34,35 @@ Strict Consultative Rules:
 `;
 
 const corsHeaders = {
-	'Access-Control-Allow-Origin': '*', // In production, change this to 'https://bytesfx.com'
+	'Access-Control-Allow-Origin': '*',
 	'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 	'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-// Extremely simple in-memory rate limiter (Note: resets on worker restart)
-const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000; // 10 minutes
-const MAX_REQUESTS_PER_WINDOW = 10; // Max 10 messages per 10 minutes per IP
+// Simple in-memory rate limiter
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const MAX_REQUESTS_PER_WINDOW = 10;
 const ipRequests = new Map<string, { count: number, resetTime: number }>();
 
 function isRateLimited(ip: string): boolean {
 	const now = Date.now();
 	const record = ipRequests.get(ip);
-
 	if (!record) {
 		ipRequests.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
 		return false;
 	}
-
 	if (now > record.resetTime) {
-		// Window expired, reset
 		ipRequests.set(ip, { count: 1, resetTime: now + RATE_LIMIT_WINDOW_MS });
 		return false;
 	}
-
 	record.count++;
-	if (record.count > MAX_REQUESTS_PER_WINDOW) {
-		return true;
-	}
-
-	return false;
+	return record.count > MAX_REQUESTS_PER_WINDOW;
 }
 
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-		// Handle CORS preflight requests
 		if (request.method === 'OPTIONS') {
-			return new Response(null, {
-				headers: corsHeaders,
-			});
+			return new Response(null, { headers: corsHeaders });
 		}
 
 		if (request.method !== 'POST') {
@@ -89,11 +76,8 @@ export default {
 			});
 		}
 
-		// Basic IP-based rate limiting (Soft Cutoff)
 		const clientIP = request.headers.get('CF-Connecting-IP') || 'unknown';
 		if (isRateLimited(clientIP)) {
-			// Instead of a 429 error, we return a 200 OK with a hardcoded bot response.
-			// This completely bypasses the Gemini API (burning 0 tokens) while feeling like a natural end to the chat.
 			return new Response(JSON.stringify({ response: 'It looks like we have a lot to discuss! To respect your time and give you a detailed breakdown, please send me a DM on LinkedIn so we can connect properly.' }), {
 				status: 200,
 				headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -110,51 +94,72 @@ export default {
 				});
 			}
 
-			// Initialize the new Google GenAI SDK
-			const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
+			// Build conversation contents for the Gemini API
+			const contents: { role: string, parts: { text: string }[] }[] = [];
 
-			// Start a chat session and pass the system prompt as systemInstruction
-			const chatOptions: any = {
-				model: 'gemini-2.0-flash',
-				config: {
-					systemInstruction: SYSTEM_PROMPT,
-					temperature: 0.7
-				}
-			};
+			// Add existing chat history if provided
 			if (body.history && Array.isArray(body.history) && body.history.length > 0) {
-				chatOptions.history = body.history;
+				for (const entry of body.history) {
+					contents.push({
+						role: entry.role === 'model' ? 'model' : 'user',
+						parts: entry.parts
+					});
+				}
 			}
-			const chat = ai.chats.create(chatOptions);
 
-			// If there is history from the frontend, we could theoretically load it here, 
-			// but for simplicity of this endpoint, we'll just send the current message.
-			// The new SDK handles history differently if you want to preload it, but sending the combined context works too.
+			// Add the new user message
+			contents.push({ role: 'user', parts: [{ text: body.message }] });
 
-			// Send the user's message
-			const response = await chat.sendMessage({ message: body.message });
+			// Call Gemini REST API directly using gemini-2.5-flash (confirmed available for this API key)
+			const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`;
 
-			return new Response(JSON.stringify({ response: response.text }), {
-				headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+			const geminiResponse = await fetch(geminiUrl, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					system_instruction: {
+						parts: [{ text: SYSTEM_PROMPT }]
+					},
+					contents,
+					generationConfig: {
+						temperature: 0.7,
+						maxOutputTokens: 256,
+					}
+				})
 			});
 
-		} catch (error: any) {
-			console.error('Gemini API Error:', error);
-			const details = error.response ? JSON.stringify(error.response) : error.message;
+			const geminiData = await geminiResponse.json() as any;
 
-			// Detect if Google API rejected the request due to hitting the budget/quota (429 Too Many Requests limit)
-			const isQuotaError = details.includes('429') || details.includes('quota') || (error.status === 429);
+			if (!geminiResponse.ok) {
+				const details = JSON.stringify(geminiData);
+				console.error('Gemini REST API Error:', details);
 
-			if (isQuotaError) {
-				// Fallback to rule-based answering
-				return new Response(JSON.stringify({
-					response: "Thank you for reaching out! Our team is currently experiencing high chat volume. We specialize in high-ROI Website Development, Custom Software, and LinkedIn Management for scaling founders. Please leave your email or drop us a message on LinkedIn so a human strategist can assist you directly!"
-				}), {
-					status: 200,
+				const isQuota = details.includes('429') || details.includes('quota') || details.includes('RESOURCE_EXHAUSTED');
+				if (isQuota) {
+					return new Response(JSON.stringify({
+						response: "Thank you for reaching out! Our team is currently experiencing high chat volume. We specialize in high-ROI Website Development, Custom Software, and LinkedIn Management for scaling founders. Please leave your email or drop us a message on LinkedIn so a human strategist can assist you directly!"
+					}), {
+						status: 200,
+						headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+					});
+				}
+
+				return new Response(JSON.stringify({ error: 'Failed to generate response', details }), {
+					status: 500,
 					headers: { ...corsHeaders, 'Content-Type': 'application/json' }
 				});
 			}
 
-			return new Response(JSON.stringify({ error: 'Failed to generate response', details }), {
+			const text = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text
+				|| "I'm having trouble responding right now. Please try again!";
+
+			return new Response(JSON.stringify({ response: text }), {
+				headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+			});
+
+		} catch (error: any) {
+			console.error('Worker Error:', error);
+			return new Response(JSON.stringify({ error: 'Internal server error', details: error.message }), {
 				status: 500,
 				headers: { ...corsHeaders, 'Content-Type': 'application/json' }
 			});
