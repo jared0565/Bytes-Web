@@ -181,7 +181,50 @@ export default {
 			const text = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text
 				|| "I'm having trouble responding right now. Please try again!";
 
-			return new Response(JSON.stringify({ response: text }), {
+			// --- Lead Extraction ---
+			// Scan the full conversation (history + new message) for name and email.
+			// Returns {name, email} when both are found, null otherwise.
+			function extractLeadData(history: { role: string, parts: { text: string }[] }[], newMsg: string) {
+				const allMessages = [...(history || []), { role: 'user', parts: [{ text: newMsg }] }];
+				const emailRegex = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/;
+				let capturedEmail: string | null = null;
+				let capturedName: string | null = null;
+
+				for (let i = 0; i < allMessages.length; i++) {
+					const msg = allMessages[i];
+					const msgText = msg.parts?.[0]?.text?.trim() || '';
+
+					// Find a valid email in any user message
+					if (msg.role === 'user' && !capturedEmail) {
+						const match = msgText.match(emailRegex);
+						if (match) capturedEmail = match[0];
+					}
+
+					// Find the name: look for a bot message asking for name, then take the next user message
+					if (msg.role === 'model' && !capturedName) {
+						const lower = msgText.toLowerCase();
+						if (lower.includes('first name') || lower.includes('your name')) {
+							const next = allMessages[i + 1];
+							if (next && next.role === 'user') {
+								const nameText = next.parts?.[0]?.text?.trim() || '';
+								// Accept as a name if it's short (1–4 words) and doesn't look like an email or URL
+								if (nameText && nameText.split(' ').length <= 4 && !emailRegex.test(nameText) && !nameText.includes('http')) {
+									capturedName = nameText;
+								}
+							}
+						}
+					}
+
+					if (capturedName && capturedEmail) break;
+				}
+
+				if (capturedName && capturedEmail) return { name: capturedName, email: capturedEmail };
+				return null;
+			}
+
+			const leadData = extractLeadData(body.history || [], body.message);
+
+			return new Response(JSON.stringify({ response: text, ...(leadData ? { leadData } : {}) }), {
 				headers: { ...corsHeaders, 'Content-Type': 'application/json' },
 			});
 

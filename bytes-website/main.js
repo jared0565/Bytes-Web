@@ -766,6 +766,12 @@ function initChatbot() {
         chatHistory.push({ role: 'user', parts: [{ text: message }] });
         chatHistory.push({ role: 'model', parts: [{ text: data.response }] });
         appendMessage(data.response, 'bot-message');
+
+        // 5. Silently submit lead to Google Form (once per session when name+email are captured)
+        if (data.leadData && !window._chatLeadSubmitted) {
+          window._chatLeadSubmitted = true;
+          submitChatbotLead(data.leadData.name, data.leadData.email);
+        }
       } else if (response.status === 429) {
         // Specific handling for our rate limiter
         appendMessage(data.error || "You are sending messages too quickly. Please wait a moment.", 'bot-message');
@@ -828,6 +834,46 @@ function initChatbot() {
   function scrollToBottom() {
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
   }
+}
+
+// Silently submit a chatbot-captured lead to Google Form
+function submitChatbotLead(name, email) {
+  const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfUBw3kAv2qoIC2Z45K8RNdzQlaIZYz_UALH4sEFnWDxfUETw/formResponse';
+
+  // Re-use or create a dedicated hidden iframe for the chatbot lead
+  let iframe = document.getElementById('chatLeadIframe');
+  if (!iframe) {
+    iframe = document.createElement('iframe');
+    iframe.id = 'chatLeadIframe';
+    iframe.name = 'chatLeadIframe';
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+  }
+
+  const form = document.createElement('form');
+  form.action = FORM_URL;
+  form.method = 'POST';
+  form.target = 'chatLeadIframe';
+  form.style.display = 'none';
+
+  const inputs = {
+    'entry.1698580962': name,
+    'entry.1399885084': email,
+    'entry.584713419': '',  // service — unknown at this stage
+    'entry.31456989': 'Chatbot conversation - chatbot'
+  };
+
+  for (const key in inputs) {
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = key;
+    input.value = inputs[key];
+    form.appendChild(input);
+  }
+
+  document.body.appendChild(form);
+  form.submit();
+  setTimeout(() => form.remove(), 2000);
 }
 
 function initCookieConsent() {
