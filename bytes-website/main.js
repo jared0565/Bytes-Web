@@ -787,7 +787,7 @@ function initChatbot() {
     }
   });
 
-  const LINKEDIN_URL = 'https://www.linkedin.com/company/bytesfx'; // ← update this URL if needed
+  const LINKEDIN_URL = 'https://www.linkedin.com/in/fbmacagba/';
 
   function appendMessage(text, className) {
     const div = document.createElement('div');
