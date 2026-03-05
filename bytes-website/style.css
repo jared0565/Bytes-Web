@@ -791,6 +791,12 @@ h3 {
         justify-content: center;
     }
 
+    /* Zero out the page-view wrapper padding so hero truly fills the screen */
+    .page-view:has(.hero) {
+        padding: 0;
+        max-width: 100%;
+    }
+
     .hero-content {
         gap: 0;
         width: 100%;
@@ -1927,7 +1933,7 @@ h3 {
 
     /* Show the launcher again — styled as a premium FAB */
     .chatbot-launcher {
-        display: flex !important;
+        display: flex;
         width: 56px;
         height: 56px;
         background: linear-gradient(135deg, var(--accent-hover) 0%, var(--accent-color) 100%);
@@ -1944,6 +1950,12 @@ h3 {
         cursor: pointer;
         transition: transform 0.2s ease, box-shadow 0.2s ease;
         pointer-events: auto;
+    }
+
+    /* Used by JS to hide the launcher when chat is open */
+    .chatbot-launcher.chatbot-fab-hidden {
+        display: none !important;
+        pointer-events: none;
     }
 
     .chatbot-launcher:active {
