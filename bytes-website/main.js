@@ -688,16 +688,48 @@ function initChatbot() {
     { role: 'model', parts: [{ text: "Hi there! I'm BytesAI. How can I help you scale today?" }] }
   ];
 
+  const isMobile = () => window.innerWidth <= 480;
+
+  // --- Mobile keyboard handler using visualViewport API ---
+  function handleViewportResize() {
+    if (!isMobile() || chatWindow.classList.contains('hidden')) return;
+    const vv = window.visualViewport;
+    if (!vv) return;
+    // Set the chatbot window to exactly the visible viewport height and offset
+    chatWindow.style.height = vv.height + 'px';
+    chatWindow.style.top = vv.offsetTop + 'px';
+  }
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', handleViewportResize);
+    window.visualViewport.addEventListener('scroll', handleViewportResize);
+  }
+
   // Toggle Window
   btnOpen.addEventListener('click', () => {
     chatWindow.classList.toggle('hidden');
     if (!chatWindow.classList.contains('hidden')) {
-      chatInput.focus();
+      // Lock background scroll on mobile
+      if (isMobile()) {
+        document.body.style.overflow = 'hidden';
+        handleViewportResize();
+      } else {
+        chatInput.focus();
+      }
+      // Scroll to latest message
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
   });
 
   btnClose.addEventListener('click', () => {
     chatWindow.classList.add('hidden');
+    // Restore scroll on mobile
+    if (isMobile()) {
+      document.body.style.overflow = '';
+      // Reset any inline height set by the keyboard handler
+      chatWindow.style.height = '';
+      chatWindow.style.top = '';
+    }
   });
 
   // Handle Submit
