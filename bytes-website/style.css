@@ -1246,12 +1246,13 @@ h3 {
 .modal-content {
     position: relative;
     width: 100%;
-    max-width: 600px;
-    padding: 2rem;
+    max-width: 900px;
+    padding: 0;
     transform: translateY(20px);
     transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     max-height: 90vh;
     overflow-y: auto;
+    border-radius: 20px;
 }
 
 .modal-overlay.show .modal-content {
@@ -1288,6 +1289,297 @@ h3 {
     backdrop-filter: none;
     padding: 0;
     margin-top: 1rem;
+}
+
+/* ==========================================================================
+   Premium Contact Modal Layout
+   ========================================================================== */
+
+.modal-premium-layout {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr;
+    min-height: 560px;
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+/* --- Brand Panel (Left) --- */
+.modal-brand-panel {
+    background: linear-gradient(145deg, #12122a 0%, #1a1a3e 60%, #0f1929 100%);
+    padding: 3rem 2.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+}
+
+.modal-brand-panel::before {
+    content: '';
+    position: absolute;
+    top: -60px;
+    left: -60px;
+    width: 250px;
+    height: 250px;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.25) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+.modal-brand-panel::after {
+    content: '';
+    position: absolute;
+    bottom: -80px;
+    right: -40px;
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, rgba(99, 102, 241, 0.15) 0%, transparent 70%);
+    pointer-events: none;
+}
+
+.modal-brand-logo {
+    font-size: 2rem;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: var(--text-primary);
+    margin-bottom: 2rem;
+}
+
+.modal-brand-headline {
+    font-size: 1.7rem;
+    font-weight: 700;
+    line-height: 1.25;
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+}
+
+.modal-brand-sub {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.7;
+    margin-bottom: 2rem;
+}
+
+.modal-benefit-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.modal-benefit-list li {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.benefit-icon {
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+.modal-trust-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    border-radius: 50px;
+    padding: 0.4rem 1rem;
+    font-size: 0.8rem;
+    color: var(--accent-color);
+    width: fit-content;
+}
+
+.trust-dot {
+    width: 8px;
+    height: 8px;
+    background: #22c55e;
+    border-radius: 50%;
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
+    animation: pulse-green 2s infinite;
+}
+
+@keyframes pulse-green {
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.7;
+        transform: scale(1.3);
+    }
+}
+
+/* --- Form Panel (Right) --- */
+.modal-form-panel {
+    background: var(--bg-secondary);
+    padding: 3rem 2.5rem;
+    overflow-y: auto;
+}
+
+.modal-form-title {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.modal-form-subtitle {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    margin-bottom: 2rem;
+}
+
+.premium-contact-form .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.premium-contact-form .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+}
+
+.premium-contact-form label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+.premium-contact-form input,
+.premium-contact-form select,
+.premium-contact-form textarea {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 0.8rem 1rem;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.premium-contact-form input::placeholder,
+.premium-contact-form textarea::placeholder {
+    color: rgba(154, 160, 166, 0.5);
+}
+
+.premium-contact-form input:focus,
+.premium-contact-form select:focus,
+.premium-contact-form textarea:focus {
+    border-color: var(--accent-color);
+    background: rgba(99, 102, 241, 0.06);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+}
+
+.premium-contact-form select {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%239aa0a6' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    padding-right: 2.5rem;
+    cursor: pointer;
+}
+
+.premium-contact-form select option {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.premium-contact-form textarea {
+    resize: vertical;
+    min-height: 100px;
+}
+
+.btn-submit-inquiry {
+    width: 100%;
+    padding: 1rem 2rem;
+    background: linear-gradient(135deg, var(--accent-hover) 0%, var(--accent-color) 100%);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: 0 6px 24px var(--accent-glow);
+    margin-top: 0.5rem;
+}
+
+.btn-submit-inquiry::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 60%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
+    transition: left 0.5s ease;
+}
+
+.btn-submit-inquiry:hover::before {
+    left: 150%;
+}
+
+.btn-submit-inquiry:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px var(--accent-glow);
+}
+
+.btn-submit-arrow {
+    transition: transform 0.2s ease;
+    font-size: 1.2rem;
+}
+
+.btn-submit-inquiry:hover .btn-submit-arrow {
+    transform: translateX(4px);
+}
+
+.form-fine-print {
+    text-align: center;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin-top: 1rem;
+    opacity: 0.7;
+}
+
+/* Responsive: collapse to single column on mobile */
+@media (max-width: 768px) {
+    .modal-premium-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .modal-brand-panel {
+        display: none;
+    }
+
+    .modal-form-panel {
+        padding: 2rem 1.5rem;
+    }
+
+    .premium-contact-form .form-row {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* =========================================================================

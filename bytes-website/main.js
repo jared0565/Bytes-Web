@@ -297,37 +297,76 @@ function renderHome() {
 
 function renderLeadCapture() {
   return `
-    <div class="form-container">
-      <h2 class="section-title">Let's Build Something <span class="highlight">Amazing</span></h2>
-      <p class="section-subtitle">Fill out the form below or email us directly at <strong>contact@bytesfx.com</strong>.</p>
+    <div class="modal-premium-layout">
 
-      <form id="contactForm" class="contact-form" onsubmit="handleContactSubmit(event)">
-        <div class="form-group">
-          <label for="name">Full Name</label>
-          <input type="text" id="name" required placeholder="Jane Doe" />
+      <!-- Left Brand Panel -->
+      <div class="modal-brand-panel">
+        <div class="modal-brand-logo">Bytes<span class="highlight">FX</span></div>
+        <h2 class="modal-brand-headline">Let's Build Your <span class="highlight">Competitive Edge</span></h2>
+        <p class="modal-brand-sub">Tell us what you need. We'll map out the exact solution in a free 30-minute strategy call.</p>
+        <ul class="modal-benefit-list">
+          <li>
+            <span class="benefit-icon">⚡</span>
+            <span>High-performance websites that convert</span>
+          </li>
+          <li>
+            <span class="benefit-icon">🤖</span>
+            <span>Custom AI chatbots that qualify leads 24/7</span>
+          </li>
+          <li>
+            <span class="benefit-icon">📈</span>
+            <span>LinkedIn management that builds authority</span>
+          </li>
+          <li>
+            <span class="benefit-icon">🛡️</span>
+            <span>30-day complimentary bug fix guarantee</span>
+          </li>
+        </ul>
+        <div class="modal-trust-badge">
+          <span class="trust-dot"></span>
+          Confidential & No Obligation
         </div>
-        <div class="form-group">
-          <label for="email">Email Address</label>
-          <input type="email" id="email" required pattern="[a-z0-9._%+\\-]+@[a-z0-9.\\-]+\\.[a-z]{2,}$" placeholder="jane@example.com" />
-        </div>
-        <div class="form-group">
-          <label for="serviceOfInterest">Service of Interest</label>
-          <select id="serviceOfInterest" required>
-            <option value="" disabled selected>Select a Service</option>
-            <option value="Website Development">Website Development</option>
-            <option value="Short Form VSL">Short Form VSL</option>
-            <option value="LinkedIn Services">LinkedIn Services</option>
-            <option value="Application Development">Application Development</option>
-            <option value="AI Chatbot Development">AI Chatbot Development</option>
-            <option value="Other">Other Custom Request</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label for="specialRequest">Special Request / Project Details</label>
-          <textarea id="specialRequest" rows="4" placeholder="Tell us more about what you want to build..."></textarea>
-        </div>
-        <button type="submit" class="btn btn-primary btn-block">Submit Inquiry</button>
-      </form>
+      </div>
+
+      <!-- Right Form Panel -->
+      <div class="modal-form-panel">
+        <h3 class="modal-form-title">Book a Discovery Call</h3>
+        <p class="modal-form-subtitle">Fill in your details and we'll be in touch within 24 hours.</p>
+
+        <form id="contactForm" class="premium-contact-form" onsubmit="handleContactSubmit(event)">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="name">Full Name</label>
+              <input type="text" id="name" required placeholder="Jane Doe" autocomplete="name" />
+            </div>
+            <div class="form-group">
+              <label for="email">Email Address</label>
+              <input type="email" id="email" required pattern="[a-z0-9._%+\\-]+@[a-z0-9.\\-]+\\.[a-z]{2,}$" placeholder="jane@company.com" autocomplete="email" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="serviceOfInterest">Service of Interest</label>
+            <select id="serviceOfInterest" required>
+              <option value="" disabled selected>Select a service...</option>
+              <option value="Website Development">Website Development</option>
+              <option value="Short Form VSL">Short Form VSL</option>
+              <option value="LinkedIn Services">LinkedIn Services</option>
+              <option value="Application Development">Application Development</option>
+              <option value="AI Chatbot Development">AI Chatbot Development</option>
+              <option value="Other">Other Custom Request</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="specialRequest">Project Details</label>
+            <textarea id="specialRequest" rows="4" placeholder="Tell us about your project, goals, or what problem you're trying to solve..."></textarea>
+          </div>
+          <button type="submit" class="btn-submit-inquiry">
+            <span class="btn-submit-text">Book My Discovery Call</span>
+            <span class="btn-submit-arrow">→</span>
+          </button>
+          <p class="form-fine-print">🔒 No spam. Your details are 100% confidential.</p>
+        </form>
+      </div>
     </div>
   `;
 }
@@ -812,10 +851,24 @@ window.handleContactSubmit = function (event) {
     // Show success message inside the modal
     const formContainer = document.getElementById('modalFormContainer');
     formContainer.innerHTML = `
-      <div class="form-container" style="text-align: center; padding: 3rem 1rem;">
-        <h2 class="section-title">Thank <span class="highlight">You!</span></h2>
-        <p class="section-subtitle" style="margin-top: 1rem;">Your inquiry has been instantly sent to our secure database. We will be in touch shortly.</p>
-        <button class="btn btn-primary" style="margin-top: 2rem;" onclick="closeContactModal()">Close Window</button>
+      <div class="modal-premium-layout">
+        <div class="modal-brand-panel">
+          <div class="modal-brand-logo">Bytes<span class="highlight">FX</span></div>
+          <h2 class="modal-brand-headline">You're one step closer to your <span class="highlight">Competitive Edge</span></h2>
+          <p class="modal-brand-sub">We'll review your inquiry and reach out within 24 hours to schedule your strategy call.</p>
+          <div class="modal-trust-badge">
+            <span class="trust-dot"></span>
+            Inquiry Received
+          </div>
+        </div>
+        <div class="modal-form-panel" style="display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:1.5rem;">
+          <div style="font-size: 4rem;">&#10003;</div>
+          <h3 class="modal-form-title">Thank You!</h3>
+          <p class="modal-form-subtitle" style="max-width:320px;">Your inquiry has been sent to our team. Expect a reply within 24 hours.</p>
+          <button class="btn-submit-inquiry" style="max-width:240px;" onclick="closeContactModal()">
+            <span class="btn-submit-text">Close Window</span>
+          </button>
+        </div>
       </div>
     `;
     // Clean up
