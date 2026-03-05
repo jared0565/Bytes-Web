@@ -769,6 +769,65 @@ h3 {
 
     .hero-cta-group {
         flex-direction: column;
+        align-items: center;
+    }
+}
+
+/* =====================================================
+   Mobile Hero — Perfect Single-Screen Fit (480px)
+   The hero fills exactly the visible viewport so the
+   headline, subtitle and CTA are all visible on load
+   with no scrolling required.
+   ===================================================== */
+@media (max-width: 480px) {
+    .hero {
+        /* Fill exactly the visible screen height minus the navbar */
+        min-height: calc(100dvh - 80px);
+        max-height: calc(100dvh - 80px);
+        padding: 1.5rem 1rem 1rem;
+        border-radius: 0;
+        margin-bottom: 0;
+        justify-content: center;
+    }
+
+    .hero-content {
+        gap: 0;
+        width: 100%;
+    }
+
+    /* Shrink the chip pill so it doesn't eat up space */
+    .feature-chip {
+        margin-bottom: 1rem;
+        font-size: 0.8rem;
+    }
+
+    /* Tighten title so it wraps nicely and stays compact */
+    .hero-title {
+        font-size: 2rem;
+        line-height: 1.15;
+        margin-bottom: 0.85rem;
+    }
+
+    /* Compact subtitle */
+    .hero-subtitle {
+        font-size: 0.95rem;
+        line-height: 1.5;
+        margin-bottom: 1.5rem;
+    }
+
+    /* Stack CTA buttons vertically, full-width feel */
+    .hero-cta-group {
+        flex-direction: column;
+        align-items: center;
+        gap: 0.75rem;
+        width: 100%;
+    }
+
+    .btn-primary-lime {
+        width: 100%;
+        max-width: 320px;
+        padding: 0.9rem 1.5rem;
+        justify-content: center;
     }
 }
 
