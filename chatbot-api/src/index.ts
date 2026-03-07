@@ -41,10 +41,15 @@ If the visitor is qualified (named a service, described a problem, asked about p
 "Based on what you've shared, this sounds like a strong fit. The fastest way to get a personalised plan is to send us a direct message on LinkedIn. [LINKEDIN_BUTTON]"
 `;
 
-const corsHeaders = {
-	'Access-Control-Allow-Origin': '*',
-	'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-	'Access-Control-Allow-Headers': 'Content-Type, x-admin-key',
+const getCorsHeaders = (origin: string | null) => {
+	const allowedOrigins = ['https://web.bytesfx.com', 'http://localhost:5173', 'http://127.0.0.1:5173'];
+	const currentOrigin = origin && allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+	return {
+		'Access-Control-Allow-Origin': currentOrigin,
+		'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+		'Access-Control-Allow-Headers': 'Content-Type, x-admin-key',
+		'Vary': 'Origin'
+	};
 };
 
 // Simple in-memory rate limiter
@@ -69,22 +74,24 @@ function isRateLimited(ip: string): boolean {
 
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+		const origin = request.headers.get('Origin');
+		const cors = getCorsHeaders(origin);
+
 		if (request.method === 'OPTIONS') {
-			return new Response(null, { headers: corsHeaders });
+			return new Response(null, { headers: cors });
 		}
 
 		const url = new URL(request.url);
 
 		// --- Administrative Routes (Protected) ---
 		if (url.pathname.startsWith('/api/')) {
-			const origin = request.headers.get('Origin');
 			const allowedOrigin = "https://web.bytesfx.com";
 
 			// Strictly enforce Origin for Admin Dashboard
 			if (origin && origin !== allowedOrigin && !url.hostname.includes('localhost')) {
 				return new Response(JSON.stringify({ error: `Forbidden: Invalid Origin (${origin})` }), {
 					status: 403,
-					headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+					headers: { ...cors, 'Content-Type': 'application/json' }
 				});
 			}
 
@@ -94,7 +101,7 @@ export default {
 			if (!storedKey || adminKey !== storedKey) {
 				return new Response(JSON.stringify({ error: 'Unauthorised: Invalid Key' }), {
 					status: 401,
-					headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+					headers: { ...cors, 'Content-Type': 'application/json' }
 				});
 			}
 
