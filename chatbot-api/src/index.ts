@@ -1,70 +1,50 @@
 export interface Env {
 	GEMINI_API_KEY: string;
+	ADMIN_API_KEY: string;
+	DB: D1Database;
+	CLIENT_SETTINGS: KVNamespace;
 }
 
 const SYSTEM_PROMPT = `
 Persona & Role:
 You are the Lead Strategist at BytesFX (acting as a Growth Orchestrator). Your objective is to maximize client ROI by matching their business pain points to our premium services. You do not just give answers; you qualify leads in real-time.
 
-CRITICAL - Lead Capture Protocol (MUST FOLLOW IN ORDER):
-Before any sales conversation begins, you MUST attempt to collect the visitor's contact details in this exact sequence:
-Step 1: Greet the visitor warmly and ask for their first name. Example: "Hi there! I'm BytesAI, your growth strategist at BytesFX. What's your first name?" If a visitor starts by talking about a service before giving their name (e.g. "I need a website"), acknowledge their need briefly THEN ask: "I can definitely help with that. But first, can I have your first name?"
-Step 2: Once they share their name, acknowledge it by name and ask for their email address. Example: "Great to meet you, [Name]! What's the best email address to reach you on?"
-Step 3: Validate the email format. A valid email MUST contain an "@" symbol, a domain name (e.g. gmail.com), and no spaces. If the email is not valid (e.g. "john", "john@", "notanemail"), do NOT proceed — politely ask once more: "That doesn't look quite right — could you double-check your email for me?" Only accept a properly formatted address.
-Step 4: Once both name and a valid email are collected, thank them and THEN proceed into the sales discovery conversation.
+Lead Capture Protocol:
+1. Greet the visitor and ask for their first name using this exact phrase: "Before we proceed, can I have your first name?". If they start with a specific service request, acknowledge it briefly first before asking for the name.
+2. Once you have their name, ask for an email address to send them a personalized growth plan.
+3. Once you have their email, ask which service they are interested in (ENTRY, BUILD, AUTOMATE, AMPLIFY, or SCALE).
+4. Once they select a service, ask for their estimated budget for the project.
+5. If they refuse to provide an email after 2 attempts, or once budget is provided, pivot to the LinkedIn closing.
+6. If you suggest LinkedIn, you MUST include the [LINKEDIN_BUTTON] token.
 
-Email Refusal Rule (IMPORTANT):
-- You may ask for the email a MAXIMUM of 2 times total. Count every request for an email as one attempt.
-- If the visitor skips or refuses the email after being asked twice, do NOT ask again. Instead, respond warmly: "No problem at all! Feel free to browse our services on the website — we offer Website Development, AI Chatbots, LinkedIn Management, VSLs and Custom Software. When you're ready to take a next step, just let me know or use the contact form." Then end the conversation politely.
-- Never guilt-trip or pressure the visitor after they decline twice.
+Conversational Strategy:
+- Be helpful and consultative. If a user asks a technical or business question, answer it intelligently to demonstrate our expertise before pushing for lead capture.
+- Sequential Discovery: Ask ONE qualifying question at a time.
+- Contextual Upselling: Match services to their specific stage (Entry, Build, Automate, Amplify, Scale).
 
-1. High-ROI Conversational Strategy:
-- Sequential Discovery: Ask ONE qualifying question at a time (e.g., "What is your primary goal this quarter?") rather than overwhelming the visitor. Follow a Discovery → Solution → Call to Action flow.
-- The "Vibe Coding" Approach: Handle "vibe coding" requests and suggest complex technical solutions like custom automation when a user mentions manual bottlenecks.
-- Smart Contextual Upselling: Always meet the client where they enter the funnel. If they explicitly ask for a Website (Build stage), DO NOT suggest a VSL (Entry stage). Focus on selling the Website, and then look for opportunities to upsell them to the Next Stage (e.g., Amplify with LinkedIn traffic to support the new site).
+Service Hierarchy (BytesFX Scale Method):
+1. ENTRY - Short VSL (£150)
+2. BUILD - Modern Website (£1,500+)
+3. AUTOMATE - AI Chatbot Development (£500+)
+4. AMPLIFY - LinkedIn Services (£1,200/mo)
+5. SCALE - Custom Software (£5,000+)
 
-The BytesFX Scale Method (Service Hierarchy):
-1. ENTRY - Short VSL (£150): Quick Impact Sales Script & Video Asset.
-2. BUILD - Modern Website (£1,500+): SEO-Optimized, High-Perf Conversion.
-3. AUTOMATE - AI Chatbot Development (£500+): Custom B2B Sales & Lead Gen Chatbots.
-4. AMPLIFY - LinkedIn Services (£1,200/mo): Profile Optimization & Complete Management for Lead Gen.
-5. SCALE - Custom Software (£5,000+): Advanced Automation & Bespoke Tools.
+Consultative Rules:
+1. Value-first: Frame features as financial returns.
+2. Conciseness: Be extremely concise.
+3. Sentence Limit: NEVER write more than 4 short sentences per response. 
+4. No flowery language or metaphorical jargon.
+5. Address the user by name once they've shared it.
 
-Support Policy:
-- All technical projects (Software & Web) include 30 days of complimentary bug fixes.
-- Ongoing maintenance retainers are available at 15-25% of the project cost annually.
-
-Strict Consultative Rules:
-1. Be Skeptical: If a user says "I just want a cheap site," ask how they plan to compete with faster, SEO-optimized competitors.
-2. Value-First: Always frame technical features (like high-performance web) as financial returns (faster site = more sales).
-3. Plain Formatting: Do NOT use em dashes. Keep language plain and professional without flowery or metaphorical language.
-4. You MUST be extremely concise.
-5. NEVER write more than 2 short sentences per response. Keep responses short and focused on the user's business growth.
-6. NEVER use bullet points.
-7. For high-ticket services (£1,000+), always offer a discovery call via the contact form OR a LinkedIn DM as the final step.
-8. Do NOT repeat a greeting once the visitor has shared their name. Address them by name throughout the conversation.
-
-LinkedIn Closing Rule (GATED — only trigger when qualified):
-At the END of a conversation, if the visitor has shown at least ONE of these qualifying signals:
-- Named a specific service (website, chatbot, LinkedIn management, VSL, software)
-- Described a real business problem (e.g. "I need more leads", "I want to automate")
-- Asked about pricing or timelines
-- Sent 3 or more meaningful, business-relevant messages
-
-THEN close with this exact format (the [LINKEDIN_BUTTON] token renders as a real button in the UI):
+LinkedIn Closing:
+If the visitor is qualified (named a service, described a problem, asked about pricing), close with:
 "Based on what you've shared, this sounds like a strong fit. The fastest way to get a personalised plan is to send us a direct message on LinkedIn. [LINKEDIN_BUTTON]"
-
-Do NOT show the LinkedIn button if the visitor:
-- Is clearly just testing the bot (single word messages, nonsense input)
-- Has not shown any genuine business intent
-- Has not engaged meaningfully (fewer than 2 real messages)
-In those cases, just wrap up politely without the button.
 `;
 
 const corsHeaders = {
 	'Access-Control-Allow-Origin': '*',
 	'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-	'Access-Control-Allow-Headers': 'Content-Type',
+	'Access-Control-Allow-Headers': 'Content-Type, x-admin-key',
 };
 
 // Simple in-memory rate limiter
@@ -93,9 +73,90 @@ export default {
 			return new Response(null, { headers: corsHeaders });
 		}
 
+		const url = new URL(request.url);
+
+		// --- Administrative Routes (Protected) ---
+		if (url.pathname.startsWith('/api/')) {
+			const adminKey = request.headers.get('x-admin-key');
+			if (!env.ADMIN_API_KEY || adminKey !== env.ADMIN_API_KEY) {
+				return new Response(JSON.stringify({ error: 'Unauthorised' }), {
+					status: 401,
+					headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+				});
+			}
+
+			// GET /api/leads - Fetch all leads
+			if (url.pathname === '/api/leads' && request.method === 'GET') {
+				try {
+					const { results } = await env.DB.prepare(
+						"SELECT * FROM leads ORDER BY timestamp DESC LIMIT 100"
+					).all();
+					return new Response(JSON.stringify(results), {
+						headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+					});
+				} catch (e: any) {
+					return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: corsHeaders });
+				}
+			}
+
+			// GET /api/logs - Fetch chat logs
+			if (url.pathname === '/api/logs' && request.method === 'GET') {
+				try {
+					const { results } = await env.DB.prepare(
+						"SELECT * FROM chat_logs ORDER BY timestamp DESC LIMIT 200"
+					).all();
+					return new Response(JSON.stringify(results), {
+						headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+					});
+				} catch (e: any) {
+					return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: corsHeaders });
+				}
+			}
+
+			// POST /api/config - Update client settings
+			if (url.pathname === '/api/config' && request.method === 'POST') {
+				try {
+					const configBody = await request.json() as { clientId: string, settings: any };
+					if (!configBody.clientId || !configBody.settings) {
+						return new Response(JSON.stringify({ error: 'Missing clientId or settings' }), { status: 400, headers: corsHeaders });
+					}
+					await env.CLIENT_SETTINGS.put(`client:${configBody.clientId}`, JSON.stringify(configBody.settings));
+					return new Response(JSON.stringify({ success: true }), {
+						headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+					});
+				} catch (e: any) {
+					return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: corsHeaders });
+				}
+			}
+
+			return new Response('Not Found', { status: 404, headers: corsHeaders });
+		}
+
+		// --- Bot Interaction Routes ---
 		if (request.method !== 'POST') {
 			return new Response('Only POST requests are allowed', { status: 405, headers: corsHeaders });
 		}
+
+		const body = await request.json() as {
+			message: string,
+			history?: { role: string, parts: { text: string }[] }[],
+			clientId?: string
+		};
+
+		const clientId = body.clientId || 'default';
+
+		// 1. Fetch Client Configuration from KV
+		let clientConfig: { systemPrompt?: string } | null = null;
+		try {
+			const kvData = await env.CLIENT_SETTINGS.get(`client:${clientId}`);
+			if (kvData) {
+				clientConfig = JSON.parse(kvData);
+			}
+		} catch (e) {
+			console.error("KV Error:", e);
+		}
+
+		const activeSystemPrompt = clientConfig?.systemPrompt || SYSTEM_PROMPT;
 
 		if (!env.GEMINI_API_KEY) {
 			return new Response(JSON.stringify({ error: 'API key not configured on server' }), {
@@ -106,14 +167,14 @@ export default {
 
 		const clientIP = request.headers.get('CF-Connecting-IP') || 'unknown';
 		if (isRateLimited(clientIP)) {
-			return new Response(JSON.stringify({ response: 'It looks like we have a lot to discuss! To respect your time and give you a detailed breakdown, please send me a DM on LinkedIn so we can connect properly.' }), {
+			return new Response(JSON.stringify({ response: "I've been processing a lot of requests lately! To ensure you get the best strategy, let's move this to a more direct channel. Feel free to send me a DM on LinkedIn so we can chat further. [LINKEDIN_BUTTON]" }), {
 				status: 200,
 				headers: { ...corsHeaders, 'Content-Type': 'application/json' }
 			});
 		}
 
 		try {
-			const body = await request.json() as { message: string, history?: { role: string, parts: { text: string }[] }[] };
+			// body already parsed above for clientId
 
 			if (!body || !body.message) {
 				return new Response(JSON.stringify({ error: 'Message is required' }), {
@@ -138,42 +199,81 @@ export default {
 			// Add the new user message
 			contents.push({ role: 'user', parts: [{ text: body.message }] });
 
-			// Call Gemini REST API — gemini-3-flash-preview (confirmed working for this API key)
-			const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${env.GEMINI_API_KEY}`;
+			// --- AI Cutoff Check ---
+			// If LinkedIn was suggested in the PREVIOUS history, do not call AI. 
+			// Any message after LinkedIn suggestion should just repeat the suggestion.
+			const historyText = body.history ? body.history.map(h => h.parts.map(p => p.text).join(' ')).join(' ') : '';
+			if (historyText.includes('[LINKEDIN_BUTTON]')) {
+				return new Response(JSON.stringify({
+					response: "It looks like we have a lot to discuss! To respect your time and give you a detailed breakdown, please send me a DM on LinkedIn so we can connect properly. [LINKEDIN_BUTTON]"
+				}), {
+					headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+				});
+			}
 
-			const geminiResponse = await fetch(geminiUrl, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					system_instruction: {
-						parts: [{ text: SYSTEM_PROMPT }]
-					},
-					contents,
-					generationConfig: {
-						temperature: 0.7,
-						maxOutputTokens: 2048,
+			// Model Fallback Chain
+			const MODELS = [
+				'gemini-3.1-flash-lite-preview',
+				'gemini-2.5-flash',
+				'gemini-2.0-flash'
+			];
+
+			let lastError = null;
+			let geminiData = null;
+			let successfulModel = null;
+
+			for (const model of MODELS) {
+				try {
+					const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
+					const geminiResponse = await fetch(geminiUrl, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							system_instruction: {
+								parts: [{ text: activeSystemPrompt }]
+							},
+							contents,
+							generationConfig: {
+								temperature: 0.7,
+								maxOutputTokens: 2048,
+							}
+						})
+					});
+
+					geminiData = await geminiResponse.json() as any;
+
+					if (geminiResponse.ok) {
+						successfulModel = model;
+						break;
+					} else {
+						const details = JSON.stringify(geminiData);
+						console.error(`Gemini API Error for ${model}:`, details);
+						lastError = { status: geminiResponse.status, details };
+
+						// If it's a quota issue, we might want to try another model, 
+						// but if all are exhausted, we'll handle it after the loop.
 					}
-				})
-			});
+				} catch (err: any) {
+					console.error(`Fetch Error for ${model}:`, err.message);
+					lastError = { status: 500, details: err.message };
+				}
+			}
 
-			const geminiData = await geminiResponse.json() as any;
-
-			if (!geminiResponse.ok) {
-				const details = JSON.stringify(geminiData);
-				console.error('Gemini REST API Error:', details);
-
+			if (!successfulModel) {
+				const details = lastError?.details || '';
 				const isQuota = details.includes('429') || details.includes('quota') || details.includes('RESOURCE_EXHAUSTED');
+
 				if (isQuota) {
 					return new Response(JSON.stringify({
-						response: "Thank you for reaching out! Our team is currently experiencing high chat volume. We specialize in high-ROI Website Development, Custom Software, and LinkedIn Management for scaling founders. Please leave your email or drop us a message on LinkedIn so a human strategist can assist you directly!"
+						response: "Our AI brain is currently handling a high volume of requests. We prioritize high-ROI projects like Website Development and AI Automation. To get a faster response, please drop us a message on LinkedIn or leave your email here! [LINKEDIN_BUTTON]"
 					}), {
 						status: 200,
 						headers: { ...corsHeaders, 'Content-Type': 'application/json' }
 					});
 				}
 
-				return new Response(JSON.stringify({ error: 'Failed to generate response', details }), {
-					status: 500,
+				return new Response(JSON.stringify({ error: 'Failed to generate response across all models', details }), {
+					status: lastError?.status || 500,
 					headers: { ...corsHeaders, 'Content-Type': 'application/json' }
 				});
 			}
@@ -189,6 +289,8 @@ export default {
 				const emailRegex = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/;
 				let capturedEmail: string | null = null;
 				let capturedName: string | null = null;
+				let capturedService: string | null = null;
+				let capturedBudget: string | null = null;
 
 				for (let i = 0; i < allMessages.length; i++) {
 					const msg = allMessages[i];
@@ -200,14 +302,13 @@ export default {
 						if (match) capturedEmail = match[0];
 					}
 
-					// Find the name: look for a bot message asking for name, then take the next user message
+					// Find the name
 					if (msg.role === 'model' && !capturedName) {
 						const lower = msgText.toLowerCase();
 						if (lower.includes('first name') || lower.includes('your name')) {
 							const next = allMessages[i + 1];
 							if (next && next.role === 'user') {
 								const nameText = next.parts?.[0]?.text?.trim() || '';
-								// Accept as a name if it's short (1–4 words) and doesn't look like an email or URL
 								if (nameText && nameText.split(' ').length <= 4 && !emailRegex.test(nameText) && !nameText.includes('http')) {
 									capturedName = nameText;
 								}
@@ -215,16 +316,85 @@ export default {
 						}
 					}
 
-					if (capturedName && capturedEmail) break;
+					// Find the service
+					if (msg.role === 'model' && !capturedService) {
+						const lower = msgText.toLowerCase();
+						if (lower.includes('service') || lower.includes('interested in')) {
+							const next = allMessages[i + 1];
+							if (next && next.role === 'user') {
+								capturedService = next.parts?.[0]?.text?.trim() || '';
+							}
+						}
+					}
+
+					// Find the budget
+					if (msg.role === 'model' && !capturedBudget) {
+						const lower = msgText.toLowerCase();
+						if (lower.includes('budget')) {
+							const next = allMessages[i + 1];
+							if (next && next.role === 'user') {
+								capturedBudget = next.parts?.[0]?.text?.trim() || '';
+							}
+						}
+					}
+
+					if (capturedName && capturedEmail && capturedService && capturedBudget) break;
 				}
 
-				if (capturedName && capturedEmail) return { name: capturedName, email: capturedEmail };
+				if (capturedName && capturedEmail && capturedService && capturedBudget) {
+					return { name: capturedName, email: capturedEmail, service: capturedService, budget: capturedBudget };
+				}
 				return null;
 			}
 
 			const leadData = extractLeadData(body.history || [], body.message);
 
-			return new Response(JSON.stringify({ response: text, ...(leadData ? { leadData } : {}) }), {
+			if (leadData) {
+				// Generate a concise summary of the business need
+				const summaryPrompt = "Summary: In exactly one concise sentence, summarize the visitor's name, their specific need, their estimated budget, and our recommendation.";
+				const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${env.GEMINI_API_KEY}`;
+
+				try {
+					const summaryResponse = await fetch(geminiUrl, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							system_instruction: { parts: [{ text: summaryPrompt }] },
+							contents: [...contents, { role: 'model', parts: [{ text }] }],
+							generationConfig: { temperature: 0.1, maxOutputTokens: 150 }
+						})
+					});
+					const summaryData = await summaryResponse.json() as any;
+					(leadData as any).summary = summaryData?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "Conversation summary unavailable";
+				} catch (e) {
+					console.error("Summary Error:", e);
+					(leadData as any).summary = "Conversation summary (error generating)";
+				}
+			}
+
+			const responseObj = { response: text, ...(leadData ? { leadData } : {}) };
+
+			// --- Persistence ---
+			// Save to D1 in the background
+			ctx.waitUntil((async () => {
+				try {
+					// 1. Save Chat Message
+					await env.DB.prepare(
+						"INSERT INTO chat_logs (client_id, user_message, bot_response, timestamp) VALUES (?, ?, ?, ?)"
+					).bind(clientId, body.message, text, Date.now()).run();
+
+					// 2. Save Lead if completed
+					if (leadData) {
+						await env.DB.prepare(
+							"INSERT INTO leads (client_id, name, email, service, budget, summary, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)"
+						).bind(clientId, leadData.name, leadData.email, leadData.service, leadData.budget, (leadData as any).summary, Date.now()).run();
+					}
+				} catch (e) {
+					console.error("D1 Persistence Error:", e);
+				}
+			})());
+
+			return new Response(JSON.stringify(responseObj), {
 				headers: { ...corsHeaders, 'Content-Type': 'application/json' },
 			});
 

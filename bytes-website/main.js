@@ -772,6 +772,14 @@ function initChatbot() {
       });
 
       const data = await response.json();
+
+      // Calculate delay based on response length: ~20ms per character, min 750ms, max 3000ms
+      const responseText = data.response || "";
+      const typingDelay = Math.min(3000, Math.max(750, responseText.length * 20));
+
+      // Simulate "thinking/typing" time
+      await new Promise(resolve => setTimeout(resolve, typingDelay));
+
       removeTypingIndicator(typingId);
 
       // 4. Add Bot Message to UI
@@ -783,7 +791,7 @@ function initChatbot() {
         // 5. Silently submit lead to Google Form (once per session when name+email are captured)
         if (data.leadData && !window._chatLeadSubmitted) {
           window._chatLeadSubmitted = true;
-          submitChatbotLead(data.leadData.name, data.leadData.email);
+          submitChatbotLead(data.leadData.name, data.leadData.email, data.leadData.summary);
         }
       } else if (response.status === 429) {
         // Specific handling for our rate limiter
@@ -850,7 +858,7 @@ function initChatbot() {
 }
 
 // Silently submit a chatbot-captured lead to Google Form
-function submitChatbotLead(name, email) {
+function submitChatbotLead(name, email, summary) {
   const FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfUBw3kAv2qoIC2Z45K8RNdzQlaIZYz_UALH4sEFnWDxfUETw/formResponse';
 
   // Re-use or create a dedicated hidden iframe for the chatbot lead
@@ -873,7 +881,7 @@ function submitChatbotLead(name, email) {
     'entry.1698580962': name,
     'entry.1399885084': email,
     'entry.584713419': '',  // service — unknown at this stage
-    'entry.31456989': 'Chatbot conversation - chatbot'
+    'entry.31456989': summary || 'Chatbot conversation - chatbot'
   };
 
   for (const key in inputs) {
