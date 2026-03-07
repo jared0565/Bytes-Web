@@ -1,19 +1,24 @@
-name: Deploy Worker
+name: Deploy Agency
 
 on:
   push:
     branches:
       - main
-    paths:
-      - 'chatbot-api/**'
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Deploy
+      
+      - name: Deploy Worker (API)
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           workingDirectory: 'chatbot-api'
+          
+      - name: Deploy Website (Dashboard & Widget)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # Deploying from root using the root wrangler.jsonc
