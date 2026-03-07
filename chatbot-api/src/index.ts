@@ -81,16 +81,18 @@ export default {
 			const allowedOrigin = "https://web.bytesfx.com";
 
 			// Strictly enforce Origin for Admin Dashboard
-			if (origin !== allowedOrigin && !url.hostname.includes('localhost')) {
-				return new Response(JSON.stringify({ error: 'Forbidden: Invalid Origin' }), {
+			if (origin && origin !== allowedOrigin && !url.hostname.includes('localhost')) {
+				return new Response(JSON.stringify({ error: `Forbidden: Invalid Origin (${origin})` }), {
 					status: 403,
 					headers: { ...corsHeaders, 'Content-Type': 'application/json' }
 				});
 			}
 
 			const adminKey = request.headers.get('x-admin-key');
-			if (!env.ADMIN_API_KEY || adminKey !== env.ADMIN_API_KEY) {
-				return new Response(JSON.stringify({ error: 'Unauthorised' }), {
+			const storedKey = env.ADMIN_API_KEY ? env.ADMIN_API_KEY.trim() : null;
+
+			if (!storedKey || adminKey !== storedKey) {
+				return new Response(JSON.stringify({ error: 'Unauthorised: Invalid Key' }), {
 					status: 401,
 					headers: { ...corsHeaders, 'Content-Type': 'application/json' }
 				});

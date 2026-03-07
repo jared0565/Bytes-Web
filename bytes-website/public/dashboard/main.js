@@ -36,13 +36,13 @@ loginBtn.addEventListener('click', async () => {
     if (!key) return;
 
     // Test the key by fetching leads
-    const success = await loadLeads(key);
-    if (success) {
+    const result = await loadLeads(key);
+    if (result.success) {
         adminKey = key;
         localStorage.setItem('agency_admin_key', key);
         showDashboard();
     } else {
-        loginError.innerText = "Invalid Admin API Key or connection error.";
+        loginError.innerText = result.error || "Connection error. Check console.";
     }
 });
 
@@ -87,14 +87,18 @@ async function loadLeads(testKey = null) {
         const res = await fetch(`${API_BASE}/api/leads`, {
             headers: { 'x-admin-key': key }
         });
-        if (!res.ok) return false;
+
+        if (!res.ok) {
+            const err = await res.json();
+            return { success: false, error: err.error || 'Request failed' };
+        }
 
         const data = await res.json();
         renderLeads(data);
-        return true;
+        return { success: true };
     } catch (e) {
         console.error(e);
-        return false;
+        return { success: false, error: 'Network or CORS error.' };
     }
 }
 
