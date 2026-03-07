@@ -46,6 +46,12 @@ loginBtn.addEventListener('click', async () => {
     }
 });
 
+adminKeyInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        loginBtn.click();
+    }
+});
+
 logoutBtn.addEventListener('click', () => {
     localStorage.removeItem('agency_admin_key');
     location.reload();
