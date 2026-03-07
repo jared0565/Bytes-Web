@@ -40,5 +40,18 @@
 	 * Service Bindings (communicate between multiple Workers)
 	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
 	 */
-	// "services": [  {   "binding": "MY_SERVICE",   "service": "my-service"  } ]
+	// "services": [  {   "binding": "MY_SERVICE",   "service": "my-service"  } ],
+	"kv_namespaces": [
+		{
+			"binding": "CLIENT_SETTINGS",
+			"id": "cffce7f12c7248f7935c31f7c591c726"
+		}
+	],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "chatbot-db",
+			"database_id": "83348fa4-873f-4b07-b372-6a6e3b0896b6"
+		}
+	]
 }
