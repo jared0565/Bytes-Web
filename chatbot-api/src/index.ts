@@ -138,8 +138,8 @@ export default {
 			// Add the new user message
 			contents.push({ role: 'user', parts: [{ text: body.message }] });
 
-			// Call Gemini REST API — gemini-3.1-flash-lite (fastest, most cost-efficient, March 2026)
-			const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key=${env.GEMINI_API_KEY}`;
+			// Call Gemini REST API — gemini-3-flash-preview (confirmed working for this API key)
+			const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${env.GEMINI_API_KEY}`;
 
 			const geminiResponse = await fetch(geminiUrl, {
 				method: 'POST',
@@ -151,7 +151,7 @@ export default {
 					contents,
 					generationConfig: {
 						temperature: 0.7,
-						maxOutputTokens: 1024,
+						maxOutputTokens: 2048,
 					}
 				})
 			});
