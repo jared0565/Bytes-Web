@@ -112,10 +112,10 @@ export default {
 						"SELECT * FROM leads ORDER BY timestamp DESC LIMIT 100"
 					).all();
 					return new Response(JSON.stringify(results), {
-						headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+						headers: { ...cors, 'Content-Type': 'application/json' }
 					});
 				} catch (e: any) {
-					return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: corsHeaders });
+					return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } });
 				}
 			}
 
@@ -126,10 +126,10 @@ export default {
 						"SELECT * FROM chat_logs ORDER BY timestamp DESC LIMIT 200"
 					).all();
 					return new Response(JSON.stringify(results), {
-						headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+						headers: { ...cors, 'Content-Type': 'application/json' }
 					});
 				} catch (e: any) {
-					return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: corsHeaders });
+					return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } });
 				}
 			}
 
@@ -138,23 +138,23 @@ export default {
 				try {
 					const configBody = await request.json() as { clientId: string, settings: any };
 					if (!configBody.clientId || !configBody.settings) {
-						return new Response(JSON.stringify({ error: 'Missing clientId or settings' }), { status: 400, headers: corsHeaders });
+						return new Response(JSON.stringify({ error: 'Missing clientId or settings' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
 					}
 					await env.CLIENT_SETTINGS.put(`client:${configBody.clientId}`, JSON.stringify(configBody.settings));
 					return new Response(JSON.stringify({ success: true }), {
-						headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+						headers: { ...cors, 'Content-Type': 'application/json' }
 					});
 				} catch (e: any) {
-					return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: corsHeaders });
+					return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } });
 				}
 			}
 
-			return new Response('Not Found', { status: 404, headers: corsHeaders });
+			return new Response('Not Found', { status: 404, headers: { ...cors, 'Content-Type': 'application/json' } });
 		}
 
 		// --- Bot Interaction Routes ---
 		if (request.method !== 'POST') {
-			return new Response('Only POST requests are allowed', { status: 405, headers: corsHeaders });
+			return new Response('Only POST requests are allowed', { status: 405, headers: { ...cors, 'Content-Type': 'application/json' } });
 		}
 
 		const body = await request.json() as {
@@ -181,7 +181,7 @@ export default {
 		if (!env.GEMINI_API_KEY) {
 			return new Response(JSON.stringify({ error: 'API key not configured on server' }), {
 				status: 500,
-				headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+				headers: { ...cors, 'Content-Type': 'application/json' }
 			});
 		}
 
@@ -189,7 +189,7 @@ export default {
 		if (isRateLimited(clientIP)) {
 			return new Response(JSON.stringify({ response: "I've been processing a lot of requests lately! To ensure you get the best strategy, let's move this to a more direct channel. Feel free to send me a DM on LinkedIn so we can chat further. [LINKEDIN_BUTTON]" }), {
 				status: 200,
-				headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+				headers: { ...cors, 'Content-Type': 'application/json' }
 			});
 		}
 
@@ -199,7 +199,7 @@ export default {
 			if (!body || !body.message) {
 				return new Response(JSON.stringify({ error: 'Message is required' }), {
 					status: 400,
-					headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+					headers: { ...cors, 'Content-Type': 'application/json' }
 				});
 			}
 
@@ -227,7 +227,7 @@ export default {
 				return new Response(JSON.stringify({
 					response: "It looks like we have a lot to discuss! To respect your time and give you a detailed breakdown, please send me a DM on LinkedIn so we can connect properly. [LINKEDIN_BUTTON]"
 				}), {
-					headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+					headers: { ...cors, 'Content-Type': 'application/json' }
 				});
 			}
 
@@ -288,13 +288,13 @@ export default {
 						response: "Our AI brain is currently handling a high volume of requests. We prioritize high-ROI projects like Website Development and AI Automation. To get a faster response, please drop us a message on LinkedIn or leave your email here! [LINKEDIN_BUTTON]"
 					}), {
 						status: 200,
-						headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+						headers: { ...cors, 'Content-Type': 'application/json' }
 					});
 				}
 
 				return new Response(JSON.stringify({ error: 'Failed to generate response across all models', details }), {
 					status: lastError?.status || 500,
-					headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+					headers: { ...cors, 'Content-Type': 'application/json' }
 				});
 			}
 
@@ -415,15 +415,16 @@ export default {
 			})());
 
 			return new Response(JSON.stringify(responseObj), {
-				headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+				headers: { ...cors, 'Content-Type': 'application/json' },
 			});
 
 		} catch (error: any) {
 			console.error('Worker Error:', error);
 			return new Response(JSON.stringify({ error: 'Internal server error', details: error.message }), {
 				status: 500,
-				headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+				headers: { ...cors, 'Content-Type': 'application/json' }
 			});
 		}
 	},
 };
+// Verification Push: CI/CD stabilized via GitHub Actions.
