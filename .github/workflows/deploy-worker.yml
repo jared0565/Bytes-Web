@@ -17,8 +17,14 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           workingDirectory: 'chatbot-api'
           
+      - name: Build Website
+        working-directory: 'bytes-website'
+        run: |
+          npm install
+          npm run build
+          
       - name: Deploy Website (Dashboard & Widget)
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          # Deploying from root using the root wrangler.jsonc
+          # The root wrangler.jsonc now points to bytes-website/dist
