@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Get Started | BytesFX</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;600;700&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <div id="onboarding-container">
+        <header>
+            <div class="logo">Bytes<span>FX</span></div>
+            <div class="progress-container">
+                <div class="progress-bar" id="progress"></div>
+                <div class="steps">
+                    <div class="step active" data-step="1">1</div>
+                    <div class="step" data-step="2">2</div>
+                    <div class="step" data-step="3">3</div>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <!-- Step 1: Account Creation -->
+            <section id="step-1" class="slide active">
+                <h1>Welcome to the Future of Leagen.</h1>
+                <p class="subtitle">Let's set up your account and get your bot ready to scale.</p>
+
+                <div class="form-card glass">
+                    <div class="form-group">
+                        <label for="client-name">Your Full Name</label>
+                        <input type="text" id="client-name" placeholder="John Doe">
+                    </div>
+                    <div class="form-group">
+                        <label for="client-email">Business Email</label>
+                        <input type="email" id="client-email" placeholder="john@company.com">
+                    </div>
+                    <button id="btn-next-1" class="btn btn-primary">Create My Account</button>
+                </div>
+            </section>
+
+            <!-- Step 2: Bot Personalization -->
+            <section id="step-2" class="slide">
+                <h1>Describe Your Brand.</h1>
+                <p class="subtitle">The bot uses this to speak like your team member.</p>
+
+                <div class="form-card glass">
+                    <div class="form-group">
+                        <label for="company-name">Company/Brand Name</label>
+                        <input type="text" id="company-name" placeholder="e.g. Acme Solutions">
+                    </div>
+                    <div class="form-group">
+                        <label for="bot-tone">Bot Tone</label>
+                        <select id="bot-tone">
+                            <option value="Professional & Authoritative">Professional & Authoritative</option>
+                            <option value="Friendly & Helpful">Friendly & Helpful</option>
+                            <option value="High-Energy & Salesy">High-Energy & Salesy</option>
+                        </select>
+                    </div>
+                    <div class="button-group">
+                        <button id="btn-back-2" class="btn btn-outline">Back</button>
+                        <button id="btn-next-2" class="btn btn-primary">Initialize My Bot</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Step 3: Delivery Center -->
+            <section id="step-3" class="slide">
+                <div class="success-icon">🚀</div>
+                <h1>Your Bot is Live!</h1>
+                <p class="subtitle">Copy the code below and paste it before the <code>&lt;/body&gt;</code> tag of your
+                    website.</p>
+
+                <div class="code-card glass">
+                    <pre id="embed-code">Loading script...</pre>
+                    <button id="btn-copy" class="btn btn-primary">Copy Embed Code</button>
+                </div>
+
+                <div class="next-steps">
+                    <button id="btn-email-dev" class="btn btn-outline">Send to Developer</button>
+                    <a href="../dashboard/" class="btn btn-link">Go to Dashboard &rarr;</a>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="main.js"></script>
+</body>
+
+</html>
