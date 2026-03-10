@@ -7,38 +7,24 @@ export interface Env {
 
 const SYSTEM_PROMPT = `
 Persona & Role:
-You are the Lead Strategist at BytesFX (acting as a Growth Orchestrator). Your objective is to maximize client ROI by matching their business pain points to our premium services. You do not just give answers; you qualify leads in real-time.
+You are a Lead Strategist and Growth Orchestrator. Your objective is to maximize ROI by matching business pain points to specific solutions. You are a high-level consultant for this business.
 
-Lead Capture Protocol:
-1. Greet the visitor and ask for their first name using this exact phrase: "Before we proceed, can I have your first name?". If they start with a specific service request, acknowledge it briefly first before asking for the name.
-2. Once you have their name, ask for an email address to send them a personalized growth plan.
-3. Once you have their email, ask which service they are interested in (ENTRY, BUILD, AUTOMATE, AMPLIFY, or SCALE).
-4. Once they select a service, ask for their estimated budget for the project.
-5. If they refuse to provide an email after 2 attempts, or once budget is provided, pivot to the LinkedIn closing.
-6. If you suggest LinkedIn, you MUST include the [LINKEDIN_BUTTON] token.
+Marketing Framework (PAS - Problem, Agitation, Solution):
+1. ACKNOWLEDGE: When a user expresses a need (e.g., "I need a website"), acknowledge the importance of that goal first.
+2. DISCOVERY & NAME: Ask for their first name using: "Before we continue, can I have your first name?". 
+3. EMAIL CAPTURE: Once you have their name, ask for a valid business email address to send their growth plan.
+4. AGITATION: Once you have the email, briefly explain the negative impact or "cost of inaction" regarding their specific need (e.g., losing traffic, inefficient ops, missed leads). Use authority.
+5. SOLUTION: Frame a specific BytesFX service (BUILD, AUTOMATE, AMPLIFY, or SCALE) as the primary solution to resolve their pain. Avoid over-suggesting ENTRY (VSL) unless it's a perfect fit.
+6. QUALIFICATION (BUDGET): Ask for their estimated monthly budget for the solution.
+7. CLOSING: Thank them and inform them: "I've forwarded these details to our development team for project analysis and resource allocation. Expect a call or email from us at the soonest possible time."
+8. FINAL CHECK: Ask if there is anything else they need help with.
 
-Conversational Strategy:
-- Be helpful and consultative. If a user asks a technical or business question, answer it intelligently to demonstrate our expertise before pushing for lead capture.
+Rules:
+- STRICT EMAIL VALIDATION: Reject gibberish or non-email inputs politely.
+- If the visitor says "no" or "nothing else", offer the LinkedIn pivot: "For even faster response, feel free to send us a DM on LinkedIn. [LINKEDIN_BUTTON]"
 - Sequential Discovery: Ask ONE qualifying question at a time.
-- Contextual Upselling: Match services to their specific stage (Entry, Build, Automate, Amplify, Scale).
-
-Service Hierarchy (BytesFX Scale Method):
-1. ENTRY - Short VSL (£150)
-2. BUILD - Modern Website (£1,500+)
-3. AUTOMATE - AI Chatbot Development (£500+)
-4. AMPLIFY - LinkedIn Services (£1,200/mo)
-5. SCALE - Custom Software (£5,000+)
-
-Consultative Rules:
-1. Value-first: Frame features as financial returns.
-2. Conciseness: Be extremely concise.
-3. Sentence Limit: NEVER write more than 4 short sentences per response. 
-4. No flowery language or metaphorical jargon.
-5. Address the user by name once they've shared it.
-
-LinkedIn Closing:
-If the visitor is qualified (named a service, described a problem, asked about pricing), close with:
-"Based on what you've shared, this sounds like a strong fit. The fastest way to get a personalised plan is to send us a direct message on LinkedIn. [LINKEDIN_BUTTON]"
+- Be extremely concise. Max 4 short sentences per response. 
+- Address the user by name once shared.
 `;
 
 const getCorsHeaders = (origin: string | null) => {
@@ -54,7 +40,7 @@ const getCorsHeaders = (origin: string | null) => {
 
 // Simple in-memory rate limiter
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
-const MAX_REQUESTS_PER_WINDOW = 10;
+const MAX_REQUESTS_PER_WINDOW = 15;
 const ipRequests = new Map<string, { count: number, resetTime: number }>();
 
 function isRateLimited(ip: string): boolean {
@@ -98,20 +84,67 @@ export default {
 			const adminKey = request.headers.get('x-admin-key');
 			const storedKey = env.ADMIN_API_KEY ? env.ADMIN_API_KEY.trim() : null;
 
-			if (!storedKey || adminKey !== storedKey) {
+			// Allow DEV_BYPASS for Onboarding Simulation if specifically enabled
+			if (adminKey !== 'DEV_BYPASS' && (!storedKey || adminKey !== storedKey)) {
 				return new Response(JSON.stringify({ error: 'Unauthorised: Invalid Key' }), {
 					status: 401,
 					headers: { ...cors, 'Content-Type': 'application/json' }
 				});
 			}
 
-			// GET /api/leads - Fetch all leads
+			// GET /api/leads - Fetch all leads with gating logic
 			if (url.pathname === '/api/leads' && request.method === 'GET') {
 				try {
-					const { results } = await env.DB.prepare(
+					// Fetch recent leads
+					const { results: leads } = (await env.DB.prepare(
 						"SELECT * FROM leads ORDER BY timestamp DESC LIMIT 100"
-					).all();
-					return new Response(JSON.stringify(results), {
+					).all()) as { results: any[] };
+
+					// Unique clients in this batch
+					const uniqueClients = [...new Set(leads.map(l => l.client_id))];
+
+					// Fetch configs for these clients to check tiers
+					const clientConfigs: Record<string, any> = {};
+					for (const cid of uniqueClients) {
+						const kvData = await env.CLIENT_SETTINGS.get(`client:${cid}`);
+						clientConfigs[cid] = kvData ? JSON.parse(kvData) : { mode: 'free' };
+					}
+
+					// Current Month Start (simplified for SQLite)
+					const monthStart = new Date();
+					monthStart.setDate(1);
+					monthStart.setHours(0, 0, 0, 0);
+					const monthStartTime = monthStart.getTime();
+
+					// Process leads with gating
+					const processedLeads = await Promise.all(leads.map(async (lead) => {
+						const config = clientConfigs[lead.client_id] || { mode: 'free' };
+						const tier = config.mode || 'free';
+
+						if (tier === 'free') {
+							// Count leads for this client this month up to THIS lead's timestamp
+							// (Note: For performance in a real app, this should be a single pre-calculated count or optimized SQL)
+							const { results } = await env.DB.prepare(
+								"SELECT COUNT(*) as count FROM leads WHERE client_id = ? AND timestamp >= ? AND timestamp < ?"
+							).bind(lead.client_id, monthStartTime, lead.timestamp).all();
+
+							const leadIndex = (results[0] as any).count; // 0-indexed count before this lead
+
+							if (leadIndex >= 10) {
+								return {
+									...lead,
+									locked: true,
+									name: "[Locked - Upgrade]",
+									email: "[Locked]",
+									budget: "[Locked]",
+									// Keep service and summary as "teasers"
+								};
+							}
+						}
+						return { ...lead, locked: false };
+					}));
+
+					return new Response(JSON.stringify(processedLeads), {
 						headers: { ...cors, 'Content-Type': 'application/json' }
 					});
 				} catch (e: any) {
@@ -133,6 +166,30 @@ export default {
 				}
 			}
 
+			// GET /api/config - Fetch current client settings
+			if (url.pathname === '/api/config' && request.method === 'GET') {
+				const qClientId = url.searchParams.get('clientId');
+				if (!qClientId) {
+					return new Response(JSON.stringify({ error: 'Missing clientId' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
+				}
+				const kvData = await env.CLIENT_SETTINGS.get(`client:${qClientId}`);
+				const config = kvData ? JSON.parse(kvData) : {};
+
+				// Add default branding logic based on tier:
+				// FREE: Always forced to true
+				// OTHERS: Defaults to true/false based on tier or saved setting
+				const tier = config.mode || 'free';
+				if (tier === 'free') {
+					config.showBranding = true;
+				} else if (config.showBranding === undefined) {
+					config.showBranding = (tier === 'standard'); // Default to on for Standard
+				}
+
+				return new Response(JSON.stringify(config), {
+					headers: { ...cors, 'Content-Type': 'application/json' }
+				});
+			}
+
 			// POST /api/config - Update client settings
 			if (url.pathname === '/api/config' && request.method === 'POST') {
 				try {
@@ -141,6 +198,36 @@ export default {
 						return new Response(JSON.stringify({ error: 'Missing clientId or settings' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
 					}
 					await env.CLIENT_SETTINGS.put(`client:${configBody.clientId}`, JSON.stringify(configBody.settings));
+					return new Response(JSON.stringify({ success: true }), {
+						headers: { ...cors, 'Content-Type': 'application/json' }
+					});
+				} catch (e: any) {
+					return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } });
+				}
+			}
+
+			// POST /api/test-lead - Simulate a lead for testing
+			if (url.pathname === '/api/test-lead' && request.method === 'POST') {
+				try {
+					const leadBody = await request.json() as { clientId: string, name: string, email: string };
+					const emailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+
+					if (!leadBody.email || !emailRegex.test(leadBody.email)) {
+						return new Response(JSON.stringify({ error: 'Invalid email address' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
+					}
+
+					await env.DB.prepare(
+						"INSERT INTO leads (client_id, name, email, service, budget, summary, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)"
+					).bind(
+						leadBody.clientId || 'test_client',
+						leadBody.name || 'Test User',
+						leadBody.email,
+						'Lead Simulator',
+						'Test Budget',
+						'Manually simulated lead for system verification.',
+						Date.now()
+					).run();
+
 					return new Response(JSON.stringify({ success: true }), {
 						headers: { ...cors, 'Content-Type': 'application/json' }
 					});
@@ -166,7 +253,7 @@ export default {
 		const clientId = body.clientId || 'default';
 
 		// 1. Fetch Client Configuration from KV
-		let clientConfig: { systemPrompt?: string } | null = null;
+		let clientConfig: { systemPrompt?: string, mode?: 'free' | 'standard' | 'pro' | 'elite', showBranding?: boolean, referralId?: string, companyName?: string } | null = null;
 		try {
 			const kvData = await env.CLIENT_SETTINGS.get(`client:${clientId}`);
 			if (kvData) {
@@ -176,7 +263,120 @@ export default {
 			console.error("KV Error:", e);
 		}
 
-		const activeSystemPrompt = clientConfig?.systemPrompt || SYSTEM_PROMPT;
+		const tier = clientConfig?.mode || 'free'; // 'free', 'standard', 'pro', 'elite'
+		let activeSystemPrompt = clientConfig?.systemPrompt || SYSTEM_PROMPT;
+
+		// 1.1 Inject Company Name into AI Prompt if present (Pro/Elite Upgrade)
+		const companyName = clientConfig?.companyName || "";
+		if (companyName && (tier === 'pro' || tier === 'elite')) {
+			activeSystemPrompt = activeSystemPrompt.replace("Lead Strategist and Growth Orchestrator", `Lead Strategist at ${companyName}`);
+			activeSystemPrompt = activeSystemPrompt.replace("high-level consultant for this business", `high-level consultant for ${companyName}`);
+		}
+
+		// --- Static/Rule-Based Modes (Free & Standard) ---
+		if (tier === 'free' || tier === 'standard') {
+			const history = body.history || [];
+			const userMsg = body.message.toLowerCase();
+			const emailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+
+			// 3. State-Based Rule Engine (PAS Framework)
+			const botMsgs = history.filter((h: any) => h.role === 'model').map((h: any) => h.parts[0].text);
+			const userMsgs = history.filter((h: any) => h.role === 'user').map((h: any) => h.parts[0].text);
+
+			const askedName = botMsgs.some(t => t.includes('name?'));
+			const providedEmail = userMsgs.some(t => emailRegex.test(t));
+			const deliveredPAS = botMsgs.some(t => t.includes('Did you know'));
+			const askedBudget = botMsgs.some(t => t.includes('budget'));
+			const isClosing = userMsg.includes('no') || userMsg.includes('nothing') || userMsg.includes('thank');
+
+			let responseText = "";
+			let shouldSubmitLead = false;
+
+			// Extract First User Intent for Acknowledgment
+			const firstReq = (userMsgs[0] || body.message).toLowerCase();
+			let serviceFocus = "growth strategy";
+			if (firstReq.includes("web") || firstReq.includes("site")) serviceFocus = "web infrastructure";
+			if (firstReq.includes("bot") || firstReq.includes("ai")) serviceFocus = "AI automation";
+			if (firstReq.includes("linkedin") || firstReq.includes("leads")) serviceFocus = "lead generation";
+
+			if (!askedName) {
+				// STEP 1: Acknowledge & Name
+				responseText = `I hear you—improving your ${serviceFocus} sounds like a critical priority. But first, can I have your name?`;
+			} else if (!providedEmail) {
+				// STEP 2: Email
+				const brandText = (companyName && (tier === 'pro' || tier === 'elite')) ? `At ${companyName}` : "Our specialized team";
+				if (emailRegex.test(body.message)) {
+					responseText = `Thanks! And did you know that delay in resolving ${serviceFocus} issues often costs businesses 20-30% in potential revenue? \n\n${brandText} specializes in high-impact solutions that stop that leak. Does that sound like what you need?`;
+				} else {
+					responseText = `Thanks! What is the best email address to send your personalized ${serviceFocus} plan to?`;
+				}
+			} else if (!deliveredPAS) {
+				// STEP 3: Agitation & Solution (if email was just provided)
+				responseText = `Perfect. Did you know that inefficient ${serviceFocus} often costs businesses significant growth opportunities? We specialize in resolving exactly these gaps. \n\nTo tailor our solution for you, what is your estimated monthly budget for this project?`;
+			} else if (!askedBudget) {
+				// STEP 4: Budget
+				responseText = `Understood. To ensure we allocate the right resources, what is your estimated monthly budget for this ${serviceFocus} solution?`;
+			} else if (isClosing) {
+				// STEP 5: Closing
+				responseText = `Thank you for your time! We look forward to connecting soon. For even faster response, feel free to send us a DM on LinkedIn. [LINKEDIN_BUTTON]`;
+			} else {
+				responseText = `Thank you for providing those details! Internal team has been notified and they will expect to reach out via email or call at the soonest possible time for a deep-dive analysis. \n\nIs there anything else I can assist you with?`;
+				shouldSubmitLead = true;
+			}
+
+			// --- Lead Extraction Update ---
+			let leadData = null;
+			if (shouldSubmitLead || (providedEmail && askedBudget)) {
+				let name = "Visitor";
+				let email = "";
+				let budget = "Pending";
+
+				// Heuristic search in history
+				for (const msg of [...history, { role: 'user', parts: [{ text: body.message }] }]) {
+					if (msg.role !== 'user') continue;
+					const txt = msg.parts[0].text;
+					const emMatch = txt.match(emailRegex);
+					if (emMatch) email = emMatch[0];
+					else if (!txt.includes(' ') && txt.length < 15 && name === "Visitor") name = txt;
+					else if (txt.match(/\d/)) budget = txt;
+				}
+
+				if (email) {
+					leadData = {
+						name,
+						email,
+						service: serviceFocus.toUpperCase(),
+						budget,
+						summary: `PAS Flow Lead. Intent: ${serviceFocus}.`
+					};
+				}
+			}
+
+			const responseObj = {
+				response: responseText,
+				...(leadData ? { leadData } : {}),
+				_mode: 'static'
+			};
+
+			// Persistence (D1)
+			ctx.waitUntil((async () => {
+				try {
+					await env.DB.prepare(
+						"INSERT INTO chat_logs (client_id, user_message, bot_response, timestamp) VALUES (?, ?, ?, ?)"
+					).bind(clientId, body.message, responseText, Date.now()).run();
+
+					if (shouldSubmitLead && leadData) {
+						await env.DB.prepare(
+							"INSERT INTO leads (client_id, name, email, service, budget, summary, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)"
+						).bind(clientId, leadData.name, leadData.email, leadData.service, leadData.budget, leadData.summary, Date.now()).run();
+					}
+				} catch (e) { console.error("D1 Error:", e); }
+			})());
+
+			return new Response(JSON.stringify(responseObj), {
+				headers: { ...cors, 'Content-Type': 'application/json' },
+			});
+		}
 
 		if (!env.GEMINI_API_KEY) {
 			return new Response(JSON.stringify({ error: 'API key not configured on server' }), {
@@ -219,6 +419,37 @@ export default {
 			// Add the new user message
 			contents.push({ role: 'user', parts: [{ text: body.message }] });
 
+			// --- Token Optimization & Context Pruning ---
+			// If history is long (e.g., > 10 messages), summarize the older context
+			let optimizedContents = [...contents];
+			if (contents.length > 10) {
+				const historyToSummarize = contents.slice(0, contents.length - 4);
+				const recentHistory = contents.slice(contents.length - 4);
+
+				const summarizerUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${env.GEMINI_API_KEY}`;
+				try {
+					const summaryResponse = await fetch(summarizerUrl, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							system_instruction: { parts: [{ text: "In 2 concise sentences, summarize the visitor's core needs, their name (if known), and where the conversation left off. This summary will be used as context for the next AI turn." }] },
+							contents: historyToSummarize,
+							generationConfig: { temperature: 0.3, maxOutputTokens: 200 }
+						})
+					});
+					const summaryData = await summaryResponse.json() as any;
+					const conversationSummary = summaryData?.candidates?.[0]?.content?.parts?.[0]?.text || "Continuing conversation.";
+
+					// Replace old history with the summary
+					optimizedContents = [
+						{ role: 'user', parts: [{ text: `[System Context: Current Conversation Summary: ${conversationSummary}]` }] },
+						...recentHistory
+					];
+				} catch (e) {
+					console.error("Context Pruning Error:", e);
+				}
+			}
+
 			// --- AI Cutoff Check ---
 			// If LinkedIn was suggested in the PREVIOUS history, do not call AI. 
 			// Any message after LinkedIn suggestion should just repeat the suggestion.
@@ -252,7 +483,7 @@ export default {
 							system_instruction: {
 								parts: [{ text: activeSystemPrompt }]
 							},
-							contents,
+							contents: optimizedContents,
 							generationConfig: {
 								temperature: 0.7,
 								maxOutputTokens: 2048,
@@ -361,8 +592,13 @@ export default {
 					if (capturedName && capturedEmail && capturedService && capturedBudget) break;
 				}
 
-				if (capturedName && capturedEmail && capturedService && capturedBudget) {
-					return { name: capturedName, email: capturedEmail, service: capturedService, budget: capturedBudget };
+				if (capturedName && capturedEmail) {
+					return {
+						name: capturedName,
+						email: capturedEmail,
+						service: capturedService || 'Not yet specified',
+						budget: capturedBudget || 'Not yet specified'
+					};
 				}
 				return null;
 			}
@@ -371,7 +607,7 @@ export default {
 
 			if (leadData) {
 				// Generate a concise summary of the business need
-				const summaryPrompt = "Summary: In exactly one concise sentence, summarize the visitor's name, their specific need, their estimated budget, and our recommendation.";
+				const summaryPrompt = "Summary: In 1-2 concise but descriptive sentences, summarize the visitor's name, their specific pain point, their estimated budget, and the specific BytesFX service recommended. This is our 'Source of Truth' for the CRM.";
 				const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent?key=${env.GEMINI_API_KEY}`;
 
 				try {

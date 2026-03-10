@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Get Started | BytesFX</title>
+    <title>Get Started | BytesAI</title>
     <link rel="stylesheet" href="style.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -14,24 +14,30 @@
 </head>
 
 <body>
+    <!-- Background Decor -->
+    <div class="bg-glow"></div>
+    <div class="bg-blobs">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+    </div>
+
     <div id="onboarding-container">
         <header>
-            <div class="logo">Bytes<span>FX</span></div>
-            <div class="progress-container">
-                <div class="progress-bar" id="progress"></div>
-                <div class="steps">
-                    <div class="step active" data-step="1">1</div>
-                    <div class="step" data-step="2">2</div>
-                    <div class="step" data-step="3">3</div>
-                </div>
+            <div class="logo">Bytes<span>AI</span></div>
+            <div class="step-indicator">
+                <div class="step-circle active" data-step="1">1</div>
+                <div class="step-line"></div>
+                <div class="step-circle" data-step="2">2</div>
+                <div class="step-line"></div>
+                <div class="step-circle" data-step="3">3</div>
             </div>
         </header>
 
         <main>
             <!-- Step 1: Account Creation -->
             <section id="step-1" class="slide active">
-                <h1>Welcome to the Future of Lead Generation.</h1>
-                <p class="subtitle">Let's set up your account and get your bot ready to scale.</p>
+                <h1 class="reveal">Welcome to the Future of <br><span class="text-gradient">Lead Generation.</span></h1>
+                <p class="subtitle reveal">Let's set up your account and get your bot ready to scale.</p>
 
                 <div class="form-card glass">
                     <div class="form-group">

@@ -2,8 +2,7 @@ const ADMIN_KEY = "DEV_BYPASS"; // In a real app, this would be a session token
 
 // UI Elements
 const slides = document.querySelectorAll('.slide');
-const steps = document.querySelectorAll('.step');
-const progressBar = document.getElementById('progress');
+const steps = document.querySelectorAll('.step-circle');
 
 // Step 1 Inputs
 const inputName = document.getElementById('client-name');
@@ -37,10 +36,20 @@ function goToStep(step) {
     document.getElementById(`step-${step}`).classList.add('active');
 
     // Update Progress UI
-    for (let i = 1; i <= step; i++) {
-        document.querySelector(`.step[data-step="${i}"]`).classList.add('active');
+    for (let i = 1; i <= steps.length; i++) {
+        const circle = document.querySelector(`.step-circle[data-step="${i}"]`);
+        if (!circle) continue;
+
+        if (i < step) {
+            circle.classList.add('completed');
+            circle.classList.remove('active');
+        } else if (i === step) {
+            circle.classList.add('active');
+            circle.classList.remove('completed');
+        } else {
+            circle.classList.remove('active', 'completed');
+        }
     }
-    progressBar.style.width = `${(step - 1) * 50}%`;
     currentStep = step;
 }
 
@@ -94,10 +103,10 @@ next2.addEventListener('click', async () => {
 
         // Generate the Embed Code
         const snippet = `
-<!-- BytesFX Chatbot Widget Start -->
+<!-- BytesAI Chatbot Widget Start -->
 <script src="https://ai.bytesfx.com/widget.js" 
   data-client-id="${registrationData.clientId}"></scr` + `ipt>
-<!-- BytesFX Chatbot Widget End -->`;
+<!-- BytesAI Chatbot Widget End -->`;
 
         embedCode.textContent = snippet.trim();
         goToStep(3);

@@ -21,9 +21,21 @@ const leadsBody = document.getElementById('leads-body');
 const logsBody = document.getElementById('logs-body');
 
 const configClientId = document.getElementById('config-client-id');
+const configMode = document.getElementById('config-mode');
+const configBranding = document.getElementById('config-branding');
+const configReferral = document.getElementById('config-referral');
 const configPrompt = document.getElementById('config-prompt');
+const configCompanyName = document.getElementById('config-company-name');
 const saveConfigBtn = document.getElementById('save-config-btn');
+const loadConfigBtn = document.getElementById('load-config-btn');
 const configStatus = document.getElementById('config-status');
+
+// Simulator Elements
+const simClientId = document.getElementById('sim-client-id');
+const simName = document.getElementById('sim-name');
+const simEmail = document.getElementById('sim-email');
+const simulateBtn = document.getElementById('simulate-lead-btn');
+const simStatus = document.getElementById('sim-status');
 
 // --- Initialization ---
 if (adminKey) {
@@ -95,8 +107,15 @@ async function loadLeads(testKey = null) {
         });
 
         if (!res.ok) {
-            const err = await res.json();
-            return { success: false, error: err.error || 'Request failed' };
+            let errorMsg = 'Access Denied';
+            try {
+                const err = await res.json();
+                errorMsg = err.error || errorMsg;
+            } catch (jsonErr) {
+                // Not JSON, maybe a 500 crash text
+                errorMsg = `Server Error (${res.status})`;
+            }
+            return { success: false, error: errorMsg };
         }
 
         const data = await res.json();
@@ -123,13 +142,13 @@ async function loadLogs() {
 // --- Rendering ---
 function renderLeads(leads) {
     leadsBody.innerHTML = leads.map(l => `
-        <tr>
+        <tr class="${l.locked ? 'lead-locked' : ''}">
             <td>${new Date(l.timestamp).toLocaleString()}</td>
-            <td><code>${l.client_id}</code></td>
-            <td>${l.name}</td>
-            <td>${l.email}</td>
+            <td><code>${l.client_id}</code> ${l.locked ? '<span class="badge badge-locked">Locked</span>' : ''}</td>
+            <td class="${l.locked ? 'blurred' : ''}">${l.name}</td>
+            <td class="${l.locked ? 'blurred' : ''}">${l.email}</td>
             <td>${l.service}</td>
-            <td>${l.budget}</td>
+            <td class="${l.locked ? 'blurred' : ''}">${l.budget}</td>
             <td title="${l.summary}">${l.summary ? l.summary.substring(0, 50) + '...' : '-'}</td>
         </tr>
     `).join('');
@@ -147,9 +166,53 @@ function renderLogs(logs) {
 }
 
 // --- Client Management ---
+loadConfigBtn.addEventListener('click', async () => {
+    const cid = configClientId.value.trim();
+    if (!cid) return;
+
+    configStatus.innerText = "Loading...";
+    configStatus.style.color = "white";
+
+    try {
+        const res = await fetch(`${API_BASE}/api/config?clientId=${cid}`, {
+            headers: { 'x-admin-key': adminKey }
+        });
+
+        if (res.ok) {
+            const data = await res.json();
+            configPrompt.value = data.systemPrompt || '';
+            configMode.value = data.mode || 'free';
+            configCompanyName.value = data.companyName || '';
+            configBranding.checked = data.showBranding !== false;
+            configReferral.value = data.referralId || '';
+
+            // Branding is mandatory for Free Tier
+            if (configMode.value === 'free') {
+                configBranding.checked = true;
+                configBranding.disabled = true;
+                configBranding.parentElement.querySelector('label').innerText += " (Mandatory for Free)";
+            } else {
+                configBranding.disabled = false;
+                configBranding.parentElement.querySelector('label').innerText = "Show \"Powered by BytesAI\"";
+            }
+            configStatus.innerText = "Settings loaded!";
+            configStatus.style.color = "var(--success)";
+        } else {
+            configStatus.innerText = "Settings not found (using defaults).";
+            configMode.value = 'ai';
+            configPrompt.value = '';
+        }
+    } catch (e) {
+        configStatus.innerText = "Error loading settings.";
+    }
+});
+
 saveConfigBtn.addEventListener('click', async () => {
     const cid = configClientId.value.trim();
     const prompt = configPrompt.value.trim();
+    const mode = configMode.value;
+    const branding = configBranding.checked;
+    const referral = configReferral.value.trim();
 
     if (!cid) {
         configStatus.innerText = "Client ID is required";
@@ -166,7 +229,13 @@ saveConfigBtn.addEventListener('click', async () => {
             },
             body: JSON.stringify({
                 clientId: cid,
-                settings: { systemPrompt: prompt }
+                settings: {
+                    systemPrompt: prompt,
+                    mode: mode,
+                    companyName: configCompanyName.value,
+                    showBranding: branding,
+                    referralId: referral
+                }
             })
         });
 
@@ -179,5 +248,46 @@ saveConfigBtn.addEventListener('click', async () => {
         }
     } catch (e) {
         configStatus.innerText = "Network error.";
+    }
+});
+
+// --- Lead Simulator Logic ---
+simulateBtn.addEventListener('click', async () => {
+    const cid = simClientId.value.trim();
+    const name = simName.value.trim();
+    const email = simEmail.value.trim();
+
+    if (!cid || !email) {
+        simStatus.innerText = "Client ID and Email are required.";
+        simStatus.style.color = "var(--error)";
+        return;
+    }
+
+    simStatus.innerText = "Simulating...";
+    simStatus.style.color = "var(--text-secondary)";
+
+    try {
+        const res = await fetch(`${API_BASE}/api/test-lead`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-admin-key': adminKey
+            },
+            body: JSON.stringify({ clientId: cid, name, email })
+        });
+
+        if (res.ok) {
+            simStatus.innerText = "Lead simulated successfully!";
+            simStatus.style.color = "var(--success)";
+            // Refresh leads if we are on the leads view
+            if (activeView === 'leads') fetchLeads();
+        } else {
+            const err = await res.json();
+            simStatus.innerText = `Error: ${err.error || 'Failed'}`;
+            simStatus.style.color = "var(--error)";
+        }
+    } catch (e) {
+        simStatus.innerText = "Network error while simulating.";
+        simStatus.style.color = "var(--error)";
     }
 });

@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BytesFX Agency Dashboard</title>
+    <title>BytesAI Agency Dashboard</title>
     <link rel="icon" type="image/png" href="/favicon.png">
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -23,7 +23,7 @@
 
     <div id="dashboard-container" class="hidden">
         <aside class="sidebar">
-            <div class="logo">BytesFX <span>Agency</span></div>
+            <div class="logo">Bytes<span>AI</span> Agency</div>
             <nav>
                 <button class="nav-item active" data-view="leads">
                     <svg viewBox="0 0 24 24">
@@ -106,21 +106,76 @@
                         <h3>Update Client Settings</h3>
                         <div class="form-group">
                             <label>Client ID</label>
-                            <input type="text" id="config-client-id" placeholder="e.g. test_client_1">
+                            <div style="display: flex; gap: 0.5rem;">
+                                <input type="text" id="config-client-id" placeholder="e.g. test_client_1"
+                                    style="flex: 1;">
+                                <button id="load-config-btn" class="btn btn-outline"
+                                    style="padding: 0.5rem 1rem;">Load</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Bot Mode (Service Tier)</label>
+                            <select id="config-mode" class="chat-input"
+                                style="background: var(--bg-secondary); border: 1px solid var(--border-color); color: white;">
+                                <option value="free">Free (Basic Scripted)</option>
+                                <option value="standard">Standard (Advanced Scripted)</option>
+                                <option value="pro">Pro AI (Gemini Strategy)</option>
+                                <option value="elite">Elite (Advanced AI + High Limits)</option>
+                            </select>
                         </div>
                         <div class="form-group">
                             <label>System Prompt (Persona)</label>
                             <textarea id="config-prompt"
                                 placeholder="Define the chatbot's personality and rules..."></textarea>
                         </div>
-                        <button id="save-config-btn" class="btn btn-primary">Save Settings</button>
+                        <div class="form-group">
+                            <label>Company/Brand Name <span class="badge"
+                                    style="background: var(--accent-color); font-size: 0.6rem;">PRO/ELITE</span></label>
+                            <input type="text" id="config-company-name" placeholder="e.g. Acme Corp">
+                        </div>
+                        <div class="form-group"
+                            style="display: flex; gap: 1rem; align-items: center; margin-top: 1rem;">
+                            <label style="flex: 1;">Show "Powered by BytesAI"</label>
+                            <input type="checkbox" id="config-branding" style="width: 20px; height: 20px;">
+                        </div>
+                        <div class="form-group">
+                            <label>Affiliate/Referral ID</label>
+                            <input type="text" id="config-referral" placeholder="e.g. client_123_ref">
+                        </div>
+                        <button id="save-config-btn" class="btn btn-primary" style="margin-top: 1rem;">Save
+                            Settings</button>
                         <p id="config-status"></p>
                     </div>
                     <div class="config-help glass-panel">
                         <h3>How it works</h3>
                         <p>These settings are stored in Cloudflare Workers KV. When a chatbot loads with this Client ID,
                             it will fetch these custom instructions immediately.</p>
-                        <p>Leaving the prompt empty will use the agency's default BytesFX persona.</p>
+                        <p>Leaving the prompt empty will use the agency's default BytesAI persona.</p>
+                    </div>
+
+                    <!-- Lead Simulator Panel -->
+                    <div class="simulator-panel glass-panel" style="margin-top: 2rem;">
+                        <h3>Lead Simulator (Dev Tool)</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 1.5rem;">
+                            Instantly inject a lead to test validation and gating logic.
+                        </p>
+                        <div class="form-group">
+                            <label>Target Client ID</label>
+                            <input type="text" id="sim-client-id" placeholder="e.g. test_client_1">
+                        </div>
+                        <div class="form-group">
+                            <label>Lead Name</label>
+                            <input type="text" id="sim-name" placeholder="John Doe">
+                        </div>
+                        <div class="form-group">
+                            <label>Lead Email</label>
+                            <input type="email" id="sim-email" placeholder="john@example.com">
+                        </div>
+                        <button id="simulate-lead-btn" class="btn btn-outline"
+                            style="width: 100%; border-color: var(--accent-color); color: var(--accent-color);">
+                            Shoot Test Lead 🚀
+                        </button>
+                        <p id="sim-status" style="margin-top: 0.75rem; font-size: 0.8rem; font-weight: 500;"></p>
                     </div>
                 </div>
             </section>

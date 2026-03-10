@@ -272,6 +272,20 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
+        .branding-area {
+            padding: 0.5rem;
+            text-align: center;
+            font-size: 0.7rem;
+            color: var(--widget-text-secondary);
+            background: rgba(0, 0, 0, 0.4);
+        }
+
+        .branding-area a {
+            color: var(--widget-accent);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
         @media (max-width: 480px) {
             .chatbot-widget-container { bottom: 1rem; right: 1rem; }
             .chatbot-window {
@@ -286,10 +300,21 @@
     `;
 
     // --- Core UI Creation ---
-    function init() {
+    async function init() {
         const styleSheet = document.createElement("style");
         styleSheet.innerText = styles;
         document.head.appendChild(styleSheet);
+
+        // Fetch Config
+        let config = {};
+        try {
+            const res = await fetch(`${API_URL}/api/config?clientId=${clientId}`);
+            if (res.ok) config = await res.json();
+        } catch (e) { console.error("Config fetch error:", e); }
+
+        const showBranding = config.showBranding !== false;
+        const refId = config.referralId || '';
+        const brandingUrl = `https://web.bytesai.com/${refId ? '?ref=' + refId : ''}`;
 
         const container = document.createElement('div');
         container.className = 'chatbot-widget-container';
@@ -314,6 +339,9 @@
                             <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
                         </button>
                     </form>
+                </div>
+                <div class="branding-area" id="branding-area" style="display: ${showBranding ? 'block' : 'none'}">
+                    Powered by <a href="${brandingUrl}" target="_blank">BytesAI</a>
                 </div>
             </div>
             <button class="chatbot-launcher" id="chatbot-launcher">
