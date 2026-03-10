@@ -168,11 +168,15 @@ body {
 /* Tables */
 .table-container {
     padding: 0;
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
 }
 
 table {
     width: 100%;
+    min-width: 1000px;
+    /* Prevent squishing of data on small screens */
     border-collapse: collapse;
     text-align: left;
 }
@@ -185,12 +189,22 @@ th {
     font-size: 0.75rem;
     letter-spacing: 0.05em;
     border-bottom: 1px solid var(--glass-border);
+    white-space: nowrap;
+    /* Prevent headers from stacking */
 }
 
 td {
     padding: 1rem 1.5rem;
     border-bottom: 1px solid var(--glass-border);
     font-size: 0.9rem;
+    white-space: nowrap;
+    /* Most columns shouldn't wrap to keep it clean */
+}
+
+/* Allow summary to wrap if we ever remove truncation */
+td:nth-child(7) {
+    white-space: normal;
+    min-width: 250px;
 }
 
 tr:hover td {
@@ -238,6 +252,7 @@ tr:hover td {
     cursor: pointer;
     border: none;
     transition: all 0.2s ease;
+    white-space: nowrap;
 }
 
 .btn-primary {
@@ -272,5 +287,23 @@ tr:hover td {
 
     .sidebar {
         display: none;
+    }
+
+    .content {
+        padding: 1.5rem;
+    }
+
+    .config-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .pipeline-container {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .pipeline-container>div:nth-child(even) {
+        transform: rotate(90deg);
+        /* Rotate the arrows down */
     }
 }
