@@ -26,8 +26,10 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
     perspective: 1000px;
+    padding: 2rem 0;
 }
 
 /* --- Animated Mesh Background --- */
