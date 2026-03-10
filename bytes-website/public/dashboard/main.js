@@ -1,4 +1,3 @@
-// --- Configuration ---
 const API_BASE = "https://ai.bytesfx.com"; // Your live domain
 
 // --- State ---
@@ -150,8 +149,24 @@ function renderLeads(leads) {
             <td>${l.service}</td>
             <td class="${l.locked ? 'blurred' : ''}">${l.budget}</td>
             <td title="${l.summary}">${l.summary ? l.summary.substring(0, 50) + '...' : '-'}</td>
+            <td>
+                <span class="badge" style="background: var(--bg-hover); color: var(--text-primary);">
+                    ${l.status ? l.status.replace(/_/g, ' ').toUpperCase() : 'NEW'}
+                </span>
+            </td>
+            <td>
+                ${!l.locked ? `<button class="btn btn-outline manage-campaign-btn" data-id="${l.id}" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">Campaign</button>` : ''}
+            </td>
         </tr>
     `).join('');
+
+    // Add event listeners for the Campaign buttons
+    document.querySelectorAll('.manage-campaign-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const leadId = e.target.getAttribute('data-id');
+            openSequenceModal(leadId);
+        });
+    });
 }
 
 function renderLogs(logs) {
@@ -279,8 +294,11 @@ simulateBtn.addEventListener('click', async () => {
         if (res.ok) {
             simStatus.innerText = "Lead simulated successfully!";
             simStatus.style.color = "var(--success)";
-            // Refresh leads if we are on the leads view
-            if (activeView === 'leads') fetchLeads();
+
+            // Re-fetch leads if we are on the leads view (since 'activeView' variable doesn't exist globally, we check DOM)
+            if (!document.getElementById('leads-view').classList.contains('hidden')) {
+                loadLeads();
+            }
         } else {
             const err = await res.json();
             simStatus.innerText = `Error: ${err.error || 'Failed'}`;
@@ -289,5 +307,164 @@ simulateBtn.addEventListener('click', async () => {
     } catch (e) {
         simStatus.innerText = "Network error while simulating.";
         simStatus.style.color = "var(--error)";
+    }
+});
+
+// --- Modal Logic ---
+const sequenceModal = document.getElementById('sequence-modal');
+const closeSequenceModalBtn = document.getElementById('close-sequence-modal');
+const sequenceLoading = document.getElementById('sequence-loading');
+const sequenceEditorContainer = document.getElementById('sequence-editor-container');
+const saveSequenceBtn = document.getElementById('save-sequence-btn');
+const approveSequenceBtn = document.getElementById('approve-sequence-btn');
+const sequenceStatus = document.getElementById('sequence-status');
+
+let currentLeadId = null;
+let currentSequences = [];
+
+closeSequenceModalBtn.addEventListener('click', () => {
+    sequenceModal.classList.add('hidden');
+});
+
+async function openSequenceModal(leadId) {
+    currentLeadId = leadId;
+    sequenceModal.classList.remove('hidden');
+    sequenceEditorContainer.innerHTML = '';
+    saveSequenceBtn.classList.add('hidden');
+    approveSequenceBtn.classList.add('hidden');
+    sequenceStatus.innerText = '';
+
+    // Fetch existing sequences
+    sequenceLoading.classList.remove('hidden');
+    try {
+        const res = await fetch(`${API_BASE}/api/sequences?leadId=${leadId}`, {
+            headers: { 'x-admin-key': adminKey }
+        });
+        const data = await res.json();
+
+        if (data && data.length > 0) {
+            currentSequences = data;
+            renderSequenceEditor();
+        } else {
+            // Need to generate
+            await generateSequence(leadId);
+        }
+    } catch (e) {
+        sequenceStatus.innerText = 'Error loading sequence.';
+    } finally {
+        sequenceLoading.classList.add('hidden');
+    }
+}
+
+async function generateSequence(leadId) {
+    sequenceStatus.innerText = '';
+    try {
+        const res = await fetch(`${API_BASE}/api/generate-sequence`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
+            body: JSON.stringify({ leadId })
+        });
+        if (res.ok) {
+            // Re-fetch the newly generated sequences
+            const seqRes = await fetch(`${API_BASE}/api/sequences?leadId=${leadId}`, {
+                headers: { 'x-admin-key': adminKey }
+            });
+            currentSequences = await seqRes.json();
+            renderSequenceEditor();
+        } else {
+            sequenceStatus.innerText = 'Failed to generate sequence via AI.';
+            sequenceStatus.style.color = 'var(--error)';
+        }
+    } catch (e) {
+        sequenceStatus.innerText = 'Network error generating sequence.';
+        sequenceStatus.style.color = 'var(--error)';
+    }
+}
+
+function renderSequenceEditor() {
+    if (!currentSequences || currentSequences.length === 0) return;
+
+    // Check global status of this lead's sequence
+    const isApproved = currentSequences.some(s => s.status !== 'draft');
+
+    sequenceEditorContainer.innerHTML = currentSequences.map((seq, index) => `
+        <div class="sequence-step" style="margin-bottom: 2rem; padding: 1.5rem; border: 1px solid var(--border-color); border-radius: 8px; background: rgba(0,0,0,0.2);">
+            <h4 style="margin-top: 0; margin-bottom: 1rem; color: var(--accent-color); font-size: 1.1rem;">Email ${seq.email_number} <span style="font-size: 0.8rem; font-weight: 400; color: var(--text-secondary);">(Sends approx ${seq.email_number} day${seq.email_number > 1 ? 's' : ''} after approval)</span></h4>
+            <div class="form-group" style="margin-bottom: 1rem;">
+                <label style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">Subject Line</label>
+                <input type="text" id="seq-subject-${index}" value="${seq.subject.replace(/"/g, '&quot;')}" ${isApproved ? 'disabled' : ''} style="width: 100%; padding: 0.5rem; background: var(--bg-secondary); border: 1px solid var(--border-color); color: white; border-radius: 4px;">
+            </div>
+            <div class="form-group">
+                <label style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">Body</label>
+                <textarea id="seq-body-${index}" style="width: 100%; min-height: 200px; padding: 0.5rem; background: var(--bg-secondary); border: 1px solid var(--border-color); color: white; border-radius: 4px; resize: vertical;" ${isApproved ? 'disabled' : ''}>${seq.body}</textarea>
+            </div>
+        </div>
+    `).join('');
+
+    if (!isApproved) {
+        saveSequenceBtn.classList.remove('hidden');
+        approveSequenceBtn.classList.remove('hidden');
+    } else {
+        sequenceStatus.innerText = 'Campaign is already Approved/Active and cannot be edited.';
+        sequenceStatus.style.color = 'var(--text-secondary)';
+    }
+}
+
+saveSequenceBtn.addEventListener('click', async () => {
+    sequenceStatus.innerText = 'Saving drafts...';
+    sequenceStatus.style.color = 'white';
+
+    try {
+        for (let i = 0; i < currentSequences.length; i++) {
+            const seq = currentSequences[i];
+            const subject = document.getElementById(`seq-subject-${i}`).value;
+            const body = document.getElementById(`seq-body-${i}`).value;
+
+            await fetch(`${API_BASE}/api/sequences`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
+                body: JSON.stringify({ id: seq.id, subject, body })
+            });
+        }
+        sequenceStatus.innerText = 'Drafts saved successfully.';
+        sequenceStatus.style.color = 'var(--success)';
+    } catch (e) {
+        sequenceStatus.innerText = 'Error saving drafts.';
+        sequenceStatus.style.color = 'var(--error)';
+    }
+});
+
+approveSequenceBtn.addEventListener('click', async () => {
+    if (!confirm('Are you sure you want to approve this sequence? It will be drip-fed to the lead automatically.')) return;
+
+    // Save first just in case
+    await saveSequenceBtn.click();
+
+    sequenceStatus.innerText = 'Approving Campaign...';
+    try {
+        const res = await fetch(`${API_BASE}/api/sequences/approve`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
+            body: JSON.stringify({ leadId: currentLeadId })
+        });
+
+        if (res.ok) {
+            sequenceStatus.innerText = 'Campaign Approved & Deployed! 🚀';
+            sequenceStatus.style.color = 'var(--success)';
+            saveSequenceBtn.classList.add('hidden');
+            approveSequenceBtn.classList.add('hidden');
+
+            // disable inputs
+            document.querySelectorAll('input[id^="seq-subject-"], textarea[id^="seq-body-"]').forEach(el => el.disabled = true);
+
+            // Refresh underlying leads table
+            loadLeads();
+        } else {
+            sequenceStatus.innerText = 'Failed to approve campaign.';
+            sequenceStatus.style.color = 'var(--error)';
+        }
+    } catch (e) {
+        sequenceStatus.innerText = 'Network error approving campaign.';
+        sequenceStatus.style.color = 'var(--error)';
     }
 });
