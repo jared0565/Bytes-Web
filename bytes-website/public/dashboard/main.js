@@ -140,11 +140,23 @@ async function loadLogs() {
 
 // --- Rendering ---
 function renderLeads(leads) {
+    // Pipeline Metrics Gamification
+    const capturedCount = leads.length;
+    const draftedCount = leads.filter(l => l.status === 'sequence_generated').length;
+    const activeCount = leads.filter(l => l.status === 'active_campaign').length;
+
+    document.getElementById('metric-captured').innerText = capturedCount;
+    document.getElementById('metric-drafted').innerText = draftedCount;
+    document.getElementById('metric-active').innerText = activeCount;
+
     leadsBody.innerHTML = leads.map(l => `
         <tr class="${l.locked ? 'lead-locked' : ''}">
             <td>${new Date(l.timestamp).toLocaleString()}</td>
             <td><code>${l.client_id}</code> ${l.locked ? '<span class="badge badge-locked">Locked</span>' : ''}</td>
-            <td class="${l.locked ? 'blurred' : ''}">${l.name}</td>
+            <td class="${l.locked ? 'blurred' : ''}">
+                ${l.name} 
+                ${l.has_lightning_badge ? '<span class="badge" title="Lightning Response: Sequence approved in under 1 hour!" style="background: rgba(234, 179, 8, 0.2); color: #eab308; border-color: #eab308; margin-left: 0.5rem;">⚡ Fast Action</span>' : ''}
+            </td>
             <td class="${l.locked ? 'blurred' : ''}">${l.email}</td>
             <td>${l.service}</td>
             <td class="${l.locked ? 'blurred' : ''}">${l.budget}</td>
