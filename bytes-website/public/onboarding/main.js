@@ -61,10 +61,28 @@ next1.addEventListener('click', () => {
         alert("Please provide your name and email.");
         return;
     }
-    registrationData.name = inputName.value;
-    registrationData.email = inputEmail.value;
+
+    // Strict Email Format Validation
+    const emailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(inputEmail.value.trim())) {
+        alert("Please enter a valid business email address (e.g. name@company.com).");
+        inputEmail.focus();
+        return;
+    }
+
+    /* 
+     * TODO (Verification Placeholder): 
+     * Before proceeding to Step 2, we will eventually trigger an OTP (One Time Password) 
+     * flow here via API (e.g., POST /api/verify-email). 
+     * If unverified, show a modal to enter the 6-digit code sent to `inputEmail.value`.
+     * proceedToStep2() will only be called upon successful OTP validation.
+     */
+
+    registrationData.name = inputName.value.trim();
+    registrationData.email = inputEmail.value.trim().toLowerCase();
+
     // Generate a trial client ID: lowercase-name-random
-    registrationData.clientId = inputName.value.toLowerCase().replace(/\s+/g, '-') + '-' + Math.floor(Math.random() * 1000);
+    registrationData.clientId = inputName.value.trim().toLowerCase().replace(/\s+/g, '-') + '-' + Math.floor(Math.random() * 1000);
     goToStep(2);
 });
 
