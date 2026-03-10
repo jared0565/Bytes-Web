@@ -73,8 +73,8 @@ export default {
 		if (url.pathname.startsWith('/api/')) {
 			const allowedOrigin = "https://web.bytesfx.com";
 
-			// Strictly enforce Origin for Admin Dashboard
-			if (origin && origin !== allowedOrigin && !url.hostname.includes('localhost')) {
+			// Strictly enforce Origin for Admin Dashboard, but allow local dev
+			if (origin && origin !== allowedOrigin && !origin.includes('localhost') && !origin.includes('127.0.0.1')) {
 				return new Response(JSON.stringify({ error: `Forbidden: Invalid Origin (${origin})` }), {
 					status: 403,
 					headers: { ...cors, 'Content-Type': 'application/json' }
@@ -236,6 +236,145 @@ export default {
 				}
 			}
 
+			// POST /api/generate-sequence - AI Autoresponder Campaign Generator
+			if (url.pathname === '/api/generate-sequence' && request.method === 'POST') {
+				try {
+					const { leadId } = await request.json() as { leadId: string };
+					if (!leadId) return new Response(JSON.stringify({ error: 'Missing leadId' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
+
+					// Fetch lead data
+					const lead: any = await env.DB.prepare("SELECT * FROM leads WHERE id = ?").bind(leadId).first();
+					if (!lead) return new Response(JSON.stringify({ error: 'Lead not found' }), { status: 404, headers: { ...cors, 'Content-Type': 'application/json' } });
+
+					// Check if sequences already exist
+					const existing = await env.DB.prepare("SELECT count(*) as count FROM email_sequences WHERE lead_id = ?").bind(leadId).first();
+					if ((existing as any).count > 0) {
+						return new Response(JSON.stringify({ error: 'Sequence already exists for this lead' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
+					}
+
+					// Fetch chat history for context
+					const { results: chatLogs } = await env.DB.prepare("SELECT user_message, bot_response FROM chat_logs WHERE client_id = ? ORDER BY timestamp ASC").bind(lead.client_id).all();
+
+					const chatContext = chatLogs.map((log: any) => `User: ${log.user_message}\nBot: ${log.bot_response}`).join('\n\n');
+
+					const prompt = `
+You are an expert copywriter and sales closer.
+Write a highly engaging 5-email drip sequence to close a lead who recently chatted with our AI.
+Lead Name: ${lead.name}
+Lead Email: ${lead.email}
+Interest/Service: ${lead.service}
+Budget Indicated: ${lead.budget}
+Lead Summary: ${lead.summary}
+
+Chat Transcript Context:
+${chatContext}
+
+Strategy:
+Email 1: Value delivery & immediate follow-up to the chat.
+Email 2: Agitate the core problem and explain why fixing it is urgent. INCLUDE AN INTERACTIVE MICRO-CHALLENGE: Ask the user to reply to this email with their biggest single bottleneck, promising to instantly send back a completely free, custom AI audit report or strategy tailored to their answer. This creates a two-way engagement loop.
+Email 3: Case study/Proof of concept for our ${lead.service}.
+Email 4: Cross-sell/Upsell (Suggest a complementary service based on their chat context).
+Email 5: The final hard close & call to action.
+
+Output EXACTLY in this JSON format:
+{
+  "emails": [
+    { "email_number": 1, "subject": "...", "body": "..." },
+    { "email_number": 2, "subject": "...", "body": "..." }
+  ]
+}
+`;
+					// Call Gemini
+					const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`;
+					const geminiResponse = await fetch(geminiUrl, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							system_instruction: { parts: [{ text: "You are an elite B2B sales copywriter." }] },
+							contents: [{ role: 'user', parts: [{ text: prompt }] }],
+							generationConfig: { temperature: 0.7, responseMimeType: "application/json" }
+						})
+					});
+
+					const geminiData = await geminiResponse.json() as any;
+					if (!geminiResponse.ok) throw new Error("Gemini API Error: " + JSON.stringify(geminiData));
+
+					const responseText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+					if (!responseText) throw new Error("Empty response from AI");
+
+					const parsed = JSON.parse(responseText);
+					const emails = parsed.emails || [];
+
+					// Insert into DB
+					const stmt = env.DB.prepare("INSERT INTO email_sequences (lead_id, client_id, email_number, subject, body, status, scheduled_for) VALUES (?, ?, ?, ?, ?, 'draft', ?)");
+					const batch = [];
+					let delayDays = 1;
+					for (const email of emails) {
+						const scheduledFor = Date.now() + (delayDays * 24 * 60 * 60 * 1000); // 1 day apart
+						batch.push(stmt.bind(leadId, lead.client_id, email.email_number, email.subject, email.body, scheduledFor));
+						delayDays++;
+					}
+
+					await env.DB.batch(batch);
+					await env.DB.prepare("UPDATE leads SET status = 'sequence_generated' WHERE id = ?").bind(leadId).run();
+
+					return new Response(JSON.stringify({ success: true, count: emails.length }), {
+						headers: { ...cors, 'Content-Type': 'application/json' }
+					});
+
+				} catch (e: any) {
+					return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } });
+				}
+			}
+
+			// GET /api/sequences - Fetch sequences for a lead
+			if (url.pathname === '/api/sequences' && request.method === 'GET') {
+				try {
+					const leadId = url.searchParams.get('leadId');
+					if (!leadId) return new Response(JSON.stringify({ error: 'Missing leadId' }), { status: 400, headers: { ...cors, 'Content-Type': 'application/json' } });
+
+					const { results } = await env.DB.prepare("SELECT * FROM email_sequences WHERE lead_id = ? ORDER BY email_number ASC").bind(leadId).all();
+					return new Response(JSON.stringify(results), { headers: { ...cors, 'Content-Type': 'application/json' } });
+				} catch (e: any) {
+					return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } });
+				}
+			}
+
+			// PUT /api/sequences - Update an email
+			if (url.pathname === '/api/sequences' && request.method === 'PUT') {
+				try {
+					const { id, subject, body } = await request.json() as { id: number, subject: string, body: string };
+					await env.DB.prepare("UPDATE email_sequences SET subject = ?, body = ? WHERE id = ?").bind(subject, body, id).run();
+					return new Response(JSON.stringify({ success: true }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+				} catch (e: any) {
+					return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } });
+				}
+			}
+
+			// POST /api/sequences/approve - Approve a lead's sequence
+			if (url.pathname === '/api/sequences/approve' && request.method === 'POST') {
+				try {
+					const { leadId } = await request.json() as { leadId: string };
+
+					// Calculate Speed-to-Lead Gamification Badge
+					const lead: any = await env.DB.prepare("SELECT timestamp FROM leads WHERE id = ?").bind(leadId).first();
+					if (!lead) {
+						return new Response(JSON.stringify({ error: 'Lead not found' }), { status: 404, headers: { ...cors, 'Content-Type': 'application/json' } });
+					}
+
+					const now = Date.now();
+					const oneHour = 60 * 60 * 1000;
+					const hasLightningBadge = (now - lead.timestamp) <= oneHour;
+
+					await env.DB.prepare("UPDATE email_sequences SET status = 'approved' WHERE lead_id = ? AND status = 'draft'").bind(leadId).run();
+					await env.DB.prepare("UPDATE leads SET status = 'active_campaign', has_lightning_badge = ? WHERE id = ?").bind(hasLightningBadge ? 1 : 0, leadId).run();
+
+					return new Response(JSON.stringify({ success: true, hasLightningBadge }), { headers: { ...cors, 'Content-Type': 'application/json' } });
+				} catch (e: any) {
+					return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } });
+				}
+			}
+
 			return new Response('Not Found', { status: 404, headers: { ...cors, 'Content-Type': 'application/json' } });
 		}
 
@@ -273,6 +412,17 @@ export default {
 			activeSystemPrompt = activeSystemPrompt.replace("high-level consultant for this business", `high-level consultant for ${companyName}`);
 		}
 
+		// 1.2 Inject Gamification Status-Tier Context (Track B)
+		// Instructs the AI to subtly acknowledge the user's tier status for anticipation motivation
+		const tierDisclosureRule = `
+CRITICAL INSTRUCTION - STATUS TIER VISIBILITY: 
+The agency operating this chatbot is currently on the '${tier.toUpperCase()}' tier. 
+If the user asks complex questions, casually mention this tier to build authority and status.
+Example: "Since we're operating on the Elite tier infrastructure, I can run that analysis for you." or "Our Pro tier access allows us to prioritize this."
+Do not force it into every message, but use it naturally when discussing capabilities or advanced strategies.`;
+
+		activeSystemPrompt = activeSystemPrompt + "\n" + tierDisclosureRule;
+
 		// --- Static/Rule-Based Modes (Free & Standard) ---
 		if (tier === 'free' || tier === 'standard') {
 			const history = body.history || [];
@@ -304,7 +454,7 @@ export default {
 				responseText = `I hear you—improving your ${serviceFocus} sounds like a critical priority. But first, can I have your name?`;
 			} else if (!providedEmail) {
 				// STEP 2: Email
-				const brandText = (companyName && (tier === 'pro' || tier === 'elite')) ? `At ${companyName}` : "Our specialized team";
+				const brandText = companyName ? `At ${companyName}` : "Our specialized team";
 				if (emailRegex.test(body.message)) {
 					responseText = `Thanks! And did you know that delay in resolving ${serviceFocus} issues often costs businesses 20-30% in potential revenue? \n\n${brandText} specializes in high-impact solutions that stop that leak. Does that sound like what you need?`;
 				} else {
@@ -662,5 +812,35 @@ export default {
 			});
 		}
 	},
+
+	// CRON Trigger for Autoresponder Delivery
+	async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+		const now = Date.now();
+
+		// Fetch all 'approved' sequences that are due and haven't been sent
+		const { results } = await env.DB.prepare(
+			"SELECT * FROM email_sequences WHERE status = 'approved' AND scheduled_for <= ?"
+		).bind(now).all();
+
+		if (!results || results.length === 0) return;
+
+		for (const sequence of results as any[]) {
+			try {
+				const lead = await env.DB.prepare("SELECT email FROM leads WHERE id = ?").bind(sequence.lead_id).first();
+				if (!lead) continue;
+
+				// TODO: Replace with actual Resend/SendGrid API fetch call once API key is provided
+				console.log(`[SIMULATED EMAIL] To: ${(lead as any).email} | Subject: ${sequence.subject}\nBody preview: ${sequence.body.substring(0, 50)}...`);
+
+				// Mark as sent
+				await env.DB.prepare(
+					"UPDATE email_sequences SET status = 'sent', sent_at = ? WHERE id = ?"
+				).bind(Date.now(), sequence.id).run();
+
+			} catch (e) {
+				console.error("Failed to process sequence ID", sequence.id, e);
+			}
+		}
+	}
 };
 // Verification Push: CI/CD stabilized via GitHub Actions.
