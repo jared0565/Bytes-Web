@@ -51,7 +51,13 @@
 		{
 			"binding": "DB",
 			"database_name": "chatbot-db",
-			"database_id": "83348fa4-873f-4b07-b372-6a6e3b0896b6"
+			"database_id": "83348fa4-873f-4b07-b372-6a6e3b0896b6",
+			"migrations_dir": "migrations"
 		}
-	]
+	],
+	"triggers": {
+		"crons": [
+			"0 * * * *"
+		] // Run every hour
+	}
 }

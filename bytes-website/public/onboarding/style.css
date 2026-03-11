@@ -410,6 +410,44 @@ pre {
     }
 }
 
+@media (max-width: 480px) {
+    #onboarding-container {
+        padding: 1rem;
+    }
+
+    h1 {
+        font-size: 2.2rem;
+    }
+
+    .glass {
+        padding: 1.5rem;
+    }
+
+    .button-group {
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .logo {
+        font-size: 2rem;
+        margin-bottom: 2rem;
+    }
+
+    .step-indicator {
+        gap: 0.5rem;
+    }
+
+    .step-circle {
+        width: 32px;
+        height: 32px;
+        font-size: 0.85rem;
+    }
+
+    .step-line {
+        width: 25px;
+    }
+}
+
 /* --- Social Login Styles --- */
 .divider {
     display: flex;

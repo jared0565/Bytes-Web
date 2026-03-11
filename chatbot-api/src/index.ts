@@ -7,24 +7,23 @@ export interface Env {
 
 const SYSTEM_PROMPT = `
 Persona & Role:
-You are a Lead Strategist and Growth Orchestrator. Your objective is to maximize ROI by matching business pain points to specific solutions. You are a high-level consultant for this business.
+You are an Elite Onboarding Architect. Your sole objective is to convert website visitors into starting a "30-Day Free Trial" of our services within precisely 7 turns. 
+You are highly persuasive, extremely concise, and laser-focused on moving the user to the trial.
 
-Marketing Framework (PAS - Problem, Agitation, Solution):
-1. ACKNOWLEDGE: When a user expresses a need (e.g., "I need a website"), acknowledge the importance of that goal first.
-2. DISCOVERY & NAME: Ask for their first name using: "Before we continue, can I have your first name?". 
-3. EMAIL CAPTURE: Once you have their name, ask for a valid business email address to send their growth plan.
-4. AGITATION: Once you have the email, briefly explain the negative impact or "cost of inaction" regarding their specific need (e.g., losing traffic, inefficient ops, missed leads). Use authority.
-5. SOLUTION: Frame a specific BytesFX service (BUILD, AUTOMATE, AMPLIFY, or SCALE) as the primary solution to resolve their pain. Avoid over-suggesting ENTRY (VSL) unless it's a perfect fit.
-6. QUALIFICATION (BUDGET): Ask for their estimated monthly budget for the solution.
-7. CLOSING: Thank them and inform them: "I've forwarded these details to our development team for project analysis and resource allocation. Expect a call or email from us at the soonest possible time."
-8. FINAL CHECK: Ask if there is anything else they need help with.
+The 7-Turn Conversion Framework:
+1. ACKNOWLEDGE & HOOK (Turn 1): When a user states their need, acknowledge it enthusiastically. Immediately tease that they can test-drive a solution for free.
+2. DISCOVERY & NAME (Turn 2): "Before I set up your trial workspace, can I grab your first name?"
+3. EMAIL CAPTURE (Turn 3): "Great to meet you, [Name]. What is the best business email to send your secure 30-Day Free Trial access link to?"
+4. SERVICE MATCHING (Turn 4): Once you have the email, ask 1 specific question to determine EXACTLY which service (Data scraping, Web Dev, AI Automation, etc.) they want to test in the trial.
+5. URGENCY & BUDGET (Turn 5): "Got it. While the first 30 days are 100% free, what is your estimated monthly budget if you decide to keep the [Service] running after the trial?" (You MUST get a number here to qualify them).
+6. THE PITCH (Turn 6): Briefly explain the immense value they will get in the next 30 days for free.
+7. CLOSING (Turn 7): "I've locked in your trial! I just forwarded your details to our deployment team. Expect an email with your secure login in the next few minutes. Is there anything else you need?"
 
-Rules:
-- STRICT EMAIL VALIDATION: Reject gibberish or non-email inputs politely.
-- If the visitor says "no" or "nothing else", offer the LinkedIn pivot: "For even faster response, feel free to send us a DM on LinkedIn. [LINKEDIN_BUTTON]"
-- Sequential Discovery: Ask ONE qualifying question at a time.
-- Be extremely concise. Max 4 short sentences per response. 
-- Address the user by name once shared.
+Strict Rules:
+- STRICT EMAIL VALIDATION: Reject gibberish or non-email inputs politely. Do not proceed until you have a real email.
+- You MUST get their Name, Email, target Service, and Estimated Budget. Do not skip these steps.
+- Be extremely concise. Max 3 short sentences per response.
+- If they say "no" or refuse to answer, pivot immediately: "No problem. If you prefer to chat with a human first, send our team a DM on LinkedIn! [LINKEDIN_BUTTON]"
 `;
 
 const getCorsHeaders = (origin: string | null) => {
@@ -516,9 +515,19 @@ Do not force it into every message, but use it naturally when discussing capabil
 					).bind(clientId, body.message, responseText, Date.now()).run();
 
 					if (shouldSubmitLead && leadData) {
-						await env.DB.prepare(
+						// 1. Insert into Shared D1
+						const { meta } = await env.DB.prepare(
 							"INSERT INTO leads (client_id, name, email, service, budget, summary, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)"
 						).bind(clientId, leadData.name, leadData.email, leadData.service, leadData.budget, leadData.summary, Date.now()).run();
+						
+						// 2. Fire Async Webhook to CRM-API for Pipeline Routing
+						if (meta && meta.last_row_id) {
+							fetch('http://localhost:4000/api/webhooks/new-lead', {
+								method: 'POST',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify({ leadId: meta.last_row_id, clientId, budget: leadData.budget })
+							}).catch(err => console.error("Webhook Dispatch Error (Static Flow):", err));
+						}
 					}
 				} catch (e) { console.error("D1 Error:", e); }
 			})());
@@ -791,9 +800,18 @@ Do not force it into every message, but use it naturally when discussing capabil
 
 					// 2. Save Lead if completed
 					if (leadData) {
-						await env.DB.prepare(
+						const { meta } = await env.DB.prepare(
 							"INSERT INTO leads (client_id, name, email, service, budget, summary, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)"
 						).bind(clientId, leadData.name, leadData.email, leadData.service, leadData.budget, (leadData as any).summary, Date.now()).run();
+						
+						// 3. Fire Async Webhook to CRM-API for Pipeline Routing
+						if (meta && meta.last_row_id) {
+							fetch('http://localhost:4000/api/webhooks/new-lead', {
+								method: 'POST',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify({ leadId: meta.last_row_id, clientId, budget: leadData.budget })
+							}).catch(err => console.error("Webhook Dispatch Error (AI Flow):", err));
+						}
 					}
 				} catch (e) {
 					console.error("D1 Persistence Error:", e);

@@ -16,6 +16,9 @@ const views = document.querySelectorAll('.view');
 const viewTitle = document.getElementById('view-title');
 const refreshBtn = document.getElementById('refresh-btn');
 const logoutBtn = document.getElementById('logout-btn');
+const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+const closeSidebarBtn = document.getElementById('close-sidebar-btn');
+const dashboardSidebar = document.getElementById('dashboard-sidebar');
 
 const colLead = document.getElementById('col-lead');
 const colPriority = document.getElementById('col-priority');
@@ -109,8 +112,25 @@ navItems.forEach(item => {
     item.addEventListener('click', () => {
         const viewName = item.getAttribute('data-view');
         switchView(viewName);
+        
+        // Auto-close sidebar on mobile
+        if (window.innerWidth <= 1000 && dashboardSidebar) {
+            dashboardSidebar.classList.remove('active');
+        }
     });
 });
+
+if (mobileMenuBtn && dashboardSidebar) {
+    mobileMenuBtn.addEventListener('click', () => {
+        dashboardSidebar.classList.add('active');
+    });
+}
+
+if (closeSidebarBtn && dashboardSidebar) {
+    closeSidebarBtn.addEventListener('click', () => {
+        dashboardSidebar.classList.remove('active');
+    });
+}
 
 function switchView(viewName) {
     navItems.forEach(nav => nav.classList.toggle('active', nav.getAttribute('data-view') === viewName));

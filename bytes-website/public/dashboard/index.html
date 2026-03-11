@@ -22,8 +22,11 @@
     </div>
 
     <div id="dashboard-container" class="hidden">
-        <aside class="sidebar">
-            <div class="logo">Bytes<span>AI</span> Agency</div>
+        <aside class="sidebar" id="dashboard-sidebar">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3rem;">
+                <div class="logo" style="margin-bottom: 0;">Bytes<span>AI</span> Agency</div>
+                <button id="close-sidebar-btn" style="background: none; border: none; color: white; cursor: pointer; display: none; padding: 0.5rem;">✕</button>
+            </div>
             <nav>
                 <button class="nav-item active" data-view="leads">
                     <svg viewBox="0 0 24 24">
@@ -55,7 +58,16 @@
 
         <main class="content">
             <header class="content-header">
-                <h1 id="view-title">Captured Leads</h1>
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <button id="mobile-menu-btn" style="background: none; border: none; color: white; cursor: pointer; display: none;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="3" y1="12" x2="21" y2="12"></line>
+                            <line x1="3" y1="6" x2="21" y2="6"></line>
+                            <line x1="3" y1="18" x2="21" y2="18"></line>
+                        </svg>
+                    </button>
+                    <h1 id="view-title">Captured Leads</h1>
+                </div>
                 <div class="header-actions">
                     <button id="refresh-btn" class="btn btn-outline">Refresh Data</button>
                 </div>
