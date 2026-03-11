@@ -89,27 +89,51 @@
                     </div>
                 </div>
 
-                <div class="table-container glass-panel">
-                    <table id="leads-table">
-                        <thead>
-                            <tr>
-                                <th>Timestamp</th>
-                                <th>Client</th>
-                                <th>Name</th>
-                                <th>Email</th>
-                                <th>Service</th>
-                                <th>Budget</th>
-                                <th>Summary</th>
-                                <th>Status</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="leads-body">
-                            <!-- Injected by JS -->
-                        </tbody>
-                    </table>
+                <!-- Kanban Board view -->
+                <div class="kanban-board" id="leads-kanban">
+                    
+                    <div class="kanban-column">
+                        <div class="kanban-column-header">
+                            <h3>Inbox (Leads)</h3>
+                            <span class="badge" id="count-lead">0</span>
+                        </div>
+                        <div class="kanban-column-body" id="col-lead" data-stage="lead">
+                            <!-- Cards injected by JS -->
+                        </div>
+                    </div>
+
+                    <div class="kanban-column">
+                        <div class="kanban-column-header">
+                            <h3 style="color: #fbbf24;">Priority 🔥</h3>
+                            <span class="badge" id="count-priority">0</span>
+                        </div>
+                        <div class="kanban-column-body" id="col-priority" data-stage="priority">
+                            <!-- Cards injected by JS -->
+                        </div>
+                    </div>
+
+                    <div class="kanban-column">
+                        <div class="kanban-column-header">
+                            <h3 style="color: #60a5fa;">Opportunity</h3>
+                            <span class="badge" id="count-opportunity">0</span>
+                        </div>
+                        <div class="kanban-column-body" id="col-opportunity" data-stage="opportunity">
+                            <!-- Cards injected by JS -->
+                        </div>
+                    </div>
+
+                    <div class="kanban-column">
+                        <div class="kanban-column-header">
+                            <h3 style="color: var(--success);">Campaigns ✉️</h3>
+                            <span class="badge" id="count-campaign">0</span>
+                        </div>
+                        <div class="kanban-column-body" id="col-campaign" data-stage="campaign">
+                            <!-- Cards injected by JS -->
+                            <!-- Groups drafting, sequence_generated, active -->
+                        </div>
+                    </div>
+
                 </div>
-            </section>
 
             <section id="logs-view" class="view hidden">
                 <div class="table-container glass-panel">

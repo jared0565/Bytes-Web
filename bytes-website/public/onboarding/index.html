@@ -40,15 +40,36 @@
                 <p class="subtitle reveal">Let's set up your account and get your bot ready to scale.</p>
 
                 <div class="form-card glass">
-                    <div class="form-group">
-                        <label for="client-name">Your Full Name</label>
-                        <input type="text" id="client-name" placeholder="John Doe">
+                    <div id="manual-registration-form">
+                        <div class="form-group">
+                            <label for="client-name">Your Full Name</label>
+                            <input type="text" id="client-name" placeholder="John Doe">
+                        </div>
+                        <div class="form-group">
+                            <label for="client-email">Business Email</label>
+                            <input type="email" id="client-email" placeholder="john@company.com" required>
+                        </div>
+                        <button id="btn-next-1" class="btn btn-primary">Create My Account</button>
                     </div>
-                    <div class="form-group">
-                        <label for="client-email">Business Email</label>
-                        <input type="email" id="client-email" placeholder="john@company.com" required>
+
+                    <div class="divider">
+                        <span>OR</span>
                     </div>
-                    <button id="btn-next-1" class="btn btn-primary">Create My Account</button>
+
+                    <div class="social-login-group">
+                        <button class="btn btn-social btn-google" data-provider="google">
+                            <img src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png" alt="Google">
+                            Continue with Google
+                        </button>
+                        <button class="btn btn-social btn-facebook" data-provider="facebook">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/b/b8/2021_Facebook_icon.svg" alt="Facebook">
+                            Continue with Facebook
+                        </button>
+                        <button class="btn btn-social btn-linkedin" data-provider="linkedin">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/c/ca/LinkedIn_logo_initials.png" alt="LinkedIn">
+                            Continue with LinkedIn
+                        </button>
+                    </div>
                 </div>
             </section>
 

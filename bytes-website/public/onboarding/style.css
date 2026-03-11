@@ -409,3 +409,82 @@ pre {
         padding: 2.5rem;
     }
 }
+
+/* --- Social Login Styles --- */
+.divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    margin: 2.5rem 0;
+    color: rgba(255, 255, 255, 0.4);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+.divider::before,
+.divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.divider:not(:empty)::before {
+    margin-right: 1.5rem;
+}
+
+.divider:not(:empty)::after {
+    margin-left: 1.5rem;
+}
+
+.social-login-group {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.btn-social {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: white;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 1rem;
+    padding: 1.1rem;
+    width: 100%;
+    transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
+    border-radius: 16px;
+    cursor: pointer;
+}
+
+.btn-social img {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+}
+
+.btn-social:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateY(-3px);
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+}
+
+.btn-google:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.btn-facebook:hover {
+    background: rgba(24, 119, 242, 0.1);
+    border-color: rgba(24, 119, 242, 0.4);
+}
+
+.btn-linkedin:hover {
+    background: rgba(10, 102, 194, 0.1);
+    border-color: rgba(10, 102, 194, 0.4);
+}

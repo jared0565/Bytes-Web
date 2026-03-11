@@ -28,6 +28,45 @@ let registrationData = {
     tone: ''
 };
 
+// --- Social Login Logic ---
+
+// Check for social login success on page load
+window.addEventListener('DOMContentLoaded', () => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('social_success') === 'true') {
+        const name = params.get('name');
+        const email = params.get('email');
+        const provider = params.get('provider');
+
+        if (name) inputName.value = name;
+        if (email) inputEmail.value = email;
+
+        // Visual feedback
+        const formTitle = document.querySelector('#step-1 h1');
+        if (formTitle) {
+            formTitle.innerHTML = `Welcome back, <span class="text-gradient">${name.split(' ')[0]}!</span>`;
+        }
+
+        // Auto-advance if we have both (some providers might not return email)
+        if (name && email) {
+            setTimeout(() => {
+                next1.click();
+            }, 1000);
+        }
+    } else if (params.get('social_error')) {
+        alert("Social login failed: " + params.get('social_error'));
+    }
+});
+
+// Social button click handlers
+document.querySelectorAll('.btn-social').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const provider = btn.getAttribute('data-provider');
+        // Redirect to backend auth endpoint
+        window.location.href = `http://localhost:4000/api/auth/${provider}`;
+    });
+});
+
 // --- Navigation Logic ---
 function goToStep(step) {
     slides.forEach(s => s.classList.remove('active'));

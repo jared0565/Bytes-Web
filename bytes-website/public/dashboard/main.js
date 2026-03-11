@@ -1,7 +1,8 @@
-const API_BASE = "https://ai.bytesfx.com"; // Your live domain
+const API_BASE = "http://localhost:4000"; // Local CRM API
 
 // --- State ---
 let adminKey = localStorage.getItem('agency_admin_key') || '';
+let userRole = localStorage.getItem('agency_user_role') || 'sales_rep';
 
 // --- Elements ---
 const loginOverlay = document.getElementById('login-overlay');
@@ -16,7 +17,11 @@ const viewTitle = document.getElementById('view-title');
 const refreshBtn = document.getElementById('refresh-btn');
 const logoutBtn = document.getElementById('logout-btn');
 
-const leadsBody = document.getElementById('leads-body');
+const colLead = document.getElementById('col-lead');
+const colPriority = document.getElementById('col-priority');
+const colOpportunity = document.getElementById('col-opportunity');
+const colCampaign = document.getElementById('col-campaign');
+
 const logsBody = document.getElementById('logs-body');
 
 const configClientId = document.getElementById('config-client-id');
@@ -46,14 +51,25 @@ loginBtn.addEventListener('click', async () => {
     const key = adminKeyInput.value.trim();
     if (!key) return;
 
-    // Test the key by fetching leads
-    const result = await loadLeads(key);
-    if (result.success) {
+    try {
+        const res = await fetch(`${API_BASE}/api/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key })
+        });
+        
+        if (!res.ok) throw new Error('Auth failed');
+        
+        const data = await res.json();
+        
         adminKey = key;
+        userRole = data.role;
         localStorage.setItem('agency_admin_key', key);
+        localStorage.setItem('agency_user_role', data.role);
+        
         showDashboard();
-    } else {
-        loginError.innerText = result.error || "Connection error. Check console.";
+    } catch (e) {
+        loginError.innerText = "Connection error or Invalid Key.";
     }
 });
 
@@ -65,12 +81,26 @@ adminKeyInput.addEventListener('keydown', (e) => {
 
 logoutBtn.addEventListener('click', () => {
     localStorage.removeItem('agency_admin_key');
+    localStorage.removeItem('agency_user_role');
     location.reload();
 });
 
 function showDashboard() {
     loginOverlay.classList.add('hidden');
     dashboardContainer.classList.remove('hidden');
+    
+    // RBAC: Hide admin tabs if not admin
+    if (userRole !== 'admin') {
+        const logsNav = document.querySelector('.nav-item[data-view="logs"]');
+        const clientsNav = document.querySelector('.nav-item[data-view="clients"]');
+        if (logsNav) logsNav.style.display = 'none';
+        if (clientsNav) clientsNav.style.display = 'none';
+        
+        // Ensure they can't manually toggle them visible by removing DOM elements
+        document.getElementById('logs-view')?.remove();
+        document.getElementById('clients-view')?.remove();
+    }
+    
     switchView('leads');
 }
 
@@ -140,37 +170,75 @@ async function loadLogs() {
 
 // --- Rendering ---
 function renderLeads(leads) {
-    // Pipeline Metrics Gamification
-    const capturedCount = leads.length;
-    const draftedCount = leads.filter(l => l.status === 'sequence_generated').length;
-    const activeCount = leads.filter(l => l.status === 'active_campaign').length;
+    // Pipeline Metrics Gamification (CRM logic)
+    const pipelineCount = leads.filter(l => ['lead', 'opportunity', 'priority'].includes(l.pipeline_stage)).length;
+    const draftedCount = leads.filter(l => l.pipeline_stage === 'drafting').length;
+    const activeCount = leads.filter(l => l.pipeline_stage === 'active').length;
 
-    document.getElementById('metric-captured').innerText = capturedCount;
+    document.getElementById('metric-captured').innerText = pipelineCount;
     document.getElementById('metric-drafted').innerText = draftedCount;
     document.getElementById('metric-active').innerText = activeCount;
 
-    leadsBody.innerHTML = leads.map(l => `
-        <tr class="${l.locked ? 'lead-locked' : ''}">
-            <td>${new Date(l.timestamp).toLocaleString()}</td>
-            <td><code>${l.client_id}</code> ${l.locked ? '<span class="badge badge-locked">Locked</span>' : ''}</td>
-            <td class="${l.locked ? 'blurred' : ''}">
-                ${l.name} 
-                ${l.has_lightning_badge ? '<span class="badge" title="Lightning Response: Sequence approved in under 1 hour!" style="background: rgba(234, 179, 8, 0.2); color: #eab308; border-color: #eab308; margin-left: 0.5rem;">⚡ Fast Action</span>' : ''}
-            </td>
-            <td class="${l.locked ? 'blurred' : ''}">${l.email}</td>
-            <td>${l.service}</td>
-            <td class="${l.locked ? 'blurred' : ''}">${l.budget}</td>
-            <td title="${l.summary}">${l.summary ? l.summary.substring(0, 50) + '...' : '-'}</td>
-            <td>
-                <span class="badge" style="background: var(--bg-hover); color: var(--text-primary);">
-                    ${l.status ? l.status.replace(/_/g, ' ').toUpperCase() : 'NEW'}
-                </span>
-            </td>
-            <td>
-                ${!l.locked ? `<button class="btn btn-outline manage-campaign-btn" data-id="${l.id}" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;">Campaign</button>` : ''}
-            </td>
-        </tr>
-    `).join('');
+    // Clear columns
+    colLead.innerHTML = '';
+    colPriority.innerHTML = '';
+    colOpportunity.innerHTML = '';
+    colCampaign.innerHTML = '';
+
+    const counts = { lead: 0, priority: 0, opportunity: 0, campaign: 0 };
+
+    leads.forEach(l => {
+        let stage = l.pipeline_stage || 'lead';
+        // Group sequencing sub-stages into the 'campaign' column for layout simplicity
+        if (stage === 'drafting' || stage === 'active' || stage === 'sequence_generated') {
+            stage = 'campaign';
+        }
+
+        counts[stage] = (counts[stage] || 0) + 1;
+
+        const card = document.createElement('div');
+        card.className = `lead-card ${l.locked ? 'lead-locked' : ''}`;
+        card.draggable = !l.locked;
+        card.dataset.id = l.id;
+        
+        card.innerHTML = `
+            <div class="lead-card-header">
+                <div class="lead-card-title">${l.name}</div>
+                <div class="lead-card-budget">${l.budget}</div>
+            </div>
+            <div class="lead-card-email">${l.email}</div>
+            <div class="lead-card-summary" title="${l.summary}">${l.summary || 'No summary provided.'}</div>
+            ${l.next_best_action ? `
+            <div style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.85rem;">
+                <strong style="color: var(--accent-color); display: block; margin-bottom: 0.25rem;">✨ Copilot Insight:</strong>
+                <span style="color: var(--text-primary);">${l.next_best_action}</span>
+            </div>` : ''}
+            <div class="lead-card-footer">
+                <div class="lead-card-time">${new Date(l.timestamp).toLocaleDateString()}</div>
+                ${!l.locked ? `<button class="btn btn-outline manage-campaign-btn" data-id="${l.id}" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">Campaign</button>` : ''}
+            </div>
+            ${l.has_lightning_badge ? '<span class="badge" title="Lightning Response" style="background: rgba(234, 179, 8, 0.2); color: #eab308; border-color: #eab308; font-size: 0.7rem; margin-top: 0.5rem; display: inline-block;">⚡ Fast Action</span>' : ''}
+        `;
+
+        if (card.draggable) {
+            card.addEventListener('dragstart', () => {
+                card.classList.add('dragging');
+            });
+            card.addEventListener('dragend', () => {
+                card.classList.remove('dragging');
+            });
+        }
+
+        if (stage === 'priority') colPriority.appendChild(card);
+        else if (stage === 'opportunity') colOpportunity.appendChild(card);
+        else if (stage === 'campaign') colCampaign.appendChild(card);
+        else colLead.appendChild(card);
+    });
+
+    document.getElementById('count-lead').innerText = counts.lead;
+    document.getElementById('count-priority').innerText = counts.priority;
+    document.getElementById('count-opportunity').innerText = counts.opportunity;
+    document.getElementById('count-campaign').innerText = counts.campaign;
 
     // Add event listeners for the Campaign buttons
     document.querySelectorAll('.manage-campaign-btn').forEach(btn => {
@@ -179,6 +247,55 @@ function renderLeads(leads) {
             openSequenceModal(leadId);
         });
     });
+}
+
+// --- Drag and Drop Logic ---
+[colLead, colPriority, colOpportunity, colCampaign].forEach(container => {
+    container.addEventListener('dragover', e => {
+        e.preventDefault();
+        const draggable = document.querySelector('.dragging');
+        if (draggable) {
+            container.appendChild(draggable);
+        }
+    });
+
+    container.addEventListener('drop', async e => {
+        e.preventDefault();
+        const draggable = document.querySelector('.dragging');
+        if (draggable) {
+            const newStage = container.getAttribute('data-stage');
+            const leadId = draggable.dataset.id;
+            
+            // Optimistically update counts
+            updateKanbanCounts();
+
+            try {
+                const res = await fetch(`${API_BASE}/api/leads/${leadId}/stage`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'x-admin-key': adminKey
+                    },
+                    body: JSON.stringify({ stage: newStage })
+                });
+
+                if (!res.ok) {
+                    console.error('Failed to update stage');
+                    loadLeads(); // revert
+                }
+            } catch (err) {
+                console.error(err);
+                loadLeads(); // revert
+            }
+        }
+    });
+});
+
+function updateKanbanCounts() {
+    document.getElementById('count-lead').innerText = colLead.querySelectorAll('.lead-card').length;
+    document.getElementById('count-priority').innerText = colPriority.querySelectorAll('.lead-card').length;
+    document.getElementById('count-opportunity').innerText = colOpportunity.querySelectorAll('.lead-card').length;
+    document.getElementById('count-campaign').innerText = colCampaign.querySelectorAll('.lead-card').length;
 }
 
 function renderLogs(logs) {
