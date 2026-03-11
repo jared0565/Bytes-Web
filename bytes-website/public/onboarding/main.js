@@ -86,6 +86,24 @@ next1.addEventListener('click', () => {
     goToStep(2);
 });
 
+// Allow 'Enter' key to submit Step 1
+[inputName, inputEmail].forEach(input => {
+    input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            next1.click();
+        }
+    });
+});
+
+// Allow 'Enter' key to submit Step 2
+inputCompany.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        next2.click();
+    }
+});
+
 // Step 2 -> 3 (The Provisioning)
 next2.addEventListener('click', async () => {
     if (!inputCompany.value) {
