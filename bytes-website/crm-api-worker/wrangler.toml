@@ -1,0 +1,38 @@
+name = "crm-api"
+main = "src/index.js"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Non-secret config vars — safe to commit
+[vars]
+ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:3000"
+AUTH_REDIRECT_URL = "https://crm-api.REPLACE_ACCOUNT.workers.dev/api/auth/{{provider}}/callback"
+FRONTEND_ONBOARDING_URL = "https://REPLACE_DOMAIN.pages.dev/onboarding/"
+
+# D1 SQLite database
+[[d1_databases]]
+binding = "DB"
+database_name = "crm-database"
+database_id = "REPLACE_WITH_D1_ID"
+
+# KV namespace for short-lived OAuth exchange tokens
+[[kv_namespaces]]
+binding = "OAUTH_TOKENS"
+id = "REPLACE_WITH_KV_ID"
+preview_id = "REPLACE_WITH_KV_PREVIEW_ID"
+
+# Cron trigger — runs the verification email follow-up worker every minute
+[triggers]
+crons = ["* * * * *"]
+
+# Secrets (set via `wrangler secret put <NAME>`, never stored here):
+# ADMIN_SECRET
+# JWT_SECRET
+# OAUTH_STATE_SECRET
+# GEMINI_API_KEY
+# GOOGLE_CLIENT_ID
+# GOOGLE_CLIENT_SECRET
+# FACEBOOK_CLIENT_ID
+# FACEBOOK_CLIENT_SECRET
+# LINKEDIN_CLIENT_ID
+# LINKEDIN_CLIENT_SECRET
