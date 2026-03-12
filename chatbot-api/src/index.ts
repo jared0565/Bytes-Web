@@ -522,7 +522,7 @@ Do not force it into every message, but use it naturally when discussing capabil
 						
 						// 2. Fire Async Webhook to CRM-API for Pipeline Routing
 						if (meta && meta.last_row_id) {
-							fetch('http://localhost:4000/api/webhooks/new-lead', {
+							fetch('https://crm-api.bmorris0565.workers.dev/api/webhooks/new-lead', {
 								method: 'POST',
 								headers: { 'Content-Type': 'application/json' },
 								body: JSON.stringify({ leadId: meta.last_row_id, clientId, budget: leadData.budget })
@@ -806,7 +806,7 @@ Do not force it into every message, but use it naturally when discussing capabil
 						
 						// 3. Fire Async Webhook to CRM-API for Pipeline Routing
 						if (meta && meta.last_row_id) {
-							fetch('http://localhost:4000/api/webhooks/new-lead', {
+							fetch('https://crm-api.bmorris0565.workers.dev/api/webhooks/new-lead', {
 								method: 'POST',
 								headers: { 'Content-Type': 'application/json' },
 								body: JSON.stringify({ leadId: meta.last_row_id, clientId, budget: leadData.budget })

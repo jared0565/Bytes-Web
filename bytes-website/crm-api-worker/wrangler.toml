@@ -21,6 +21,12 @@ binding = "OAUTH_TOKENS"
 id = "8ad06a763d6745d1bbbbd7fce1f4eb6c"
 preview_id = "8ad06a763d6745d1bbbbd7fce1f4eb6c"
 
+# KV namespace for chatbot client settings (shared with chatbot-api)
+[[kv_namespaces]]
+binding = "CLIENT_SETTINGS"
+id = "cffce7f12c7248f7935c31f7c591c726"
+preview_id = "cffce7f12c7248f7935c31f7c591c726"
+
 # Cron trigger — runs the verification email follow-up worker every minute
 [triggers]
 crons = ["* * * * *"]

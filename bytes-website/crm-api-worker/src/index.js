@@ -80,6 +80,12 @@ const requireAuth = async (c, next) => {
     }
 };
 
+// ─── Global error handler (exposes error message for debugging) ──────────────
+app.onError((err, c) => {
+    console.error('[CRM-API ERROR]', err);
+    return c.json({ error: err.message || 'Internal Server Error' }, 500);
+});
+
 // ─── Routes ─────────────────────────────────────────────────────────────────
 
 app.get('/api/health', (c) => c.json({ status: 'ok', service: 'crm-api' }));
@@ -257,6 +263,54 @@ app.put('/api/leads/:id/stage', requireAuth, async (c) => {
     } catch (err) {
         console.error('[Leads] Stage update error:', err);
         return c.json({ error: 'Failed to update stage' }, 500);
+    }
+});
+
+// Chat logs (read-only)
+app.get('/api/logs', requireAuth, async (c) => {
+    try {
+        const { results } = await c.env.DB.prepare('SELECT * FROM chat_logs ORDER BY timestamp DESC LIMIT 200').all();
+        return c.json(results);
+    } catch (err) {
+        console.error('[Logs] Error:', err);
+        return c.json({ error: 'Failed to fetch logs' }, 500);
+    }
+});
+
+// Chatbot client settings (stored in CLIENT_SETTINGS KV, shared with chatbot-api)
+app.get('/api/config', requireAuth, async (c) => {
+    const clientId = c.req.query('clientId');
+    if (!clientId) return c.json({ error: 'Missing clientId' }, 400);
+    const kvData = await c.env.CLIENT_SETTINGS.get(`client:${clientId}`);
+    const config = kvData ? JSON.parse(kvData) : {};
+    const tier = config.mode || 'free';
+    if (tier === 'free') { config.showBranding = true; }
+    else if (config.showBranding === undefined) { config.showBranding = (tier === 'standard'); }
+    return c.json(config);
+});
+
+app.post('/api/config', requireAuth, async (c) => {
+    let body;
+    try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+    const { clientId, settings } = body;
+    if (!clientId || !settings) return c.json({ error: 'Missing clientId or settings' }, 400);
+    await c.env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify(settings));
+    return c.json({ success: true });
+});
+
+// Test lead — insert a simulated lead for testing
+app.post('/api/test-lead', requireAuth, async (c) => {
+    let body;
+    try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+    const emailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+    if (!body.email || !emailRegex.test(body.email)) return c.json({ error: 'Invalid email address' }, 400);
+    try {
+        await c.env.DB.prepare('INSERT INTO leads (client_id, name, email, service, budget, summary, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)')
+            .bind(body.clientId || 'agency_demo', body.name || 'Test User', body.email, 'Lead Simulator', 'Test Budget', 'Manually simulated lead for system verification.', Date.now()).run();
+        return c.json({ success: true });
+    } catch (err) {
+        console.error('[Test Lead] Error:', err);
+        return c.json({ error: 'Failed to create test lead' }, 500);
     }
 });
 
