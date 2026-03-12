@@ -189,6 +189,19 @@
                             </select>
                         </div>
                         <div class="form-group">
+                            <label>Default Campaign Mode</label>
+                            <select id="config-campaign-mode" class="chat-input"
+                                style="background: var(--bg-secondary); border: 1px solid var(--border-color); color: white;">
+                                <option value="ai">AI-Generated (Gemini)</option>
+                                <option value="rule">Rule-Based (Templates)</option>
+                                <option value="manual">Manual (Self-Write Only)</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="display: flex; gap: 1rem; align-items: center;">
+                            <label style="flex: 1;">Auto-Approve Campaigns</label>
+                            <input type="checkbox" id="config-auto-approve" style="width: 20px; height: 20px;">
+                        </div>
+                        <div class="form-group">
                             <label>System Prompt (Persona)</label>
                             <textarea id="config-prompt"
                                 placeholder="Define the chatbot's personality and rules..."></textarea>
@@ -254,7 +267,15 @@
             style="max-width: 800px; width: 90%; max-height: 90vh; overflow-y: auto; padding: 2rem;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
                 <h2 style="margin: 0;">Email Sequence Campaign</h2>
-                <button id="close-sequence-modal" class="btn btn-outline" style="padding: 0.25rem 0.75rem;">✕</button>
+                <div style="display: flex; align-items: center; gap: 1rem;">
+                    <!-- Campaign Type Toggle -->
+                    <div class="campaign-toggle" style="display: flex; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 0.25rem;">
+                        <button id="toggle-ai" class="btn btn-sm active" style="padding: 0.25rem 0.75rem; border-radius: 6px; font-size: 0.8rem; background: var(--accent-color); color: white; border: none; cursor: pointer;">✨ AI Auto</button>
+                        <button id="toggle-manual" class="btn btn-sm" style="padding: 0.25rem 0.75rem; border-radius: 6px; font-size: 0.8rem; background: transparent; color: var(--text-secondary); border: none; cursor: pointer;">✍️ Manual</button>
+                        <button id="toggle-rule" class="btn btn-sm" style="padding: 0.25rem 0.75rem; border-radius: 6px; font-size: 0.8rem; background: transparent; color: var(--text-secondary); border: none; cursor: pointer;">⚙️ Rule-Based</button>
+                    </div>
+                    <button id="close-sequence-modal" class="btn btn-outline" style="padding: 0.25rem 0.75rem;">✕</button>
+                </div>
             </div>
 
             <div id="sequence-loading" class="hidden" style="text-align: center; padding: 2rem;">
@@ -263,13 +284,23 @@
                 <div style="margin-top: 1rem; color: var(--text-secondary);">This may take 15-30 seconds.</div>
             </div>
 
+            <div id="template-selector-container" class="hidden" style="margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color);">
+                <label style="font-size: 0.85rem; color: var(--text-secondary); display: block; margin-bottom: 0.5rem;">Select Rule-Based Template</label>
+                <select id="template-select" style="width: 100%; padding: 0.75rem; border-radius: 6px; background: var(--bg-secondary); border: 1px solid var(--border-color); color: white; outline: none;">
+                    <option value="">-- Choose a predefined sequence --</option>
+                </select>
+            </div>
+
             <div id="sequence-editor-container">
                 <!-- Sequence steps injected here -->
             </div>
 
-            <div style="margin-top: 2rem; display: flex; justify-content: flex-end; gap: 1rem;">
-                <button id="save-sequence-btn" class="btn btn-outline hidden">Save Draft</button>
-                <button id="approve-sequence-btn" class="btn btn-primary hidden">Approve & Deploy 🚀</button>
+            <div style="margin-top: 2rem; display: flex; justify-content: space-between; align-items: center;">
+                <button id="add-manual-step-btn" class="btn btn-outline hidden" style="border-color: var(--success); color: var(--success);">+ Add Step</button>
+                <div style="display: flex; gap: 1rem; margin-left: auto;">
+                    <button id="save-sequence-btn" class="btn btn-outline hidden">Save Draft</button>
+                    <button id="approve-sequence-btn" class="btn btn-primary hidden">Approve & Deploy 🚀</button>
+                </div>
             </div>
             <p id="sequence-status" style="margin-top: 1rem; text-align: right;"></p>
         </div>

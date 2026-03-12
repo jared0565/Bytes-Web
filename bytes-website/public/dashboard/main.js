@@ -1,7 +1,18 @@
 const API_BASE = "http://localhost:4000"; // Local CRM API
 
+// C3: HTML-escape user data before rendering to prevent XSS
+function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#x27;');
+}
+
 // --- State ---
-let adminKey = localStorage.getItem('agency_admin_key') || '';
+// H2: Auth key no longer stored in localStorage — session managed via httpOnly cookie
 let userRole = localStorage.getItem('agency_user_role') || 'sales_rep';
 
 // --- Elements ---
@@ -33,6 +44,8 @@ const configBranding = document.getElementById('config-branding');
 const configReferral = document.getElementById('config-referral');
 const configPrompt = document.getElementById('config-prompt');
 const configCompanyName = document.getElementById('config-company-name');
+const configCampaignMode = document.getElementById('config-campaign-mode');
+const configAutoApprove = document.getElementById('config-auto-approve');
 const saveConfigBtn = document.getElementById('save-config-btn');
 const loadConfigBtn = document.getElementById('load-config-btn');
 const configStatus = document.getElementById('config-status');
@@ -45,7 +58,9 @@ const simulateBtn = document.getElementById('simulate-lead-btn');
 const simStatus = document.getElementById('sim-status');
 
 // --- Initialization ---
-if (adminKey) {
+// If we have a stored role, optimistically show the dashboard; requireAuth on the server
+// will reject any request if the httpOnly session cookie is missing or expired.
+if (userRole) {
     showDashboard();
 }
 
@@ -55,21 +70,21 @@ loginBtn.addEventListener('click', async () => {
     if (!key) return;
 
     try {
+        // H2: credentials:'include' ensures the httpOnly session cookie is set by the browser
         const res = await fetch(`${API_BASE}/api/auth/login`, {
             method: 'POST',
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ key })
         });
-        
+
         if (!res.ok) throw new Error('Auth failed');
-        
+
         const data = await res.json();
-        
-        adminKey = key;
+
         userRole = data.role;
-        localStorage.setItem('agency_admin_key', key);
         localStorage.setItem('agency_user_role', data.role);
-        
+
         showDashboard();
     } catch (e) {
         loginError.innerText = "Connection error or Invalid Key.";
@@ -82,8 +97,9 @@ adminKeyInput.addEventListener('keydown', (e) => {
     }
 });
 
-logoutBtn.addEventListener('click', () => {
-    localStorage.removeItem('agency_admin_key');
+logoutBtn.addEventListener('click', async () => {
+    // H2: Clear the httpOnly session cookie server-side
+    await fetch(`${API_BASE}/api/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
     localStorage.removeItem('agency_user_role');
     location.reload();
 });
@@ -148,11 +164,10 @@ refreshBtn.addEventListener('click', () => {
 });
 
 // --- Data Fetching ---
-async function loadLeads(testKey = null) {
-    const key = testKey || adminKey;
+async function loadLeads() {
     try {
         const res = await fetch(`${API_BASE}/api/leads`, {
-            headers: { 'x-admin-key': key }
+            credentials: 'include'
         });
 
         if (!res.ok) {
@@ -179,7 +194,7 @@ async function loadLeads(testKey = null) {
 async function loadLogs() {
     try {
         const res = await fetch(`${API_BASE}/api/logs`, {
-            headers: { 'x-admin-key': adminKey }
+            credentials: 'include'
         });
         if (!res.ok) return;
 
@@ -189,7 +204,10 @@ async function loadLogs() {
 }
 
 // --- Rendering ---
+window.allLeads = [];
+
 function renderLeads(leads) {
+    window.allLeads = leads;
     // Pipeline Metrics Gamification (CRM logic)
     const pipelineCount = leads.filter(l => ['lead', 'opportunity', 'priority'].includes(l.pipeline_stage)).length;
     const draftedCount = leads.filter(l => l.pipeline_stage === 'drafting').length;
@@ -223,21 +241,24 @@ function renderLeads(leads) {
         
         card.innerHTML = `
             <div class="lead-card-header">
-                <div class="lead-card-title">${l.name}</div>
-                <div class="lead-card-budget">${l.budget}</div>
+                <div class="lead-card-title">${escapeHtml(l.name)}</div>
+                <div class="lead-card-budget">${escapeHtml(l.budget)}</div>
             </div>
-            <div class="lead-card-email">${l.email}</div>
-            <div class="lead-card-summary" title="${l.summary}">${l.summary || 'No summary provided.'}</div>
+            <div class="lead-card-email">${escapeHtml(l.email)}</div>
+            <div class="lead-card-summary" title="${escapeHtml(l.summary)}">${escapeHtml(l.summary) || 'No summary provided.'}</div>
             ${l.next_best_action ? `
             <div style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.85rem;">
                 <strong style="color: var(--accent-color); display: block; margin-bottom: 0.25rem;">✨ Copilot Insight:</strong>
-                <span style="color: var(--text-primary);">${l.next_best_action}</span>
+                <span style="color: var(--text-primary);">${escapeHtml(l.next_best_action)}</span>
             </div>` : ''}
             <div class="lead-card-footer">
                 <div class="lead-card-time">${new Date(l.timestamp).toLocaleDateString()}</div>
-                ${!l.locked ? `<button class="btn btn-outline manage-campaign-btn" data-id="${l.id}" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">Campaign</button>` : ''}
+                ${!l.locked ? `<button class="btn btn-outline manage-campaign-btn" data-id="${escapeHtml(String(l.id))}" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">Campaign</button>` : ''}
             </div>
-            ${l.has_lightning_badge ? '<span class="badge" title="Lightning Response" style="background: rgba(234, 179, 8, 0.2); color: #eab308; border-color: #eab308; font-size: 0.7rem; margin-top: 0.5rem; display: inline-block;">⚡ Fast Action</span>' : ''}
+            <div style="margin-top: 0.5rem;">
+                ${l.has_lightning_badge ? '<span class="badge" title="Lightning Response" style="background: rgba(234, 179, 8, 0.2); color: #eab308; border-color: #eab308; font-size: 0.7rem; display: inline-block; margin-right: 0.25rem;">⚡ Fast Action</span>' : ''}
+                ${l.is_verified === 1 ? '<span class="badge" style="background: rgba(76, 175, 80, 0.2); color: #4CAF50; border-color: #4CAF50; font-size: 0.7rem; display: inline-block;">✅ Verified</span>' : '<span class="badge" style="background: rgba(244, 67, 54, 0.2); color: #F44336; border-color: #F44336; font-size: 0.7rem; display: inline-block;">⚠️ Unverified</span>'}
+            </div>
         `;
 
         if (card.draggable) {
@@ -292,10 +313,8 @@ function renderLeads(leads) {
             try {
                 const res = await fetch(`${API_BASE}/api/leads/${leadId}/stage`, {
                     method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-admin-key': adminKey
-                    },
+                    credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ stage: newStage })
                 });
 
@@ -322,9 +341,9 @@ function renderLogs(logs) {
     logsBody.innerHTML = logs.map(l => `
         <tr>
             <td>${new Date(l.timestamp).toLocaleString()}</td>
-            <td><code>${l.client_id}</code></td>
-            <td style="max-width: 300px;">${l.user_message}</td>
-            <td style="max-width: 300px;">${l.bot_response}</td>
+            <td><code>${escapeHtml(l.client_id)}</code></td>
+            <td style="max-width: 300px;">${escapeHtml(l.user_message)}</td>
+            <td style="max-width: 300px;">${escapeHtml(l.bot_response)}</td>
         </tr>
     `).join('');
 }
@@ -339,7 +358,7 @@ loadConfigBtn.addEventListener('click', async () => {
 
     try {
         const res = await fetch(`${API_BASE}/api/config?clientId=${cid}`, {
-            headers: { 'x-admin-key': adminKey }
+            credentials: 'include'
         });
 
         if (res.ok) {
@@ -361,6 +380,16 @@ loadConfigBtn.addEventListener('click', async () => {
             }
             configStatus.innerText = "Settings loaded!";
             configStatus.style.color = "var(--success)";
+
+            // LOAD CRM SETTINGS (Mode/Auto-Approve)
+            const crmRes = await fetch(`${API_BASE}/api/crm-settings?clientId=${cid}`, {
+                credentials: 'include'
+            });
+            if (crmRes.ok) {
+                const crmData = await crmRes.json();
+                configCampaignMode.value = crmData.default_campaign_mode || 'ai';
+                configAutoApprove.checked = crmData.auto_approve_campaigns === 1;
+            }
         } else {
             configStatus.innerText = "Settings not found (using defaults).";
             configMode.value = 'ai';
@@ -387,10 +416,8 @@ saveConfigBtn.addEventListener('click', async () => {
     try {
         const res = await fetch(`${API_BASE}/api/config`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-admin-key': adminKey
-            },
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 clientId: cid,
                 settings: {
@@ -406,6 +433,18 @@ saveConfigBtn.addEventListener('click', async () => {
         if (res.ok) {
             configStatus.innerText = "Settings saved successfully!";
             configStatus.style.color = "var(--success)";
+
+            // SAVE CRM SETTINGS
+            await fetch(`${API_BASE}/api/crm-settings`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    clientId: cid,
+                    default_campaign_mode: configCampaignMode.value,
+                    auto_approve_campaigns: configAutoApprove.checked
+                })
+            });
         } else {
             configStatus.innerText = "Failed to save settings.";
             configStatus.style.color = "var(--error)";
@@ -433,10 +472,8 @@ simulateBtn.addEventListener('click', async () => {
     try {
         const res = await fetch(`${API_BASE}/api/test-lead`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-admin-key': adminKey
-            },
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ clientId: cid, name, email })
         });
 
@@ -468,8 +505,116 @@ const saveSequenceBtn = document.getElementById('save-sequence-btn');
 const approveSequenceBtn = document.getElementById('approve-sequence-btn');
 const sequenceStatus = document.getElementById('sequence-status');
 
+const toggleAiBtn = document.getElementById('toggle-ai');
+const toggleManualBtn = document.getElementById('toggle-manual');
+const toggleRuleBtn = document.getElementById('toggle-rule');
+const addManualStepBtn = document.getElementById('add-manual-step-btn');
+const templateSelectorContainer = document.getElementById('template-selector-container');
+const templateSelect = document.getElementById('template-select');
+
 let currentLeadId = null;
 let currentSequences = [];
+let campaignMode = 'ai';
+let availableTemplates = [];
+
+function updateModeUI(mode) {
+    if (toggleAiBtn) {
+        toggleAiBtn.style.background = mode === 'ai' ? 'var(--accent-color)' : 'transparent';
+        toggleAiBtn.style.color = mode === 'ai' ? 'white' : 'var(--text-secondary)';
+    }
+    if (toggleManualBtn) {
+        toggleManualBtn.style.background = mode === 'manual' ? 'var(--accent-color)' : 'transparent';
+        toggleManualBtn.style.color = mode === 'manual' ? 'white' : 'var(--text-secondary)';
+    }
+    if (toggleRuleBtn) {
+        toggleRuleBtn.style.background = mode === 'rule' ? 'var(--accent-color)' : 'transparent';
+        toggleRuleBtn.style.color = mode === 'rule' ? 'white' : 'var(--text-secondary)';
+    }
+
+    if (addManualStepBtn) {
+        if (mode === 'manual') addManualStepBtn.classList.remove('hidden');
+        else addManualStepBtn.classList.add('hidden');
+    }
+
+    if (templateSelectorContainer) {
+        if (mode === 'rule') templateSelectorContainer.classList.remove('hidden');
+        else templateSelectorContainer.classList.add('hidden');
+    }
+}
+
+async function loadTemplates() {
+    if (availableTemplates.length > 0) return;
+    try {
+        const res = await fetch(`${API_BASE}/api/templates`, { credentials: 'include' });
+        availableTemplates = await res.json();
+        
+        if (templateSelect) {
+            templateSelect.innerHTML = '<option value="">-- Choose a predefined sequence --</option>' +
+                availableTemplates.map(t => `<option value="${Number(t.id)}">${escapeHtml(t.name)}</option>`).join('');
+        }
+    } catch (e) { console.error('Error loading templates', e); }
+}
+
+if (templateSelect) {
+    templateSelect.addEventListener('change', (e) => {
+        const tId = e.target.value;
+        if (!tId) return;
+        const template = availableTemplates.find(t => t.id == tId);
+        if (template) {
+            currentSequences = JSON.parse(template.steps_json).map(s => ({...s, status: 'draft'}));
+            renderSequenceEditor();
+        }
+    });
+}
+
+if (toggleAiBtn) {
+    toggleAiBtn.addEventListener('click', () => {
+        campaignMode = 'ai';
+        updateModeUI('ai');
+        if (!currentSequences || currentSequences.length === 0 || (currentSequences.length > 0 && !currentSequences[0].id)) {
+            if (currentLeadId) openSequenceModal(currentLeadId);
+        }
+    });
+}
+
+if (toggleManualBtn) {
+    toggleManualBtn.addEventListener('click', () => {
+        campaignMode = 'manual';
+        updateModeUI('manual');
+        if (!currentSequences || currentSequences.length === 0) {
+            currentSequences = [{ email_number: 1, subject: '', body: '', status: 'draft' }];
+            renderSequenceEditor();
+        }
+    });
+}
+
+if (toggleRuleBtn) {
+    toggleRuleBtn.addEventListener('click', async () => {
+        campaignMode = 'rule';
+        updateModeUI('rule');
+        await loadTemplates();
+        
+        if (!currentSequences[0]?.id) {
+            currentSequences = [];
+            renderSequenceEditor();
+        }
+    });
+}
+
+if (addManualStepBtn) {
+    addManualStepBtn.addEventListener('click', () => {
+        const nextNum = currentSequences.length + 1;
+        // make sure to preserve any changes user already typed in
+        for (let i = 0; i < currentSequences.length; i++) {
+            const subjEl = document.getElementById(`seq-subject-${i}`);
+            const bodyEl = document.getElementById(`seq-body-${i}`);
+            if (subjEl) currentSequences[i].subject = subjEl.value;
+            if (bodyEl) currentSequences[i].body = bodyEl.value;
+        }
+        currentSequences.push({ email_number: nextNum, subject: '', body: '', status: 'draft' });
+        renderSequenceEditor();
+    });
+}
 
 closeSequenceModalBtn.addEventListener('click', () => {
     sequenceModal.classList.add('hidden');
@@ -477,26 +622,52 @@ closeSequenceModalBtn.addEventListener('click', () => {
 
 async function openSequenceModal(leadId) {
     currentLeadId = leadId;
+    campaignMode = 'ai';
+    updateModeUI('ai');
+    
     sequenceModal.classList.remove('hidden');
     sequenceEditorContainer.innerHTML = '';
     saveSequenceBtn.classList.add('hidden');
     approveSequenceBtn.classList.add('hidden');
     sequenceStatus.innerText = '';
 
+    // Get context on the current lead
+    const lead = window.allLeads?.find(l => l.id == leadId);
+    if (lead && lead.is_verified === 0) {
+        sequenceStatus.innerText = '⚠️ Lead Email Unverified. You can draft sequences, but you cannot approve/send them yet.';
+        sequenceStatus.style.color = '#F44336';
+        approveSequenceBtn.disabled = true;
+        approveSequenceBtn.style.opacity = '0.5';
+        approveSequenceBtn.style.cursor = 'not-allowed';
+    } else {
+        approveSequenceBtn.disabled = false;
+        approveSequenceBtn.style.opacity = '1';
+        approveSequenceBtn.style.cursor = 'pointer';
+    }
+
     // Fetch existing sequences
     sequenceLoading.classList.remove('hidden');
     try {
         const res = await fetch(`${API_BASE}/api/sequences?leadId=${leadId}`, {
-            headers: { 'x-admin-key': adminKey }
+            credentials: 'include'
         });
         const data = await res.json();
 
         if (data && data.length > 0) {
             currentSequences = data;
+
+            if (addManualStepBtn && campaignMode === 'manual') {
+                addManualStepBtn.classList.remove('hidden');
+            }
+
             renderSequenceEditor();
         } else {
-            // Need to generate
-            await generateSequence(leadId);
+            if (campaignMode === 'ai') {
+                await generateSequence(leadId);
+            } else {
+                currentSequences = [{ email_number: 1, subject: '', body: '', status: 'draft' }];
+                renderSequenceEditor();
+            }
         }
     } catch (e) {
         sequenceStatus.innerText = 'Error loading sequence.';
@@ -510,13 +681,13 @@ async function generateSequence(leadId) {
     try {
         const res = await fetch(`${API_BASE}/api/generate-sequence`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ leadId })
         });
         if (res.ok) {
-            // Re-fetch the newly generated sequences
             const seqRes = await fetch(`${API_BASE}/api/sequences?leadId=${leadId}`, {
-                headers: { 'x-admin-key': adminKey }
+                credentials: 'include'
             });
             currentSequences = await seqRes.json();
             renderSequenceEditor();
@@ -538,14 +709,14 @@ function renderSequenceEditor() {
 
     sequenceEditorContainer.innerHTML = currentSequences.map((seq, index) => `
         <div class="sequence-step" style="margin-bottom: 2rem; padding: 1.5rem; border: 1px solid var(--border-color); border-radius: 8px; background: rgba(0,0,0,0.2);">
-            <h4 style="margin-top: 0; margin-bottom: 1rem; color: var(--accent-color); font-size: 1.1rem;">Email ${seq.email_number} <span style="font-size: 0.8rem; font-weight: 400; color: var(--text-secondary);">(Sends approx ${seq.email_number} day${seq.email_number > 1 ? 's' : ''} after approval)</span></h4>
+            <h4 style="margin-top: 0; margin-bottom: 1rem; color: var(--accent-color); font-size: 1.1rem;">Email ${Number(seq.email_number)} <span style="font-size: 0.8rem; font-weight: 400; color: var(--text-secondary);">(Sends approx ${Number(seq.email_number)} day${seq.email_number > 1 ? 's' : ''} after approval)</span></h4>
             <div class="form-group" style="margin-bottom: 1rem;">
                 <label style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">Subject Line</label>
-                <input type="text" id="seq-subject-${index}" value="${seq.subject.replace(/"/g, '&quot;')}" ${isApproved ? 'disabled' : ''} style="width: 100%; padding: 0.5rem; background: var(--bg-secondary); border: 1px solid var(--border-color); color: white; border-radius: 4px;">
+                <input type="text" id="seq-subject-${index}" value="${escapeHtml(seq.subject)}" ${isApproved ? 'disabled' : ''} style="width: 100%; padding: 0.5rem; background: var(--bg-secondary); border: 1px solid var(--border-color); color: white; border-radius: 4px;">
             </div>
             <div class="form-group">
                 <label style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem; display: block;">Body</label>
-                <textarea id="seq-body-${index}" style="width: 100%; min-height: 200px; padding: 0.5rem; background: var(--bg-secondary); border: 1px solid var(--border-color); color: white; border-radius: 4px; resize: vertical;" ${isApproved ? 'disabled' : ''}>${seq.body}</textarea>
+                <textarea id="seq-body-${index}" style="width: 100%; min-height: 200px; padding: 0.5rem; background: var(--bg-secondary); border: 1px solid var(--border-color); color: white; border-radius: 4px; resize: vertical;" ${isApproved ? 'disabled' : ''}>${escapeHtml(seq.body)}</textarea>
             </div>
         </div>
     `).join('');
@@ -571,10 +742,24 @@ saveSequenceBtn.addEventListener('click', async () => {
 
             await fetch(`${API_BASE}/api/sequences`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
-                body: JSON.stringify({ id: seq.id, subject, body })
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: seq.id, 
+                    leadId: currentLeadId,
+                    email_number: seq.email_number,
+                    subject, 
+                    body 
+                })
             });
         }
+        
+        // Re-fetch to get any newly assigned IDs from manual insertion
+        const seqRes = await fetch(`${API_BASE}/api/sequences?leadId=${currentLeadId}`, {
+            credentials: 'include'
+        });
+        currentSequences = await seqRes.json();
+        renderSequenceEditor();
         sequenceStatus.innerText = 'Drafts saved successfully.';
         sequenceStatus.style.color = 'var(--success)';
     } catch (e) {
@@ -593,7 +778,8 @@ approveSequenceBtn.addEventListener('click', async () => {
     try {
         const res = await fetch(`${API_BASE}/api/sequences/approve`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-admin-key': adminKey },
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ leadId: currentLeadId })
         });
 

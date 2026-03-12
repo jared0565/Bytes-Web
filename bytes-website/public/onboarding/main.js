@@ -1,5 +1,3 @@
-const ADMIN_KEY = "DEV_BYPASS"; // In a real app, this would be a session token
-
 // UI Elements
 const slides = document.querySelectorAll('.slide');
 const steps = document.querySelectorAll('.step-circle');
@@ -31,30 +29,45 @@ let registrationData = {
 // --- Social Login Logic ---
 
 // Check for social login success on page load
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('social_success') === 'true') {
-        const name = params.get('name');
-        const email = params.get('email');
-        const provider = params.get('provider');
+    const socialToken = params.get('social_token');
 
-        if (name) inputName.value = name;
-        if (email) inputEmail.value = email;
+    if (socialToken) {
+        try {
+            // H3: Exchange the opaque token for user info — PII never travels in URL params
+            const res = await fetch(`http://localhost:4000/api/auth/exchange?token=${encodeURIComponent(socialToken)}`);
+            if (!res.ok) throw new Error('Exchange failed');
 
-        // Visual feedback
-        const formTitle = document.querySelector('#step-1 h1');
-        if (formTitle) {
-            formTitle.innerHTML = `Welcome back, <span class="text-gradient">${name.split(' ')[0]}!</span>`;
+            const userData = await res.json();
+            const { name, email } = userData;
+
+            if (name) inputName.value = name;
+            if (email) inputEmail.value = email;
+
+            // Visual feedback — safe DOM construction to avoid XSS
+            const formTitle = document.querySelector('#step-1 h1');
+            if (formTitle) {
+                formTitle.textContent = '';
+                formTitle.appendChild(document.createTextNode('Welcome back, '));
+                const span = document.createElement('span');
+                span.className = 'text-gradient';
+                span.textContent = (name.split(' ')[0] || '') + '!';
+                formTitle.appendChild(span);
+            }
+
+            if (name && email) {
+                setTimeout(() => { next1.click(); }, 1000);
+            }
+        } catch {
+            alert("Social login failed. Please try again or use email registration.");
         }
 
-        // Auto-advance if we have both (some providers might not return email)
-        if (name && email) {
-            setTimeout(() => {
-                next1.click();
-            }, 1000);
-        }
+        // Remove token from URL so it can't be reused via browser history
+        window.history.replaceState({}, '', window.location.pathname);
+
     } else if (params.get('social_error')) {
-        alert("Social login failed: " + params.get('social_error'));
+        alert("Social login failed. Please try again or use email registration.");
     }
 });
 
@@ -120,8 +133,9 @@ next1.addEventListener('click', () => {
     registrationData.name = inputName.value.trim();
     registrationData.email = inputEmail.value.trim().toLowerCase();
 
-    // Generate a trial client ID: lowercase-name-random
-    registrationData.clientId = inputName.value.trim().toLowerCase().replace(/\s+/g, '-') + '-' + Math.floor(Math.random() * 1000);
+    // M2: Use crypto.randomUUID() for an unguessable client ID
+    const namePart = inputName.value.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    registrationData.clientId = `${namePart}-${crypto.randomUUID().split('-')[0]}`;
     goToStep(2);
 });
 
@@ -157,11 +171,14 @@ next2.addEventListener('click', async () => {
 
     try {
         // PROVISIONING CALL
+        // TODO: Route this provisioning call through the CRM API server instead of calling
+        // the Cloudflare Worker directly with a shared key. The CRM API should act as a proxy
+        // that authenticates this request server-side with its own credentials.
         const res = await fetch('https://chatbot-api.bmorris0565.workers.dev/api/save-config', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'x-admin-key': 'DEV_BYPASS' // For simulation, the API handles this bypass or we'd use a real key
+                'x-admin-key': 'REPLACE_WITH_PROVISIONING_TOKEN'
             },
             body: JSON.stringify({
                 clientId: registrationData.clientId,

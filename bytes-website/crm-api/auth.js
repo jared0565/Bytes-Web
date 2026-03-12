@@ -13,14 +13,16 @@ export class AuthProvider {
      * Google OAuth implementation
      */
     static google = {
-        getAuthUrl: (clientId, redirectUri) => {
+        // C6: state parameter required — pass the signed state generated in index.js
+        getAuthUrl: (clientId, redirectUri, state) => {
             const params = queryString.stringify({
                 client_id: clientId,
                 redirect_uri: redirectUri,
                 response_type: 'code',
                 scope: 'openid email profile',
                 access_type: 'offline',
-                prompt: 'select_account'
+                prompt: 'select_account',
+                state
             });
             return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
         },
@@ -56,14 +58,16 @@ export class AuthProvider {
      * Facebook OAuth implementation
      */
     static facebook = {
-        getAuthUrl: (clientId, redirectUri) => {
+        // C6: state parameter required — pass the signed state generated in index.js
+        getAuthUrl: (clientId, redirectUri, state) => {
             const params = queryString.stringify({
                 client_id: clientId,
                 redirect_uri: redirectUri,
                 scope: 'email,public_profile',
                 response_type: 'code',
                 auth_type: 'rerequest',
-                display: 'popup'
+                display: 'popup',
+                state
             });
             return `https://www.facebook.com/v18.0/dialog/oauth?${params}`;
         },
@@ -92,12 +96,13 @@ export class AuthProvider {
      * LinkedIn OAuth implementation (OpenID Connect flow)
      */
     static linkedin = {
-        getAuthUrl: (clientId, redirectUri) => {
+        // C6: state parameter now generated and validated in index.js (CSRF protection)
+        getAuthUrl: (clientId, redirectUri, state) => {
             const params = queryString.stringify({
                 response_type: 'code',
                 client_id: clientId,
                 redirect_uri: redirectUri,
-                state: 'random_state_string', // In production, generate a secure random state
+                state,
                 scope: 'openid profile email'
             });
             return `https://www.linkedin.com/oauth/v2/authorization?${params}`;
