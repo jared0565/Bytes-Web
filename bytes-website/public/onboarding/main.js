@@ -36,7 +36,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (socialToken) {
         try {
             // H3: Exchange the opaque token for user info — PII never travels in URL params
-            const res = await fetch(`http://localhost:4000/api/auth/exchange?token=${encodeURIComponent(socialToken)}`);
+            const res = await fetch(`https://crm-api.bmorris0565.workers.dev/api/auth/exchange?token=${encodeURIComponent(socialToken)}`);
             if (!res.ok) throw new Error('Exchange failed');
 
             const userData = await res.json();
@@ -76,7 +76,7 @@ document.querySelectorAll('.btn-social').forEach(btn => {
     btn.addEventListener('click', () => {
         const provider = btn.getAttribute('data-provider');
         // Redirect to backend auth endpoint
-        window.location.href = `http://localhost:4000/api/auth/${provider}`;
+        window.location.href = `https://crm-api.bmorris0565.workers.dev/api/auth/${provider}`;
     });
 });
 

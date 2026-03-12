@@ -5,9 +5,9 @@ compatibility_flags = ["nodejs_compat"]
 
 # Non-secret config vars — safe to commit
 [vars]
-ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:3000"
+ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:3000,https://bytes-website.bmorris0565.workers.dev"
 AUTH_REDIRECT_URL = "https://crm-api.bmorris0565.workers.dev/api/auth/{{provider}}/callback"
-FRONTEND_ONBOARDING_URL = "https://REPLACE_DOMAIN.pages.dev/onboarding/"
+FRONTEND_ONBOARDING_URL = "https://bytes-website.bmorris0565.workers.dev/onboarding/"
 
 # D1 SQLite database (shared with chatbot-api — contains leads + chat_logs)
 [[d1_databases]]

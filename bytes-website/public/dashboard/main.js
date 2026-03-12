@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:4000"; // Local CRM API
+const API_BASE = "https://crm-api.bmorris0565.workers.dev";
 
 // C3: HTML-escape user data before rendering to prevent XSS
 function escapeHtml(str) {
