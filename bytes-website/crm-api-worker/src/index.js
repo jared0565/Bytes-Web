@@ -1,8 +1,32 @@
 import { Hono } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
-import { SignJWT, jwtVerify } from 'jose';
 import { AuthProvider } from './auth.js';
+
+// ─── Native Web Crypto JWT (no external library — Workers crypto.subtle) ─────
+async function signJWT(payload, secret, expiresIn = 28800) {
+    const now = Math.floor(Date.now() / 1000);
+    const b64u = obj => btoa(JSON.stringify(obj)).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
+    const header  = b64u({ alg: 'HS256', typ: 'JWT' });
+    const body    = b64u({ ...payload, iat: now, exp: now + expiresIn });
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const raw = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${header}.${body}`));
+    const sig = btoa(String.fromCharCode(...new Uint8Array(raw))).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
+    return `${header}.${body}.${sig}`;
+}
+
+async function verifyJWT(token, secret) {
+    const parts = token.split('.');
+    if (parts.length !== 3) throw new Error('Malformed token');
+    const [h, b, s] = parts;
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['verify']);
+    const sigBytes = Uint8Array.from(atob(s.replace(/-/g,'+').replace(/_/g,'/')), c => c.charCodeAt(0));
+    const valid = await crypto.subtle.verify('HMAC', key, sigBytes, new TextEncoder().encode(`${h}.${b}`));
+    if (!valid) throw new Error('Invalid signature');
+    const payload = JSON.parse(atob(b.replace(/-/g,'+').replace(/_/g,'/')));
+    if (payload.exp < Math.floor(Date.now() / 1000)) throw new Error('Token expired');
+    return payload;
+}
 
 const app = new Hono();
 
@@ -35,21 +59,24 @@ async function signHmac(message, secret) {
     return [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function generateOAuthState(secret) {
-    const ts = Date.now().toString();
-    const sig = await signHmac(ts, secret);
-    return `${ts}.${sig}`;
+async function generateOAuthState(secret, dest = 'onboarding') {
+    const ts  = Date.now().toString();
+    const msg = `${ts}|${dest}`;
+    const sig = await signHmac(msg, secret);
+    return `${msg}.${sig}`;
 }
 
+// Returns { valid: boolean, dest: 'onboarding'|'dashboard' }
 async function validateOAuthState(state, secret) {
-    if (!state || typeof state !== 'string') return false;
-    const dotIndex = state.lastIndexOf('.');
-    if (dotIndex === -1) return false;
-    const ts = state.slice(0, dotIndex);
-    const sig = state.slice(dotIndex + 1);
-    const expectedSig = await signHmac(ts, secret);
+    if (!state || typeof state !== 'string') return { valid: false, dest: 'onboarding' };
+    const dot = state.lastIndexOf('.');
+    if (dot === -1) return { valid: false, dest: 'onboarding' };
+    const msg = state.slice(0, dot);
+    const sig = state.slice(dot + 1);
+    const [ts, dest = 'onboarding'] = msg.split('|');
+    const expected = await signHmac(msg, secret);
     const age = Date.now() - parseInt(ts, 10);
-    return sig === expectedSig && age > 0 && age < 10 * 60 * 1000;
+    return { valid: sig === expected && age > 0 && age < 10 * 60 * 1000, dest };
 }
 
 function escapeHtml(str) {
@@ -82,7 +109,7 @@ const requireAuth = async (c, next) => {
     const token = getCookie(c, 'session');
     if (!token) return c.json({ error: 'Unauthorized' }, 401);
     try {
-        const { payload } = await jwtVerify(token, new TextEncoder().encode(c.env.JWT_SECRET));
+        const payload = await verifyJWT(token, c.env.JWT_SECRET);
         c.set('user', payload);
         return next();
     } catch {
@@ -144,10 +171,7 @@ app.post('/api/auth/login', async (c) => {
         if (key.toLowerCase().startsWith('admin-')) role = 'admin';
     }
 
-    const token = await new SignJWT({ role, clientId: 'agency_demo' })
-        .setProtectedHeader({ alg: 'HS256' })
-        .setExpirationTime('8h')
-        .sign(new TextEncoder().encode(c.env.JWT_SECRET));
+    const token = await signJWT({ role, clientId: 'agency_demo' }, c.env.JWT_SECRET, 8 * 3600);
 
     // Workers always run over HTTPS — secure: true always
     setCookie(c, 'session', token, {
@@ -167,11 +191,28 @@ app.post('/api/auth/logout', (c) => {
     return c.json({ success: true });
 });
 
-// OAuth — redirect to provider
+// Session probe — dashboard calls this on load to detect existing session
+app.get('/api/auth/me', requireAuth, (c) => c.json(c.get('user')));
+
+// Exchange opaque token for user info (single use, consumed from KV)
+app.get('/api/auth/exchange', async (c) => {
+    const token = c.req.query('token');
+    if (!token || typeof token !== 'string') return c.json({ error: 'Token required' }, 400);
+
+    const raw = await c.env.OAUTH_TOKENS.get(token);
+    if (!raw) return c.json({ error: 'Token not found or already used' }, 404);
+
+    await c.env.OAUTH_TOKENS.delete(token); // single use
+    const data = JSON.parse(raw);
+    return c.json({ name: data.name, email: data.email, provider: data.provider });
+});
+
+// OAuth — redirect to provider  (?redirect=dashboard for dashboard login)
 app.get('/api/auth/:provider', async (c) => {
     const provider = c.req.param('provider');
     const redirectUri = (c.env.AUTH_REDIRECT_URL || '').replace('{{provider}}', provider);
-    const state = await generateOAuthState(c.env.OAUTH_STATE_SECRET);
+    const dest  = c.req.query('redirect') === 'dashboard' ? 'dashboard' : 'onboarding';
+    const state = await generateOAuthState(c.env.OAUTH_STATE_SECRET, dest);
 
     let authUrl = '';
     if (provider === 'google') {
@@ -189,34 +230,45 @@ app.get('/api/auth/:provider', async (c) => {
 
 // OAuth callback
 app.get('/api/auth/:provider/callback', async (c) => {
-    const provider = c.req.param('provider');
-    const code = c.req.query('code');
-    const state = c.req.query('state');
+    const provider    = c.req.param('provider');
+    const code        = c.req.query('code');
+    const state       = c.req.query('state');
     const redirectUri = (c.env.AUTH_REDIRECT_URL || '').replace('{{provider}}', provider);
-    const frontendUrl = c.env.FRONTEND_ONBOARDING_URL || '/onboarding/';
+    const onboardUrl  = c.env.FRONTEND_ONBOARDING_URL || '/onboarding/';
+    const dashUrl     = c.env.FRONTEND_DASHBOARD_URL  || '/dashboard/';
 
-    if (!code) return c.redirect(`${frontendUrl}?social_error=no_code`);
+    if (!code) return c.redirect(`${onboardUrl}?social_error=no_code`);
 
-    if (!await validateOAuthState(state, c.env.OAUTH_STATE_SECRET)) {
+    const { valid, dest } = await validateOAuthState(state, c.env.OAUTH_STATE_SECRET);
+    if (!valid) {
         console.warn(`[OAuth] Invalid state for provider: ${provider}`);
-        return c.redirect(`${frontendUrl}?social_error=invalid_state`);
+        const errTarget = dest === 'dashboard' ? dashUrl : onboardUrl;
+        return c.redirect(`${errTarget}?social_error=invalid_state`);
     }
 
     try {
         let userData = null;
-        if (provider === 'google') userData = await AuthProvider.google.getUserData(code, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, redirectUri);
+        if (provider === 'google')   userData = await AuthProvider.google.getUserData(code, c.env.GOOGLE_CLIENT_ID, c.env.GOOGLE_CLIENT_SECRET, redirectUri);
         else if (provider === 'facebook') userData = await AuthProvider.facebook.getUserData(code, c.env.FACEBOOK_CLIENT_ID, c.env.FACEBOOK_CLIENT_SECRET, redirectUri);
         else if (provider === 'linkedin') userData = await AuthProvider.linkedin.getUserData(code, c.env.LINKEDIN_CLIENT_ID, c.env.LINKEDIN_CLIENT_SECRET, redirectUri);
 
-        if (!userData) return c.redirect(`${frontendUrl}?social_error=failed`);
+        if (!userData) return c.redirect(`${onboardUrl}?social_error=failed`);
 
+        // Upsert user record
         const existing = await c.env.DB.prepare('SELECT id FROM users WHERE social_id = ? AND provider = ?').bind(userData.id, provider).first();
         if (!existing) {
             await c.env.DB.prepare('INSERT INTO users (social_id, provider, email, name, picture, created_at) VALUES (?, ?, ?, ?, ?, ?)')
                 .bind(userData.id, provider, userData.email, userData.name, userData.picture, Date.now()).run();
         }
 
-        // Store PII in KV with 5-min TTL, redirect with opaque token only
+        if (dest === 'dashboard') {
+            // Returning user — issue JWT session cookie and go straight to dashboard
+            const token = await signJWT({ role: 'admin', clientId: 'agency_demo', provider }, c.env.JWT_SECRET, 8 * 3600);
+            setCookie(c, 'session', token, { httpOnly: true, secure: true, sameSite: 'None', maxAge: 8 * 3600, path: '/' });
+            return c.redirect(`${dashUrl}?social_login=1`);
+        }
+
+        // New registration — opaque token exchange → onboarding pre-fill
         const exchangeToken = crypto.randomUUID();
         await c.env.OAUTH_TOKENS.put(exchangeToken, JSON.stringify({
             name: userData.name || '',
@@ -224,24 +276,12 @@ app.get('/api/auth/:provider/callback', async (c) => {
             provider
         }), { expirationTtl: 300 });
 
-        return c.redirect(`${frontendUrl}?social_token=${exchangeToken}`);
+        return c.redirect(`${onboardUrl}?social_token=${exchangeToken}`);
     } catch (err) {
         console.error(`[Auth] OAuth callback error (${provider}):`, err);
-        return c.redirect(`${frontendUrl}?social_error=auth_failed`);
+        const errTarget = dest === 'dashboard' ? dashUrl : onboardUrl;
+        return c.redirect(`${errTarget}?social_error=auth_failed`);
     }
-});
-
-// Exchange opaque token for user info (single use, consumed from KV)
-app.get('/api/auth/exchange', async (c) => {
-    const token = c.req.query('token');
-    if (!token || typeof token !== 'string') return c.json({ error: 'Token required' }, 400);
-
-    const raw = await c.env.OAUTH_TOKENS.get(token);
-    if (!raw) return c.json({ error: 'Token not found or already used' }, 404);
-
-    await c.env.OAUTH_TOKENS.delete(token); // single use
-    const data = JSON.parse(raw);
-    return c.json({ name: data.name, email: data.email, provider: data.provider });
 });
 
 // Leads

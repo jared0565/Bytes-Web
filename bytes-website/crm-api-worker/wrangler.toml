@@ -8,6 +8,7 @@ compatibility_flags = ["nodejs_compat"]
 ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:3000,https://bytes-website.bmorris0565.workers.dev"
 AUTH_REDIRECT_URL = "https://crm-api.bmorris0565.workers.dev/api/auth/{{provider}}/callback"
 FRONTEND_ONBOARDING_URL = "https://bytes-website.bmorris0565.workers.dev/onboarding/"
+FRONTEND_DASHBOARD_URL  = "https://bytes-website.bmorris0565.workers.dev/dashboard/"
 
 # D1 SQLite database (shared with chatbot-api — contains leads + chat_logs)
 [[d1_databases]]

@@ -61,11 +61,30 @@ const simulateBtn = document.getElementById('simulate-lead-btn');
 const simStatus = document.getElementById('sim-status');
 
 // --- Initialization ---
-// If we have a stored role, optimistically show the dashboard; requireAuth on the server
-// will reject any request if the httpOnly session cookie is missing or expired.
-if (userRole) {
-    showDashboard();
-}
+// Check for ?social_error or auto-detect an existing session (covers post-OAuth cookie redirect)
+(async () => {
+    const params = new URLSearchParams(window.location.search);
+
+    if (params.has('social_error')) {
+        const errMap = { invalid_state: 'Security check failed. Please try again.', auth_failed: 'Authentication failed. Please try again.', no_code: 'Login was cancelled.' };
+        loginError.innerText = errMap[params.get('social_error')] || 'Social login failed. Please try again.';
+        history.replaceState(null, '', window.location.pathname);
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_BASE}/api/auth/me`, { credentials: 'include' });
+        if (res.ok) {
+            const data = await res.json();
+            userRole = data.role || 'sales_rep';
+            localStorage.setItem('agency_user_role', userRole);
+            if (params.has('social_login')) history.replaceState(null, '', window.location.pathname);
+            showDashboard();
+            return;
+        }
+    } catch (_) {}
+    // No active session — login overlay remains visible
+})();
 
 // --- Auth logic ---
 loginBtn.addEventListener('click', async () => {
@@ -95,9 +114,15 @@ loginBtn.addEventListener('click', async () => {
 });
 
 adminKeyInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-        loginBtn.click();
-    }
+    if (e.key === 'Enter') loginBtn.click();
+});
+
+// Social login buttons — redirect to OAuth with redirect=dashboard
+document.querySelectorAll('.btn-social').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const provider = btn.getAttribute('data-provider');
+        window.location.href = `${API_BASE}/api/auth/${provider}?redirect=dashboard`;
+    });
 });
 
 logoutBtn.addEventListener('click', async () => {

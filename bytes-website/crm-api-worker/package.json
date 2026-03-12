@@ -9,8 +9,7 @@
     "migrate:remote": "wrangler d1 migrations apply crm-database"
   },
   "dependencies": {
-    "hono": "^4.6.0",
-    "jose": "^5.9.0"
+    "hono": "^4.6.0"
   },
   "devDependencies": {
     "wrangler": "^3.80.0"
