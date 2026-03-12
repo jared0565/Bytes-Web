@@ -1,4 +1,6 @@
--- CRM database schema for Cloudflare D1
+-- CRM + chatbot database schema for Cloudflare D1
+-- NOTE: In production (chatbot-db), leads and chat_logs already exist.
+-- This migration is for fresh local dev environments only.
 
 CREATE TABLE IF NOT EXISTS leads (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -17,6 +19,14 @@ CREATE TABLE IF NOT EXISTS leads (
     verification_token TEXT,
     v_email_2_sent BOOLEAN DEFAULT 0,
     v_email_3_sent BOOLEAN DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS chat_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id TEXT NOT NULL,
+    user_message TEXT,
+    bot_response TEXT,
+    timestamp INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS email_sequences (
