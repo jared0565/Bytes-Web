@@ -170,28 +170,23 @@ next2.addEventListener('click', async () => {
     next2.disabled = true;
 
     try {
-        // PROVISIONING CALL
-        // TODO: Route this provisioning call through the CRM API server instead of calling
-        // the Cloudflare Worker directly with a shared key. The CRM API should act as a proxy
-        // that authenticates this request server-side with its own credentials.
-        const res = await fetch('https://chatbot-api.bmorris0565.workers.dev/api/save-config', {
+        // PROVISIONING — registers client, saves chatbot config, starts 7-day trial
+        const res = await fetch(`${API_BASE}/api/register`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'x-admin-key': 'REPLACE_WITH_PROVISIONING_TOKEN'
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 clientId: registrationData.clientId,
                 settings: {
-                    mode: 'free', // Start on Free Tier
                     companyName: registrationData.company,
                     systemPrompt: `You are the helpful AI assistant for ${registrationData.company}. Your tone should be ${registrationData.tone}. Follow the PAS marketing framework strictly.`,
-                    showBranding: true
                 }
             })
         });
 
-        if (!res.ok) throw new Error("Failed to provision bot.");
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || "Failed to provision bot.");
+        }
 
         // Generate the Embed Code
         const snippet = `

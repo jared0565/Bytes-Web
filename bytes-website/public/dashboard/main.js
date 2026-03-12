@@ -1,5 +1,8 @@
 const API_BASE = "https://crm-api.bmorris0565.workers.dev";
 
+// --- Plan / Trial state ---
+let planStatus = { plan: 'free', inTrial: true, trialDaysLeft: 7 };
+
 // C3: HTML-escape user data before rendering to prevent XSS
 function escapeHtml(str) {
     if (str === null || str === undefined) return '';
@@ -107,20 +110,48 @@ logoutBtn.addEventListener('click', async () => {
 function showDashboard() {
     loginOverlay.classList.add('hidden');
     dashboardContainer.classList.remove('hidden');
-    
+
     // RBAC: Hide admin tabs if not admin
     if (userRole !== 'admin') {
         const logsNav = document.querySelector('.nav-item[data-view="logs"]');
         const clientsNav = document.querySelector('.nav-item[data-view="clients"]');
         if (logsNav) logsNav.style.display = 'none';
         if (clientsNav) clientsNav.style.display = 'none';
-        
-        // Ensure they can't manually toggle them visible by removing DOM elements
         document.getElementById('logs-view')?.remove();
         document.getElementById('clients-view')?.remove();
     }
-    
+
+    // Load plan/trial status and render banner
+    loadPlanStatus();
+
     switchView('leads');
+}
+
+async function loadPlanStatus() {
+    try {
+        const res = await fetch(`${API_BASE}/api/crm-settings`, { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        planStatus = { plan: data.plan || 'free', inTrial: data.inTrial || false, trialDaysLeft: data.trialDaysLeft || 0, trialEndsAt: data.trialEndsAt || 0 };
+        renderPlanBanner();
+    } catch (_) {}
+}
+
+function renderPlanBanner() {
+    const banner = document.getElementById('trial-banner');
+    if (!banner) return;
+    if (planStatus.inTrial) {
+        banner.style.display = 'block';
+        banner.style.background = 'linear-gradient(90deg, rgba(245,158,11,0.15) 0%, rgba(245,158,11,0.05) 100%)';
+        banner.style.color = '#f59e0b';
+        const days = planStatus.trialDaysLeft;
+        banner.innerHTML = `⚡ <strong>Free Trial Active</strong> — ${days} day${days !== 1 ? 's' : ''} remaining. Enjoy full access to all features including AI campaign generation.`;
+    } else if (planStatus.plan === 'free') {
+        banner.style.display = 'block';
+        banner.style.background = 'linear-gradient(90deg, rgba(239,68,68,0.12) 0%, rgba(239,68,68,0.04) 100%)';
+        banner.style.color = '#f87171';
+        banner.innerHTML = `🔒 <strong>Free Plan</strong> — AI features are disabled. Max 10 leads/day · 50 contacts. <a href="/onboarding/" style="color:#fb923c;text-decoration:underline;margin-left:8px;">Upgrade your plan →</a>`;
+    }
 }
 
 // --- Navigation ---
@@ -678,6 +709,14 @@ async function openSequenceModal(leadId) {
 
 async function generateSequence(leadId) {
     sequenceStatus.innerText = '';
+
+    // Block AI generation for post-trial free accounts
+    if (!planStatus.inTrial && planStatus.plan === 'free') {
+        sequenceStatus.innerText = '🔒 AI generation is not available on the Free plan. Upgrade to unlock this feature.';
+        sequenceStatus.style.color = 'var(--warning, #f59e0b)';
+        return;
+    }
+
     try {
         const res = await fetch(`${API_BASE}/api/generate-sequence`, {
             method: 'POST',
@@ -692,7 +731,10 @@ async function generateSequence(leadId) {
             currentSequences = await seqRes.json();
             renderSequenceEditor();
         } else {
-            sequenceStatus.innerText = 'Failed to generate sequence via AI.';
+            const errData = await res.json().catch(() => ({}));
+            sequenceStatus.innerText = errData.planLimited
+                ? '🔒 AI generation is not available on the Free plan. Upgrade to unlock this feature.'
+                : 'Failed to generate sequence via AI.';
             sequenceStatus.style.color = 'var(--error)';
         }
     } catch (e) {

@@ -67,6 +67,16 @@ function escapeForPrompt(str) {
     return String(str).replace(/\[|\]|<|>/g, '').trim();
 }
 
+// Returns plan status for a client. inTrial = within 7-day evaluation window.
+async function getPlanStatus(env, clientId) {
+    const s = await env.DB.prepare('SELECT plan, trial_started_at, trial_ends_at FROM crm_settings WHERE client_id = ?').bind(clientId).first();
+    if (!s || !s.trial_ends_at) return { plan: 'free', inTrial: false, trialDaysLeft: 0, trialEndsAt: 0 };
+    const now = Date.now();
+    const inTrial = now < s.trial_ends_at;
+    const trialDaysLeft = inTrial ? Math.ceil((s.trial_ends_at - now) / 86400000) : 0;
+    return { plan: s.plan || 'free', inTrial, trialDaysLeft, trialEndsAt: s.trial_ends_at };
+}
+
 // ─── Auth middleware ─────────────────────────────────────────────────────────
 const requireAuth = async (c, next) => {
     const token = getCookie(c, 'session');
@@ -90,6 +100,33 @@ app.onError((err, c) => {
 
 app.get('/api/health', (c) => c.json({ status: 'ok', service: 'crm-api' }));
 
+// Registration — provisions a new client with chatbot config + 7-day trial (no session required)
+app.post('/api/register', async (c) => {
+    let body;
+    try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+    const { clientId, settings } = body;
+    if (!clientId || typeof clientId !== 'string') return c.json({ error: 'clientId is required' }, 400);
+    if (!settings || typeof settings !== 'object') return c.json({ error: 'settings is required' }, 400);
+    if (!/^[a-z0-9][a-z0-9\-]{2,60}$/.test(clientId)) return c.json({ error: 'Invalid clientId format' }, 400);
+
+    // Don't overwrite an existing client
+    const existing = await c.env.DB.prepare('SELECT client_id FROM crm_settings WHERE client_id = ?').bind(clientId).first();
+    if (existing) return c.json({ error: 'Client already registered' }, 409);
+
+    const now = Date.now();
+    const trialEndsAt = now + 7 * 24 * 60 * 60 * 1000; // 7 days
+
+    // Save chatbot config (mode = 'ai' during trial)
+    await c.env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify({ ...settings, mode: 'ai', showBranding: true }));
+
+    // Create crm_settings row with trial dates
+    await c.env.DB.prepare(
+        'INSERT INTO crm_settings (client_id, default_campaign_mode, auto_approve_campaigns, plan, trial_started_at, trial_ends_at) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(clientId, 'ai', 0, 'free', now, trialEndsAt).run();
+
+    return c.json({ success: true, clientId, trialEndsAt, trialDaysLeft: 7 });
+});
+
 // Login — issues signed JWT in httpOnly cookie
 app.post('/api/auth/login', async (c) => {
     let body;
@@ -112,12 +149,13 @@ app.post('/api/auth/login', async (c) => {
         .setExpirationTime('8h')
         .sign(new TextEncoder().encode(c.env.JWT_SECRET));
 
-    const IS_PROD = c.env.NODE_ENV === 'production';
+    // Workers always run over HTTPS — secure: true always
     setCookie(c, 'session', token, {
         httpOnly: true,
-        secure: IS_PROD,
-        sameSite: 'Strict',
-        maxAge: 8 * 60 * 60
+        secure: true,
+        sameSite: 'None',
+        maxAge: 8 * 60 * 60,
+        path: '/'
     });
 
     return c.json({ success: true, role, clientId: 'agency_demo' });
@@ -125,8 +163,7 @@ app.post('/api/auth/login', async (c) => {
 
 // Logout
 app.post('/api/auth/logout', (c) => {
-    const IS_PROD = c.env.NODE_ENV === 'production';
-    deleteCookie(c, 'session', { httpOnly: true, secure: IS_PROD, sameSite: 'Strict' });
+    deleteCookie(c, 'session', { httpOnly: true, secure: true, sameSite: 'None', path: '/' });
     return c.json({ success: true });
 });
 
@@ -226,6 +263,20 @@ app.post('/api/webhooks/new-lead', async (c) => {
 
     if (!leadId || typeof leadId !== 'number') return c.json({ error: 'leadId is required and must be a number' }, 400);
 
+    // Enforce free-tier limits (10/day, 50 total) for post-trial accounts
+    if (clientId) {
+        const planStatus = await getPlanStatus(c.env, clientId);
+        if (!planStatus.inTrial && planStatus.plan === 'free') {
+            const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+            const [dailyRow, totalRow] = await Promise.all([
+                c.env.DB.prepare('SELECT COUNT(*) as cnt FROM leads WHERE client_id = ? AND timestamp >= ?').bind(clientId, todayStart.getTime()).first(),
+                c.env.DB.prepare('SELECT COUNT(*) as cnt FROM leads WHERE client_id = ?').bind(clientId).first()
+            ]);
+            if ((dailyRow?.cnt || 0) >= 10) return c.json({ error: 'Daily lead limit reached (Free tier: 10/day)', limited: true }, 429);
+            if ((totalRow?.cnt || 0) >= 50) return c.json({ error: 'Contact limit reached (Free tier: 50 contacts)', limited: true }, 429);
+        }
+    }
+
     try {
         const pipelineStage = (budget && /10|15|20|50/.test(budget)) ? 'priority' : 'lead';
         const verificationToken = crypto.randomUUID();
@@ -319,8 +370,9 @@ app.get('/api/crm-settings', requireAuth, async (c) => {
     const clientId = c.req.query('clientId') || 'agency_demo';
     try {
         let settings = await c.env.DB.prepare('SELECT * FROM crm_settings WHERE client_id = ?').bind(clientId).first();
-        if (!settings) settings = { client_id: clientId, default_campaign_mode: 'ai', auto_approve_campaigns: 0 };
-        return c.json(settings);
+        if (!settings) settings = { client_id: clientId, default_campaign_mode: 'ai', auto_approve_campaigns: 0, plan: 'free', trial_started_at: 0, trial_ends_at: 0 };
+        const planStatus = await getPlanStatus(c.env, clientId);
+        return c.json({ ...settings, ...planStatus });
     } catch (err) {
         console.error('[CRM Settings] Fetch error:', err);
         return c.json({ error: 'Failed to fetch settings' }, 500);
@@ -454,6 +506,12 @@ app.post('/api/generate-sequence', requireAuth, async (c) => {
     const { leadId } = body;
     if (!leadId || typeof leadId !== 'number') return c.json({ error: 'leadId is required and must be a number' }, 400);
 
+    const user = c.get('user');
+    const planStatus = await getPlanStatus(c.env, user?.clientId || 'agency_demo');
+    if (!planStatus.inTrial && planStatus.plan === 'free') {
+        return c.json({ error: 'AI features are not available on the Free tier. Upgrade your plan to unlock AI campaign generation.', planLimited: true }, 403);
+    }
+
     try {
         const result = await generateAiSequence(c.env, leadId, false);
         return c.json(result);
@@ -579,8 +637,31 @@ app.get('/api/force-test-webhook', async (c) => {
     }
 });
 
-// ─── Cron handler (verification follow-up emails) ────────────────────────────
+// ─── Cron handler (verification follow-up + trial expiry) ────────────────────
 async function handleVerificationCron(env) {
+    // Expire trials: downgrade chatbot KV mode to 'free' when trial window closes
+    try {
+        const now = Date.now();
+        const { results: expired } = await env.DB.prepare(
+            'SELECT client_id FROM crm_settings WHERE plan = ? AND trial_ends_at > 0 AND trial_ends_at < ?'
+        ).bind('free', now).all();
+
+        for (const row of expired) {
+            const raw = await env.CLIENT_SETTINGS.get(`client:${row.client_id}`);
+            if (raw) {
+                const cfg = JSON.parse(raw);
+                if (cfg.mode && cfg.mode !== 'free') {
+                    cfg.mode = 'free'; // downgrade chatbot to rule-based
+                    await env.CLIENT_SETTINGS.put(`client:${row.client_id}`, JSON.stringify(cfg));
+                    console.log(`[Trial] Expired → ${row.client_id} downgraded to free mode`);
+                }
+            }
+        }
+    } catch (err) {
+        console.error('[Cron] Trial expiry error:', err);
+    }
+
+    // Verification follow-up emails
     try {
         const { results: unverified } = await env.DB.prepare(
             'SELECT id, name, email, verification_token, timestamp, v_email_2_sent, v_email_3_sent FROM leads WHERE is_verified = 0 AND verification_token IS NOT NULL'

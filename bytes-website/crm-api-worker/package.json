@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
+    "dev": "wrangler dev --config wrangler.toml",
+    "deploy": "wrangler deploy --config wrangler.toml",
     "migrate:local": "wrangler d1 migrations apply crm-database --local",
     "migrate:remote": "wrangler d1 migrations apply crm-database"
   },
