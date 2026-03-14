@@ -30,6 +30,8 @@
                 <div class="step-circle" data-step="2">2</div>
                 <div class="step-line"></div>
                 <div class="step-circle" data-step="3">3</div>
+                <div class="step-line"></div>
+                <div class="step-circle" data-step="4">4</div>
             </div>
         </header>
 
@@ -103,12 +105,12 @@
                         <input type="text" id="company-name" placeholder="e.g. Acme Solutions">
                     </div>
                     <div class="form-group">
-                        <label for="bot-tone">Bot Tone</label>
-                        <select id="bot-tone">
-                            <option value="Professional & Authoritative">Professional & Authoritative</option>
-                            <option value="Friendly & Helpful">Friendly & Helpful</option>
-                            <option value="High-Energy & Salesy">High-Energy & Salesy</option>
-                        </select>
+                        <label>Bot Tone</label>
+                        <div class="tone-picker" id="bot-tone">
+                            <button type="button" class="tone-option selected" data-value="Professional & Authoritative">Professional &amp; Authoritative</button>
+                            <button type="button" class="tone-option" data-value="Friendly & Helpful">Friendly &amp; Helpful</button>
+                            <button type="button" class="tone-option" data-value="High-Energy & Salesy">High-Energy &amp; Salesy</button>
+                        </div>
                     </div>
                     <div class="button-group">
                         <button id="btn-back-2" class="btn btn-outline">Back</button>
@@ -129,9 +131,63 @@
                     <button id="btn-copy" class="btn btn-primary">Copy Embed Code</button>
                 </div>
 
+                <!-- Installation Limits Info -->
+                <div id="install-limits-card" class="glass" style="margin-top:1.5rem;padding:1.25rem 1.5rem;border-radius:20px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);">
+                    <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:1rem;">
+                        <span style="font-size:1.1rem;">🌐</span>
+                        <strong style="font-size:0.9rem;color:#e2e8f0;letter-spacing:0.02em;">Installation Limits</strong>
+                        <span id="install-plan-badge" style="margin-left:auto;font-size:0.7rem;padding:0.2rem 0.6rem;background:rgba(99,102,241,0.18);border:1px solid rgba(99,102,241,0.35);border-radius:999px;color:#a5b4fc;font-weight:600;">Trial</span>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:1rem;">
+                        <div style="background:rgba(0,0,0,0.25);border-radius:12px;padding:0.85rem 1rem;text-align:center;">
+                            <div id="install-max-sites" style="font-size:1.6rem;font-weight:700;color:#60a5fa;">1</div>
+                            <div style="font-size:0.75rem;color:#64748b;margin-top:0.2rem;">Installation(s)</div>
+                        </div>
+                        <div style="background:rgba(0,0,0,0.25);border-radius:12px;padding:0.85rem 1rem;text-align:center;">
+                            <div id="install-max-domains" style="font-size:1.6rem;font-weight:700;color:#34d399;">1</div>
+                            <div style="font-size:0.75rem;color:#64748b;margin-top:0.2rem;">Domain(s)</div>
+                        </div>
+                    </div>
+                    <p style="font-size:0.78rem;color:#475569;line-height:1.5;margin:0;">Manage your allowed domains from the <strong style="color:#94a3b8;">Dashboard → Chatbot</strong> tab after setup. <a href="#" onclick="event.preventDefault()" style="color:#6366f1;text-decoration:none;">Upgrade for more →</a></p>
+                </div>
+
                 <div class="next-steps">
                     <button id="btn-email-dev" class="btn btn-outline">Send to Developer</button>
-                    <a href="../dashboard/" class="btn btn-link">Go to Dashboard &rarr;</a>
+                    <button id="btn-more-settings" class="btn btn-link">More Settings &rarr;</button>
+                </div>
+            </section>
+
+            <!-- Step 4: More Settings -->
+            <section id="step-4" class="slide">
+                <h1>Fine-Tune Your Bot.</h1>
+                <p class="subtitle">Customize how your bot talks and behaves.</p>
+
+                <div class="form-card glass">
+                    <div class="form-group">
+                        <label for="settings-prompt">Bot Personality / System Prompt</label>
+                        <textarea id="settings-prompt" rows="5" placeholder="Describe how your bot should behave, what it should focus on, and what to avoid..."
+                            style="width:100%;padding:1.2rem 1.5rem;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.1);border-radius:16px;color:white;font-size:1rem;outline:none;resize:vertical;font-family:inherit;line-height:1.6;"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Auto-Approve AI Campaigns</label>
+                        <div class="tone-picker" id="auto-approve-picker">
+                            <button type="button" class="tone-option" data-value="0">Manual review first</button>
+                            <button type="button" class="tone-option selected" data-value="1">Auto-approve</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Show "Powered by BytesAI" Badge</label>
+                        <div class="tone-picker" id="branding-picker">
+                            <button type="button" class="tone-option selected" data-value="true">Show badge</button>
+                            <button type="button" class="tone-option" data-value="false" data-locked="true" style="opacity:0.4;cursor:not-allowed;" title="Available on Starter plan and above after your trial">Hide badge <span style="font-size:0.72rem;">🔒 Starter+</span></button>
+                        </div>
+                        <p style="font-size:0.78rem;color:#64748b;margin-top:0.6rem;line-height:1.4;">Badge is required during your 7-day trial. Remove it on <strong style="color:#94a3b8;">Starter</strong> plan and above.</p>
+                    </div>
+                    <div class="button-group">
+                        <button id="btn-back-4" class="btn btn-outline">Back</button>
+                        <button id="btn-save-settings" class="btn btn-primary">Save &amp; Finish</button>
+                    </div>
+                    <p id="settings-status" style="text-align:center;margin-top:1rem;font-size:0.9rem;color:#34d399;opacity:0;transition:opacity 0.3s;"></p>
                 </div>
             </section>
         </main>

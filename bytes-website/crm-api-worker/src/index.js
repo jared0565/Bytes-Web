@@ -37,14 +37,17 @@ app.use('*', secureHeaders());
 app.use('*', async (c, next) => {
     const origin = c.req.header('Origin');
     const allowed = (c.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim());
-    if (origin && allowed.includes(origin)) {
-        c.header('Access-Control-Allow-Origin', origin);
-        c.header('Vary', 'Origin');
-        c.header('Access-Control-Allow-Credentials', 'true');
-        c.header('Access-Control-Allow-Methods', 'GET, POST, PUT');
-        c.header('Access-Control-Allow-Headers', 'Content-Type');
+    const corsHeaders = origin && allowed.includes(origin) ? {
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Credentials': 'true',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Vary': 'Origin',
+    } : {};
+    if (c.req.method === 'OPTIONS') {
+        return new Response(null, { status: 204, headers: corsHeaders });
     }
-    if (c.req.method === 'OPTIONS') return new Response(null, { status: 204 });
+    for (const [k, v] of Object.entries(corsHeaders)) c.header(k, v);
     return next();
 });
 
@@ -79,6 +82,50 @@ async function validateOAuthState(state, secret) {
     return { valid: sig === expected && age > 0 && age < 10 * 60 * 1000, dest };
 }
 
+// ─── TOTP (RFC 6238) — native HMAC-SHA1, no external library ────────────────
+function base32Decode(str) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    const clean = str.toUpperCase().replace(/=+$/, '').replace(/\s/g, '');
+    let bits = 0, value = 0;
+    const bytes = [];
+    for (const c of clean) {
+        const idx = chars.indexOf(c);
+        if (idx < 0) continue;
+        value = (value << 5) | idx;
+        bits += 5;
+        if (bits >= 8) { bytes.push((value >>> (bits - 8)) & 0xff); bits -= 8; }
+    }
+    return new Uint8Array(bytes);
+}
+
+function base32Encode(bytes) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    let bits = 0, value = 0, result = '';
+    for (const byte of bytes) {
+        value = (value << 8) | byte; bits += 8;
+        while (bits >= 5) { result += chars[(value >>> (bits - 5)) & 31]; bits -= 5; }
+    }
+    if (bits > 0) result += chars[(value << (5 - bits)) & 31];
+    return result;
+}
+
+async function verifyTOTP(base32Secret, token) {
+    const secretBytes = base32Decode(base32Secret);
+    const counter = Math.floor(Date.now() / 1000 / 30);
+    for (const drift of [-1, 0, 1]) {
+        const c = counter + drift;
+        const counterBytes = new Uint8Array(8);
+        let tmp = c;
+        for (let i = 7; i >= 0; i--) { counterBytes[i] = tmp & 0xff; tmp = Math.floor(tmp / 256); }
+        const key = await crypto.subtle.importKey('raw', secretBytes, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+        const hmac = new Uint8Array(await crypto.subtle.sign('HMAC', key, counterBytes));
+        const offset = hmac[19] & 0xf;
+        const code = (((hmac[offset] & 0x7f) << 24) | (hmac[offset+1] << 16) | (hmac[offset+2] << 8) | hmac[offset+3]) % 1_000_000;
+        if (code.toString().padStart(6, '0') === token.trim()) return true;
+    }
+    return false;
+}
+
 function escapeHtml(str) {
     if (!str) return '';
     return String(str)
@@ -104,12 +151,48 @@ async function getPlanStatus(env, clientId) {
     return { plan: s.plan || 'free', inTrial, trialDaysLeft, trialEndsAt: s.trial_ends_at };
 }
 
+// ─── Session helpers ─────────────────────────────────────────────────────────
+
+// Issue a session JWT, register it in KV for single-session enforcement
+async function issueSession(c, payload, maxAge) {
+    const sessionId = crypto.randomUUID();
+    const sessionKey = payload.userId ? `active_session:${payload.userId}` : 'active_session:admin';
+    await c.env.OAUTH_TOKENS.put(sessionKey, sessionId, { expirationTtl: maxAge });
+    const token = await signJWT({ ...payload, sessionId }, c.env.JWT_SECRET, maxAge);
+    setCookie(c, 'session', token, { httpOnly: true, secure: true, sameSite: 'None', maxAge, path: '/' });
+}
+
+// Check whether the current request carries a valid device trust token for userId
+async function checkDeviceToken(c, userId) {
+    const deviceToken = getCookie(c, 'device_token');
+    if (!deviceToken) return false;
+    const stored = await c.env.OAUTH_TOKENS.get(`device:${deviceToken}`);
+    return stored === String(userId);
+}
+
+// Write a 30-day device trust cookie + KV entry
+async function issueDeviceToken(c, userId) {
+    const deviceToken = crypto.randomUUID();
+    const thirtyDays = 30 * 24 * 3600;
+    await c.env.OAUTH_TOKENS.put(`device:${deviceToken}`, String(userId), { expirationTtl: thirtyDays });
+    setCookie(c, 'device_token', deviceToken, { httpOnly: true, secure: true, sameSite: 'None', maxAge: thirtyDays, path: '/' });
+}
+
 // ─── Auth middleware ─────────────────────────────────────────────────────────
 const requireAuth = async (c, next) => {
     const token = getCookie(c, 'session');
     if (!token) return c.json({ error: 'Unauthorized' }, 401);
     try {
         const payload = await verifyJWT(token, c.env.JWT_SECRET);
+        // Single-session enforcement: reject if another login has superseded this one
+        if (payload.sessionId) {
+            const sessionKey = payload.userId ? `active_session:${payload.userId}` : 'active_session:admin';
+            const activeId = await c.env.OAUTH_TOKENS.get(sessionKey);
+            if (activeId && activeId !== payload.sessionId) {
+                deleteCookie(c, 'session', { httpOnly: true, secure: true, sameSite: 'None', path: '/' });
+                return c.json({ error: 'Your session was ended because you logged in from another device.', kicked: true }, 401);
+            }
+        }
         c.set('user', payload);
         return next();
     } catch {
@@ -131,7 +214,7 @@ app.get('/api/health', (c) => c.json({ status: 'ok', service: 'crm-api' }));
 app.post('/api/register', async (c) => {
     let body;
     try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
-    const { clientId, settings } = body;
+    const { clientId, settings, ownerEmail } = body;
     if (!clientId || typeof clientId !== 'string') return c.json({ error: 'clientId is required' }, 400);
     if (!settings || typeof settings !== 'object') return c.json({ error: 'settings is required' }, 400);
     if (!/^[a-z0-9][a-z0-9\-]{2,60}$/.test(clientId)) return c.json({ error: 'Invalid clientId format' }, 400);
@@ -143,18 +226,154 @@ app.post('/api/register', async (c) => {
     const now = Date.now();
     const trialEndsAt = now + 7 * 24 * 60 * 60 * 1000; // 7 days
 
-    // Save chatbot config (mode = 'ai' during trial)
-    await c.env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify({ ...settings, mode: 'ai', showBranding: true }));
+    // Save chatbot config (mode = 'ai' during trial; badge mandatory with pricing link)
+    const badgeUrl = 'https://web.bytesai.com/?upgrade=free#pricing';
+    await c.env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify({ ...settings, mode: 'ai', showBranding: true, badgeUrl, allowedDomains: [] }));
 
     // Create crm_settings row with trial dates
     await c.env.DB.prepare(
         'INSERT INTO crm_settings (client_id, default_campaign_mode, auto_approve_campaigns, plan, trial_started_at, trial_ends_at) VALUES (?, ?, ?, ?, ?, ?)'
     ).bind(clientId, 'ai', 0, 'free', now, trialEndsAt).run();
 
-    return c.json({ success: true, clientId, trialEndsAt, trialDaysLeft: 7 });
+    // Issue a short-lived setup token for post-onboarding settings (no auth required)
+    const setupToken = crypto.randomUUID();
+    await c.env.OAUTH_TOKENS.put(`setup:${setupToken}`, JSON.stringify({ clientId }), { expirationTtl: 86400 }); // 24h
+
+    // Store email→clientId mapping for returning-user detection
+    if (ownerEmail && typeof ownerEmail === 'string') {
+        const safeEmail = ownerEmail.toLowerCase().trim();
+        if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(safeEmail)) {
+            await c.env.OAUTH_TOKENS.put(`email_client:${safeEmail}`, clientId, { expirationTtl: 365 * 24 * 3600 });
+        }
+    }
+
+    return c.json({ success: true, clientId, setupToken, trialEndsAt, trialDaysLeft: 7 });
 });
 
-// Login — issues signed JWT in httpOnly cookie
+// Post-onboarding settings update — uses one-time setupToken, no session required
+app.post('/api/register-settings', async (c) => {
+    let body;
+    try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+    const { setupToken, settings } = body;
+    if (!setupToken || !settings) return c.json({ error: 'Missing fields' }, 400);
+
+    const raw = await c.env.OAUTH_TOKENS.get(`setup:${setupToken}`);
+    if (!raw) return c.json({ error: 'Setup session expired.' }, 401);
+    const { clientId } = JSON.parse(raw);
+
+    const kvData = await c.env.CLIENT_SETTINGS.get(`client:${clientId}`);
+    const existing = kvData ? JSON.parse(kvData) : {};
+    // Badge is mandatory during the 7-day trial — override any showBranding:false
+    const sanitized = { ...settings, showBranding: true };
+    await c.env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify({ ...existing, ...sanitized }));
+
+    return c.json({ success: true });
+});
+
+// Check if an email has already completed onboarding (no auth required — public)
+app.get('/api/check-setup', async (c) => {
+    const email = c.req.query('email');
+    if (!email || typeof email !== 'string') return c.json({ hasSetup: false });
+    const safeEmail = email.toLowerCase().trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(safeEmail)) return c.json({ hasSetup: false });
+    const clientId = await c.env.OAUTH_TOKENS.get(`email_client:${safeEmail}`);
+    return c.json({ hasSetup: !!clientId });
+});
+
+// ─── Installation / Domain Gating ───────────────────────────────────────────
+
+const INSTALL_LIMITS = {
+    free:       { maxInstalls: 1,  maxDomains: 1  },
+    starter:    { maxInstalls: 3,  maxDomains: 3  },
+    pro:        { maxInstalls: 10, maxDomains: 10 },
+    business:   { maxInstalls: 50, maxDomains: 50 },
+    enterprise: { maxInstalls: -1, maxDomains: -1 }, // -1 = unlimited
+};
+
+// GET /api/installations — returns install limits + allowed domains for the authenticated client
+app.get('/api/installations', requireAuth, async (c) => {
+    const user = c.get('user');
+    const clientId = user.clientId;
+    const [kvRaw, ps] = await Promise.all([
+        c.env.CLIENT_SETTINGS.get(`client:${clientId}`),
+        getPlanStatus(c.env, clientId),
+    ]);
+    const config = kvRaw ? JSON.parse(kvRaw) : {};
+    const effectivePlan = ps.inTrial ? 'free' : (ps.plan || 'free');
+    const limits = INSTALL_LIMITS[effectivePlan] || INSTALL_LIMITS.free;
+    return c.json({
+        clientId,
+        allowedDomains: config.allowedDomains || [],
+        maxInstalls: limits.maxInstalls,
+        maxDomains: limits.maxDomains,
+        plan: ps.plan,
+        inTrial: ps.inTrial,
+    });
+});
+
+// POST /api/installations — save allowed domains (plan-gated)
+app.post('/api/installations', requireAuth, async (c) => {
+    const user = c.get('user');
+    const clientId = user.clientId;
+    let body;
+    try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+    const { allowedDomains } = body;
+    if (!Array.isArray(allowedDomains)) return c.json({ error: 'allowedDomains must be an array' }, 400);
+
+    // Basic domain / subdomain format validation (allows wildcard subdomains like *.example.com)
+    const domainRe = /^(\*\.)?[a-zA-Z0-9][a-zA-Z0-9\-\.]{0,252}[a-zA-Z0-9]$/;
+    const clean = allowedDomains
+        .filter(d => typeof d === 'string' && domainRe.test(d.trim()))
+        .map(d => d.trim().toLowerCase())
+        .slice(0, 50); // hard cap to prevent abuse
+
+    const ps = await getPlanStatus(c.env, clientId);
+    const effectivePlan = ps.inTrial ? 'free' : (ps.plan || 'free');
+    const limits = INSTALL_LIMITS[effectivePlan] || INSTALL_LIMITS.free;
+    if (limits.maxDomains !== -1 && clean.length > limits.maxDomains) {
+        return c.json({ error: `Your plan allows up to ${limits.maxDomains} domain(s). Upgrade to add more.` }, 400);
+    }
+
+    const kvRaw = await c.env.CLIENT_SETTINGS.get(`client:${clientId}`);
+    const config = kvRaw ? JSON.parse(kvRaw) : {};
+    await c.env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify({ ...config, allowedDomains: clean }));
+    return c.json({ success: true, allowedDomains: clean });
+});
+
+// TOTP setup — one-time page to generate + display QR code (protected by admin key)
+app.get('/api/auth/totp/setup', async (c) => {
+    const key = c.req.query('key');
+    if (!key || key !== c.env.ADMIN_SECRET) return c.json({ error: 'Unauthorized' }, 401);
+
+    // Generate or retrieve existing TOTP secret from KV
+    let secret = await c.env.OAUTH_TOKENS.get('totp:secret');
+    if (!secret) {
+        const bytes = new Uint8Array(20);
+        crypto.getRandomValues(bytes);
+        secret = base32Encode(bytes);
+        await c.env.OAUTH_TOKENS.put('totp:secret', secret); // no TTL — permanent
+    }
+
+    const label = encodeURIComponent('BytesAI:admin');
+    const issuer = encodeURIComponent('BytesAI');
+    const uri = `otpauth://totp/${label}?secret=${secret}&issuer=${issuer}&algorithm=SHA1&digits=6&period=30`;
+    const qr  = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(uri)}`;
+
+    return c.html(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>TOTP Setup</title>
+        <style>body{font-family:sans-serif;max-width:480px;margin:60px auto;text-align:center;background:#0f0f1a;color:#fff}
+        img{border:8px solid #fff;border-radius:8px;margin:1.5rem 0}
+        code{background:#1e1e2e;padding:.3rem .6rem;border-radius:4px;font-size:.85rem;word-break:break-all}
+        p{color:#aaa;font-size:.9rem}</style></head>
+        <body><h2>BytesAI — TOTP Setup</h2>
+        <p>Scan this QR code with <strong>Google Authenticator</strong> or <strong>Authy</strong>.</p>
+        <img src="${qr}" alt="QR Code" width="220" height="220">
+        <p>Or enter this secret manually:</p>
+        <code>${secret}</code>
+        <p style="margin-top:2rem;color:#f87171;">Keep this page private. Refresh to regenerate is disabled once scanned.</p>
+        </body></html>`);
+});
+
+// Login step 1 — verify access key, store pending session, request TOTP
 app.post('/api/auth/login', async (c) => {
     let body;
     try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
@@ -171,28 +390,80 @@ app.post('/api/auth/login', async (c) => {
         if (key.toLowerCase().startsWith('admin-')) role = 'admin';
     }
 
-    const token = await signJWT({ role, clientId: 'agency_demo' }, c.env.JWT_SECRET, 8 * 3600);
+    // Check if TOTP is configured — if so, require second factor
+    const totpSecret = await c.env.OAUTH_TOKENS.get('totp:secret');
+    if (totpSecret) {
+        const pendingId = crypto.randomUUID();
+        await c.env.OAUTH_TOKENS.put(`totp:pending:${pendingId}`, JSON.stringify({ role, clientId: 'agency_demo' }), { expirationTtl: 300 });
+        return c.json({ step: 'totp', pendingId });
+    }
 
-    // Workers always run over HTTPS — secure: true always
-    setCookie(c, 'session', token, {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'None',
-        maxAge: 8 * 60 * 60,
-        path: '/'
-    });
-
+    // No TOTP configured — issue JWT directly (fallback)
+    await issueSession(c, { role, clientId: 'agency_demo' }, 8 * 3600);
     return c.json({ success: true, role, clientId: 'agency_demo' });
 });
 
-// Logout
-app.post('/api/auth/logout', (c) => {
+// Login via TOTP — verify code, issue 30-day JWT
+app.post('/api/auth/totp', async (c) => {
+    let body;
+    try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+    const { code } = body;
+    if (!code) return c.json({ error: 'Code required' }, 400);
+
+    const totpSecret = await c.env.OAUTH_TOKENS.get('totp:secret');
+    if (!totpSecret) return c.json({ error: 'TOTP not configured. Run setup first.' }, 503);
+
+    if (!(await verifyTOTP(totpSecret, code))) {
+        return c.json({ error: 'Invalid code. Try again.' }, 401);
+    }
+
+    const role = 'admin';
+    const clientId = 'agency_demo';
+    const thirtyDays = 30 * 24 * 3600;
+    await issueSession(c, { role, clientId }, thirtyDays);
+    return c.json({ success: true, role, clientId });
+});
+
+// Logout — invalidate active session in KV and clear cookies
+app.post('/api/auth/logout', async (c) => {
+    try {
+        const token = getCookie(c, 'session');
+        if (token) {
+            try {
+                const payload = await verifyJWT(token, c.env.JWT_SECRET);
+                const sessionKey = payload.userId ? `active_session:${payload.userId}` : 'active_session:admin';
+                await c.env.OAUTH_TOKENS.delete(sessionKey);
+            } catch { /* ignore expired/invalid tokens */ }
+        }
+        const deviceToken = getCookie(c, 'device_token');
+        if (deviceToken) {
+            await c.env.OAUTH_TOKENS.delete(`device:${deviceToken}`);
+            deleteCookie(c, 'device_token', { httpOnly: true, secure: true, sameSite: 'None', path: '/' });
+        }
+    } catch { /* ignore cleanup errors */ }
     deleteCookie(c, 'session', { httpOnly: true, secure: true, sameSite: 'None', path: '/' });
     return c.json({ success: true });
 });
 
-// Session probe — dashboard calls this on load to detect existing session
-app.get('/api/auth/me', requireAuth, (c) => c.json(c.get('user')));
+// Session probe — returns JWT claims + user profile (name, picture, email, companyName)
+app.get('/api/auth/me', requireAuth, async (c) => {
+    const user = c.get('user');
+    let name = '', picture = '', email = '';
+    if (user.userId) {
+        try {
+            const row = await c.env.DB.prepare('SELECT name, picture, email FROM users WHERE id = ?').bind(user.userId).first();
+            if (row) { name = row.name || ''; picture = row.picture || ''; email = row.email || ''; }
+        } catch {}
+    }
+    let companyName = '';
+    if (user.clientId) {
+        try {
+            const kv = await c.env.CLIENT_SETTINGS.get(`client:${user.clientId}`);
+            if (kv) { const cfg = JSON.parse(kv); companyName = cfg.companyName || ''; }
+        } catch {}
+    }
+    return c.json({ ...user, name, picture, email, companyName });
+});
 
 // Exchange opaque token for user info (single use, consumed from KV)
 app.get('/api/auth/exchange', async (c) => {
@@ -254,21 +525,37 @@ app.get('/api/auth/:provider/callback', async (c) => {
 
         if (!userData) return c.redirect(`${onboardUrl}?social_error=failed`);
 
-        // Upsert user record
-        const existing = await c.env.DB.prepare('SELECT id FROM users WHERE social_id = ? AND provider = ?').bind(userData.id, provider).first();
-        if (!existing) {
-            await c.env.DB.prepare('INSERT INTO users (social_id, provider, email, name, picture, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-                .bind(userData.id, provider, userData.email, userData.name, userData.picture, Date.now()).run();
+        // Upsert user record — always get the DB id
+        let userRecord = await c.env.DB.prepare('SELECT id FROM users WHERE social_id = ? AND provider = ?').bind(userData.id, provider).first();
+        if (!userRecord) {
+            const result = await c.env.DB.prepare('INSERT INTO users (social_id, provider, email, name, picture, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+                .bind(userData.id, provider, userData.email || '', userData.name || '', userData.picture || '', Date.now()).run();
+            userRecord = { id: result.meta.last_row_id };
         }
 
         if (dest === 'dashboard') {
-            // Returning user — issue JWT session cookie and go straight to dashboard
-            const token = await signJWT({ role: 'admin', clientId: 'agency_demo', provider }, c.env.JWT_SECRET, 8 * 3600);
-            setCookie(c, 'session', token, { httpOnly: true, secure: true, sameSite: 'None', maxAge: 8 * 3600, path: '/' });
-            return c.redirect(`${dashUrl}?social_login=1`);
+            const userId = userRecord.id;
+
+            // Device trust check — skip 2FA on remembered machines
+            const hasTotp = await c.env.OAUTH_TOKENS.get(`totp:secret:${userId}`);
+            if (hasTotp && await checkDeviceToken(c, userId)) {
+                const thirtyDays = 30 * 24 * 3600;
+                await issueSession(c, { role: 'admin', clientId: 'agency_demo', provider, userId }, thirtyDays);
+                return c.redirect(dashUrl);
+            }
+
+            // Create a short-lived pending session for 2FA
+            const pendingId = crypto.randomUUID();
+            await c.env.OAUTH_TOKENS.put(`pending_2fa:${pendingId}`, JSON.stringify({
+                userId, provider, name: userData.name || '', email: userData.email || ''
+            }), { expirationTtl: 600 });
+
+            // Route to verify (existing TOTP) or setup (no TOTP yet)
+            const step = hasTotp ? 'verify-2fa' : 'setup-2fa';
+            return c.redirect(`${dashUrl}?step=${step}&pid=${pendingId}`);
         }
 
-        // New registration — opaque token exchange → onboarding pre-fill
+        // Onboarding path — opaque token exchange → form pre-fill
         const exchangeToken = crypto.randomUUID();
         await c.env.OAUTH_TOKENS.put(exchangeToken, JSON.stringify({
             name: userData.name || '',
@@ -282,6 +569,111 @@ app.get('/api/auth/:provider/callback', async (c) => {
         const errTarget = dest === 'dashboard' ? dashUrl : onboardUrl;
         return c.redirect(`${errTarget}?social_error=auth_failed`);
     }
+});
+
+// 2FA setup — return QR code + secret for new user (pending session required)
+app.get('/api/auth/totp/user-setup', async (c) => {
+    const pid = c.req.query('pid');
+    if (!pid) return c.json({ error: 'Missing session' }, 400);
+
+    const raw = await c.env.OAUTH_TOKENS.get(`pending_2fa:${pid}`);
+    if (!raw) return c.json({ error: 'Session expired. Please log in again.' }, 401);
+    const { userId, email } = JSON.parse(raw);
+
+    // Generate (or reuse existing temp) TOTP secret
+    let secret = await c.env.OAUTH_TOKENS.get(`totp:pending-secret:${userId}`);
+    if (!secret) {
+        const bytes = new Uint8Array(20);
+        crypto.getRandomValues(bytes);
+        secret = base32Encode(bytes);
+        await c.env.OAUTH_TOKENS.put(`totp:pending-secret:${userId}`, secret, { expirationTtl: 600 });
+    }
+
+    const label = encodeURIComponent(`BytesAI:${email || userId}`);
+    const issuer = encodeURIComponent('BytesAI');
+    const uri = `otpauth://totp/${label}?secret=${secret}&issuer=${issuer}&algorithm=SHA1&digits=6&period=30`;
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(uri)}`;
+
+    return c.json({ qrUrl, secret });
+});
+
+// 2FA enable — confirm setup code, save permanent secret, issue session
+app.post('/api/auth/totp/user-enable', async (c) => {
+    let body;
+    try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+    const { pid, code, rememberDevice } = body;
+    if (!pid || !code) return c.json({ error: 'Missing fields' }, 400);
+
+    const raw = await c.env.OAUTH_TOKENS.get(`pending_2fa:${pid}`);
+    if (!raw) return c.json({ error: 'Session expired. Please log in again.' }, 401);
+    const { userId, provider } = JSON.parse(raw);
+
+    const pendingSecret = await c.env.OAUTH_TOKENS.get(`totp:pending-secret:${userId}`);
+    if (!pendingSecret) return c.json({ error: 'Setup session expired. Please log in again.' }, 401);
+
+    if (!(await verifyTOTP(pendingSecret, code))) {
+        return c.json({ error: 'Invalid code. Make sure your authenticator app is synced and try again.' }, 401);
+    }
+
+    // Activate permanent TOTP secret, clean up temp keys
+    await c.env.OAUTH_TOKENS.put(`totp:secret:${userId}`, pendingSecret);
+    await c.env.OAUTH_TOKENS.delete(`totp:pending-secret:${userId}`);
+    await c.env.OAUTH_TOKENS.delete(`pending_2fa:${pid}`);
+
+    const thirtyDays = 30 * 24 * 3600;
+    await issueSession(c, { role: 'admin', clientId: 'agency_demo', provider, userId }, thirtyDays);
+    if (rememberDevice) await issueDeviceToken(c, userId);
+    return c.json({ success: true, role: 'admin', clientId: 'agency_demo' });
+});
+
+// 2FA verify — check code, enforce lockout, issue session
+app.post('/api/auth/totp/user-verify', async (c) => {
+    let body;
+    try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+    const { pid, code, rememberDevice } = body;
+    if (!pid || !code) return c.json({ error: 'Missing fields' }, 400);
+
+    const raw = await c.env.OAUTH_TOKENS.get(`pending_2fa:${pid}`);
+    if (!raw) return c.json({ error: 'Session expired. Please log in again.' }, 401);
+    const { userId, provider } = JSON.parse(raw);
+
+    // Check lockout
+    const lockRaw = await c.env.OAUTH_TOKENS.get(`totp:locked:${userId}`);
+    if (lockRaw) {
+        const { until } = JSON.parse(lockRaw);
+        const mins = Math.ceil((until - Date.now()) / 60000);
+        return c.json({ error: `Account locked. Try again in ${mins} minute${mins !== 1 ? 's' : ''}.`, locked: true, lockoutEnds: until }, 403);
+    }
+
+    const totpSecret = await c.env.OAUTH_TOKENS.get(`totp:secret:${userId}`);
+    if (!totpSecret) return c.json({ error: 'TOTP not configured.' }, 503);
+
+    if (!(await verifyTOTP(totpSecret, code))) {
+        // Track attempts
+        const attRaw = await c.env.OAUTH_TOKENS.get(`totp:attempts:${userId}`);
+        const attempts = attRaw ? JSON.parse(attRaw) : { count: 0 };
+        attempts.count += 1;
+
+        if (attempts.count >= 3) {
+            const until = Date.now() + 24 * 3600 * 1000;
+            await c.env.OAUTH_TOKENS.put(`totp:locked:${userId}`, JSON.stringify({ until }), { expirationTtl: 24 * 3600 });
+            await c.env.OAUTH_TOKENS.delete(`totp:attempts:${userId}`);
+            return c.json({ error: 'Too many failed attempts. Account locked for 24 hours.', locked: true, lockoutEnds: until }, 403);
+        }
+
+        await c.env.OAUTH_TOKENS.put(`totp:attempts:${userId}`, JSON.stringify(attempts));
+        const left = 3 - attempts.count;
+        return c.json({ error: `Invalid code. ${left} attempt${left !== 1 ? 's' : ''} remaining.` }, 401);
+    }
+
+    // Success — clear attempts, issue 30-day session
+    await c.env.OAUTH_TOKENS.delete(`totp:attempts:${userId}`);
+    await c.env.OAUTH_TOKENS.delete(`pending_2fa:${pid}`);
+
+    const thirtyDays = 30 * 24 * 3600;
+    await issueSession(c, { role: 'admin', clientId: 'agency_demo', provider, userId }, thirtyDays);
+    if (rememberDevice) await issueDeviceToken(c, userId);
+    return c.json({ success: true, role: 'admin', clientId: 'agency_demo' });
 });
 
 // Leads
@@ -374,10 +766,15 @@ app.get('/api/config', requireAuth, async (c) => {
     if (!clientId) return c.json({ error: 'Missing clientId' }, 400);
     const kvData = await c.env.CLIENT_SETTINGS.get(`client:${clientId}`);
     const config = kvData ? JSON.parse(kvData) : {};
-    const tier = config.mode || 'free';
-    if (tier === 'free') { config.showBranding = true; }
-    else if (config.showBranding === undefined) { config.showBranding = (tier === 'standard'); }
-    return c.json(config);
+    const planStatus = await getPlanStatus(c.env, clientId);
+    // Badge mandatory on free (lifetime), trial, and starter — removable on pro, business, enterprise
+    const brandingMandatory = planStatus.inTrial || planStatus.plan === 'free' || planStatus.plan === 'starter';
+    if (brandingMandatory) {
+        config.showBranding = true;
+    } else if (config.showBranding === undefined) {
+        config.showBranding = false;
+    }
+    return c.json({ ...config, plan: planStatus.plan, inTrial: planStatus.inTrial, brandingMandatory });
 });
 
 app.post('/api/config', requireAuth, async (c) => {
@@ -385,6 +782,10 @@ app.post('/api/config', requireAuth, async (c) => {
     try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
     const { clientId, settings } = body;
     if (!clientId || !settings) return c.json({ error: 'Missing clientId or settings' }, 400);
+    const planStatus = await getPlanStatus(c.env, clientId);
+    if (planStatus.inTrial || planStatus.plan === 'free' || planStatus.plan === 'starter') {
+        settings.showBranding = true;
+    }
     await c.env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify(settings));
     return c.json({ success: true });
 });
@@ -692,6 +1093,8 @@ async function handleVerificationCron(env) {
                 const cfg = JSON.parse(raw);
                 if (cfg.mode && cfg.mode !== 'free') {
                     cfg.mode = 'free'; // downgrade chatbot to rule-based
+                    cfg.showBranding = true; // badge mandatory on free tier
+                    cfg.badgeUrl = 'https://web.bytesai.com/?upgrade=free#pricing';
                     await env.CLIENT_SETTINGS.put(`client:${row.client_id}`, JSON.stringify(cfg));
                     console.log(`[Trial] Expired → ${row.client_id} downgraded to free mode`);
                 }

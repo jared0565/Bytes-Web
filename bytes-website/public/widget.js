@@ -314,7 +314,10 @@
 
         const showBranding = config.showBranding !== false;
         const refId = config.referralId || '';
-        const brandingUrl = `https://web.bytesai.com/${refId ? '?ref=' + refId : ''}`;
+        const baseBadgeUrl = config.badgeUrl || 'https://web.bytesai.com/';
+        const brandingUrl = refId
+            ? baseBadgeUrl + (baseBadgeUrl.includes('?') ? `&ref=${refId}` : `?ref=${refId}`)
+            : baseBadgeUrl;
 
         const container = document.createElement('div');
         container.className = 'chatbot-widget-container';

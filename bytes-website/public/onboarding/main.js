@@ -1,3 +1,5 @@
+const API_BASE = 'https://crm-api.bmorris0565.workers.dev';
+
 // UI Elements
 const slides = document.querySelectorAll('.slide');
 const steps = document.querySelectorAll('.step-circle');
@@ -9,7 +11,13 @@ const next1 = document.getElementById('btn-next-1');
 
 // Step 2 Inputs
 const inputCompany = document.getElementById('company-name');
-const inputTone = document.getElementById('bot-tone');
+const tonePicker = document.getElementById('bot-tone');
+tonePicker.addEventListener('click', (e) => {
+    const btn = e.target.closest('.tone-option');
+    if (!btn) return;
+    tonePicker.querySelectorAll('.tone-option').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+});
 const next2 = document.getElementById('btn-next-2');
 const back2 = document.getElementById('btn-back-2');
 
@@ -18,6 +26,7 @@ const embedCode = document.getElementById('embed-code');
 const copyBtn = document.getElementById('btn-copy');
 
 let currentStep = 1;
+let setupToken = '';
 let registrationData = {
     clientId: '',
     name: '',
@@ -28,8 +37,27 @@ let registrationData = {
 
 // --- Social Login Logic ---
 
+// Returns true if the user was redirected (no further init needed)
+async function redirectIfAlreadySetUp() {
+    try {
+        const res = await fetch(`${API_BASE}/api/auth/me`, { credentials: 'include' });
+        if (res.ok) {
+            const me = await res.json();
+            if (me && me.companyName) {
+                window.location.href = '/dashboard/';
+                return true;
+            }
+        }
+    } catch { /* no session — continue normally */ }
+    return false;
+}
+
 // Check for social login success on page load
 window.addEventListener('DOMContentLoaded', async () => {
+    // Auth-aware routing: send returning users straight to the dashboard
+    const redirected = await redirectIfAlreadySetUp();
+    if (redirected) return;
+
     const params = new URLSearchParams(window.location.search);
     const socialToken = params.get('social_token');
 
@@ -41,6 +69,20 @@ window.addEventListener('DOMContentLoaded', async () => {
 
             const userData = await res.json();
             const { name, email } = userData;
+
+            // If this email already has a chatbot, send them to the dashboard
+            if (email) {
+                try {
+                    const setupRes = await fetch(`${API_BASE}/api/check-setup?email=${encodeURIComponent(email)}`);
+                    if (setupRes.ok) {
+                        const { hasSetup } = await setupRes.json();
+                        if (hasSetup) {
+                            window.location.href = '/dashboard/';
+                            return;
+                        }
+                    }
+                } catch { /* proceed with onboarding if check fails */ }
+            }
 
             if (name) inputName.value = name;
             if (email) inputEmail.value = email;
@@ -164,7 +206,7 @@ next2.addEventListener('click', async () => {
         return;
     }
     registrationData.company = inputCompany.value;
-    registrationData.tone = inputTone.value;
+    registrationData.tone = tonePicker.querySelector('.tone-option.selected')?.dataset.value || 'Professional & Authoritative';
 
     next2.textContent = "Initializing System...";
     next2.disabled = true;
@@ -176,6 +218,7 @@ next2.addEventListener('click', async () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 clientId: registrationData.clientId,
+                ownerEmail: registrationData.email,
                 settings: {
                     companyName: registrationData.company,
                     systemPrompt: `You are the helpful AI assistant for ${registrationData.company}. Your tone should be ${registrationData.tone}. Follow the PAS marketing framework strictly.`,
@@ -188,6 +231,13 @@ next2.addEventListener('click', async () => {
             throw new Error(err.error || "Failed to provision bot.");
         }
 
+        const resData = await res.json();
+        setupToken = resData.setupToken || '';
+
+        // Pre-fill the system prompt in step 4
+        document.getElementById('settings-prompt').value =
+            `You are the helpful AI assistant for ${registrationData.company}. Your tone should be ${registrationData.tone}. Follow the PAS marketing framework strictly.`;
+
         // Generate the Embed Code
         const snippet = `
 <!-- BytesAI Chatbot Widget Start -->
@@ -196,6 +246,18 @@ next2.addEventListener('click', async () => {
 <!-- BytesAI Chatbot Widget End -->`;
 
         embedCode.textContent = snippet.trim();
+
+        // Populate install limits card (trial = 1 domain / 1 installation)
+        const planLimits = { free: [1,1], trial: [1,1], starter: [3,3], pro: [10,10], business: [50,50], enterprise: ['∞','∞'] };
+        const trialDaysLeft = resData.trialDaysLeft || 7;
+        const [maxSites, maxDomains] = planLimits.trial;
+        const sitesEl = document.getElementById('install-max-sites');
+        const domsEl = document.getElementById('install-max-domains');
+        const badge = document.getElementById('install-plan-badge');
+        if (sitesEl) sitesEl.textContent = maxSites;
+        if (domsEl) domsEl.textContent = maxDomains;
+        if (badge) badge.textContent = `Trial · ${trialDaysLeft}d left`;
+
         goToStep(3);
     } catch (e) {
         alert("Provisioning Error: " + e.message);
@@ -205,6 +267,59 @@ next2.addEventListener('click', async () => {
 });
 
 back2.addEventListener('click', () => goToStep(1));
+
+// Step 3 → 4 (More Settings)
+document.getElementById('btn-more-settings').addEventListener('click', () => goToStep(4));
+
+// Step 4 — pill pickers
+document.getElementById('auto-approve-picker').addEventListener('click', (e) => {
+    const btn = e.target.closest('.tone-option');
+    if (!btn) return;
+    document.getElementById('auto-approve-picker').querySelectorAll('.tone-option').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+});
+document.getElementById('branding-picker').addEventListener('click', (e) => {
+    const btn = e.target.closest('.tone-option');
+    if (!btn || btn.dataset.locked) return; // badge mandatory during trial
+    document.getElementById('branding-picker').querySelectorAll('.tone-option').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+});
+
+document.getElementById('btn-back-4').addEventListener('click', () => goToStep(3));
+
+document.getElementById('btn-save-settings').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-save-settings');
+    const status = document.getElementById('settings-status');
+    btn.textContent = 'Saving…';
+    btn.disabled = true;
+
+    const systemPrompt = document.getElementById('settings-prompt').value.trim();
+    const autoApprove = document.getElementById('auto-approve-picker').querySelector('.tone-option.selected')?.dataset.value === '1';
+    const showBranding = true; // badge mandatory during 7-day trial; enforced by backend
+
+    try {
+        const res = await fetch(`${API_BASE}/api/register-settings`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ setupToken, settings: { systemPrompt, autoApproveCampaigns: autoApprove, showBranding } })
+        });
+
+        if (res.ok) {
+            status.textContent = '✓ Settings saved!';
+            status.style.opacity = '1';
+            setTimeout(() => { window.location.href = '../dashboard/'; }, 1500);
+        } else {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error || 'Save failed');
+        }
+    } catch (e) {
+        status.textContent = e.message;
+        status.style.color = '#f87171';
+        status.style.opacity = '1';
+        btn.textContent = 'Save & Finish';
+        btn.disabled = false;
+    }
+});
 
 // Copy Functionality
 copyBtn.addEventListener('click', () => {

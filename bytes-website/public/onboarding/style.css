@@ -276,6 +276,39 @@ select {
     transition: all 0.4s cubic-bezier(0.165, 0.84, 0.44, 1);
 }
 
+select option {
+    color: #111;
+}
+
+.tone-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.tone-option {
+    padding: 0.7rem 1.2rem;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.tone-option:hover {
+    background: rgba(139, 92, 246, 0.15);
+    border-color: rgba(139, 92, 246, 0.4);
+    color: white;
+}
+
+.tone-option.selected {
+    background: rgba(139, 92, 246, 0.25);
+    border-color: rgba(139, 92, 246, 0.7);
+    color: white;
+}
+
 input:focus,
 select:focus {
     border-color: rgba(139, 92, 246, 0.5);

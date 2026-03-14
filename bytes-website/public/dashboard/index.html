@@ -13,37 +13,76 @@
 <body>
     <div id="login-overlay">
         <div class="login-box glass-panel">
-            <h2>Agency Login</h2>
 
-            <!-- Social login buttons -->
-            <div class="social-login-group">
-                <button class="btn btn-social btn-google" data-provider="google">
-                    <img src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png" alt="Google" width="18" height="18">
-                    Continue with Google
-                </button>
-                <button class="btn btn-social btn-facebook" data-provider="facebook">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/b/b8/2021_Facebook_icon.svg" alt="Facebook" width="18" height="18">
-                    Continue with Facebook
-                </button>
-                <button class="btn btn-social btn-linkedin" data-provider="linkedin">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/c/ca/LinkedIn_logo_initials.png" alt="LinkedIn" width="18" height="18">
-                    Continue with LinkedIn
-                </button>
+            <!-- Section 1: Social Login (default) -->
+            <div id="social-login-section">
+                <h2>Agency Login</h2>
+                <div class="social-login-group">
+                    <button class="btn btn-social btn-google" data-provider="google">
+                        <img src="https://www.gstatic.com/images/branding/product/1x/gsa_512dp.png" alt="Google" width="18" height="18">
+                        Continue with Google
+                    </button>
+                    <button class="btn btn-social btn-facebook" data-provider="facebook">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/b/b8/2021_Facebook_icon.svg" alt="Facebook" width="18" height="18">
+                        Continue with Facebook
+                    </button>
+                    <button class="btn btn-social btn-linkedin" data-provider="linkedin">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/c/ca/LinkedIn_logo_initials.png" alt="LinkedIn" width="18" height="18">
+                        Continue with LinkedIn
+                    </button>
+                </div>
             </div>
 
-            <div class="login-divider"><span>or</span></div>
+            <!-- Section 2: Verify 2FA (returning member) -->
+            <div id="verify-2fa-section" style="display:none">
+                <h2>Two-Factor Authentication</h2>
+                <p style="font-size:0.9rem;opacity:0.7;margin:0 0 1.5rem;">Enter the 6-digit code from your authenticator app.</p>
+                <div id="attempt-counter" style="display:none;color:#f59e0b;font-size:0.85rem;margin-bottom:0.75rem;text-align:center;"></div>
+                <input type="text" id="totp-verify-input" placeholder="000000" maxlength="6" autocomplete="one-time-code" inputmode="numeric" style="letter-spacing:0.3em;text-align:center;font-size:1.2rem;">
+                <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.82rem;opacity:0.7;margin:0.75rem 0 1rem;cursor:pointer;">
+                    <input type="checkbox" id="remember-device-verify" style="width:15px;height:15px;cursor:pointer;accent-color:#7c3aed;">
+                    Don't ask for 2FA on this device for 30 days
+                </label>
+                <button id="totp-verify-btn" class="btn btn-primary">Verify</button>
+            </div>
 
-            <p style="margin:0 0 0.5rem;font-size:0.85rem;opacity:0.7;">Enter your Admin API Key</p>
-            <input type="password" id="admin-key-input" placeholder="Admin API Key">
-            <button id="login-btn" class="btn btn-primary">Enter Dashboard</button>
+            <!-- Section 3: Setup 2FA (new user) -->
+            <div id="setup-2fa-section" style="display:none">
+                <h2>Set Up Two-Factor Auth</h2>
+                <p style="font-size:0.9rem;opacity:0.7;margin:0 0 1rem;">Scan this QR code with <strong>Google Authenticator</strong> or <strong>Authy</strong>.</p>
+                <div style="text-align:center;margin:1rem 0;">
+                    <img id="setup-qr-img" src="" alt="QR Code" width="180" height="180" style="border:6px solid white;border-radius:8px;background:#fff;">
+                </div>
+                <p style="font-size:0.78rem;opacity:0.55;margin:0 0 0.25rem;text-align:center;">Or enter manually:</p>
+                <code id="setup-secret" style="display:block;background:rgba(255,255,255,0.08);padding:0.5rem;border-radius:6px;font-size:0.75rem;word-break:break-all;text-align:center;margin-bottom:1.5rem;"></code>
+                <p style="font-size:0.85rem;opacity:0.7;margin:0 0 0.5rem;">Enter the 6-digit code to confirm:</p>
+                <input type="text" id="totp-setup-input" placeholder="000000" maxlength="6" autocomplete="one-time-code" inputmode="numeric" style="letter-spacing:0.3em;text-align:center;font-size:1.2rem;">
+                <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.82rem;opacity:0.7;margin:0.75rem 0 1rem;cursor:pointer;">
+                    <input type="checkbox" id="remember-device-setup" style="width:15px;height:15px;cursor:pointer;accent-color:#7c3aed;">
+                    Don't ask for 2FA on this device for 30 days
+                </label>
+                <button id="totp-setup-btn" class="btn btn-primary">Enable Two-Factor Auth</button>
+            </div>
+
             <p id="login-error" class="error"></p>
+
+            <!-- Admin TOTP fallback (?key=1 URL param) -->
+            <div id="admin-key-section" style="display:none; margin-top:1.5rem;">
+                <div class="login-divider"><span>or</span></div>
+                <p style="margin:0 0 0.75rem;font-size:0.85rem;opacity:0.7;">Enter the 6-digit code from your authenticator app.</p>
+                <input type="text" id="totp-input" placeholder="000000" maxlength="6" autocomplete="one-time-code" inputmode="numeric" style="letter-spacing:0.3em;text-align:center;font-size:1.2rem;">
+                <button id="totp-btn" class="btn btn-primary">Verify</button>
+            </div>
         </div>
     </div>
 
     <div id="dashboard-container" class="hidden">
         <aside class="sidebar" id="dashboard-sidebar">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 3rem;">
-                <div class="logo" style="margin-bottom: 0;">Bytes<span>AI</span> Agency</div>
+                <div class="client-brand">
+                    <img id="client-logo-img" src="" alt="" class="client-logo-img" style="display:none;">
+                    <span id="company-name-display" class="company-name">My Dashboard</span>
+                </div>
                 <button id="close-sidebar-btn" style="background: none; border: none; color: white; cursor: pointer; display: none; padding: 0.5rem;">✕</button>
             </div>
             <nav>
@@ -69,9 +108,24 @@
                     </svg>
                     Manage Clients
                 </button>
+                <button class="nav-item" data-view="chatbot">
+                    <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
+                    Chatbot
+                </button>
+                <button class="nav-item" data-view="analytics">
+                    <svg viewBox="0 0 24 24"><path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/></svg>
+                    Analytics
+                </button>
             </nav>
             <div class="sidebar-footer">
-                <button id="logout-btn">Logout</button>
+                <button id="settings-cog-btn" class="sidebar-footer-btn" title="Settings">
+                    <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+                    Settings
+                </button>
+                <button id="logout-btn" class="sidebar-footer-btn">
+                    <svg viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
+                    Logout
+                </button>
             </div>
         </aside>
 
@@ -92,6 +146,31 @@
                 </div>
                 <div class="header-actions">
                     <button id="refresh-btn" class="btn btn-outline">Refresh Data</button>
+                    <div class="user-menu" id="user-menu">
+                        <button class="user-avatar-btn" id="user-avatar-btn" title="Account">
+                            <img id="user-avatar-img" src="" alt="" class="user-avatar-img" style="display:none;">
+                            <span id="user-avatar-initials" class="user-avatar-initials">?</span>
+                        </button>
+                        <div class="user-dropdown" id="user-dropdown-menu">
+                            <div class="dropdown-user-info">
+                                <strong id="dd-user-name">User</strong>
+                                <span id="dd-user-email"></span>
+                            </div>
+                            <div class="dropdown-divider"></div>
+                            <button class="dropdown-item" id="dd-upgrade">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7"/></svg>
+                                Upgrade Plan
+                            </button>
+                            <button class="dropdown-item" id="dd-profile-settings">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                                Profile Settings
+                            </button>
+                            <button class="dropdown-item" id="dd-dark-mode">
+                                <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z"/></svg>
+                                Dark Mode
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </header>
 
@@ -279,8 +358,158 @@
                     </div>
                 </div>
             </section>
+
+            <!-- Chatbot View -->
+            <section id="chatbot-view" class="view hidden">
+                <div class="config-grid">
+
+                    <!-- Embed Code Card -->
+                    <div class="glass-panel" style="padding:1.75rem;">
+                        <h3 style="margin:0 0 0.5rem;">Embed Code</h3>
+                        <p style="color:var(--text-secondary);font-size:0.85rem;margin:0 0 1.25rem;">Paste this snippet before the <code style="background:rgba(255,255,255,0.08);padding:0.1rem 0.4rem;border-radius:4px;">&lt;/body&gt;</code> tag on each site where you want the chatbot.</p>
+                        <div style="position:relative;">
+                            <pre id="dash-embed-code" style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:1rem 1.25rem;font-size:0.8rem;color:#a5b4fc;overflow-x:auto;white-space:pre-wrap;word-break:break-all;margin:0;">Loading…</pre>
+                            <button id="dash-copy-embed-btn" class="btn btn-outline" style="margin-top:0.75rem;font-size:0.8rem;padding:0.4rem 1rem;">Copy Code</button>
+                        </div>
+                    </div>
+
+                    <!-- Installation Limits Card -->
+                    <div class="glass-panel" style="padding:1.75rem;">
+                        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.25rem;">
+                            <h3 style="margin:0;flex:1;">Installation Limits</h3>
+                            <span id="dash-install-plan-badge" style="font-size:0.7rem;padding:0.25rem 0.65rem;background:rgba(99,102,241,0.18);border:1px solid rgba(99,102,241,0.35);border-radius:999px;color:#a5b4fc;font-weight:600;">Trial</span>
+                        </div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+                            <div style="background:rgba(0,0,0,0.3);border-radius:12px;padding:1rem;text-align:center;">
+                                <div id="dash-max-installs" style="font-size:2rem;font-weight:700;color:#60a5fa;">1</div>
+                                <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.25rem;">Max Installations</div>
+                            </div>
+                            <div style="background:rgba(0,0,0,0.3);border-radius:12px;padding:1rem;text-align:center;">
+                                <div id="dash-max-domains" style="font-size:2rem;font-weight:700;color:#34d399;">1</div>
+                                <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.25rem;">Max Domains</div>
+                            </div>
+                        </div>
+                        <p style="font-size:0.8rem;color:var(--text-secondary);margin:0 0 1rem;line-height:1.5;" id="dash-install-limit-note">Your <strong style="color:#e2e8f0;">Free</strong> plan includes <strong style="color:#e2e8f0;">1 domain</strong> — this is a permanent tier. Upgrade anytime to add more.</p>
+                        <button id="dash-upgrade-install-btn" class="btn btn-primary" style="width:100%;font-size:0.85rem;">Upgrade Plan →</button>
+                    </div>
+
+                    <!-- Allowed Domains Card -->
+                    <div class="glass-panel" style="padding:1.75rem;grid-column:1/-1;">
+                        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem;">
+                            <h3 style="margin:0;flex:1;">Allowed Domains</h3>
+                            <span style="font-size:0.75rem;color:var(--text-secondary);"><span id="dash-domain-count">0</span> / <span id="dash-domain-limit">1</span> used</span>
+                        </div>
+                        <p style="color:var(--text-secondary);font-size:0.82rem;margin:0 0 1.25rem;line-height:1.5;">Add the domains and subdomains where your chatbot is installed. Wildcard subdomains like <code style="background:rgba(255,255,255,0.08);padding:0.1rem 0.35rem;border-radius:4px;">*.example.com</code> are supported.</p>
+
+                        <!-- Domain List -->
+                        <div id="dash-domain-list" style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;">
+                            <!-- Injected by JS -->
+                        </div>
+
+                        <!-- Add Domain Input -->
+                        <div style="display:flex;gap:0.75rem;align-items:center;">
+                            <input type="text" id="dash-new-domain" placeholder="e.g. yoursite.com or *.yoursite.com" style="flex:1;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:0.65rem 1rem;color:white;font-size:0.85rem;outline:none;">
+                            <button id="dash-add-domain-btn" class="btn btn-outline" style="padding:0.65rem 1.25rem;font-size:0.85rem;">Add</button>
+                        </div>
+                        <div style="display:flex;justify-content:flex-end;margin-top:1rem;">
+                            <button id="dash-save-domains-btn" class="btn btn-primary" style="font-size:0.85rem;">Save Domains</button>
+                        </div>
+                        <p id="dash-domains-status" style="text-align:right;font-size:0.82rem;color:#34d399;margin-top:0.5rem;min-height:1.2em;"></p>
+                    </div>
+
+                </div>
+            </section>
         </main>
     </div>
+
+            </section><!-- close leads-view -->
+
+            <!-- Analytics & Reports View -->
+            <section id="analytics-view" class="view hidden">
+
+                <!-- Time Period Filter -->
+                <div class="analytics-time-filter">
+                    <button class="time-btn active" data-days="7">Last 7 Days</button>
+                    <button class="time-btn" data-days="30">Last 30 Days</button>
+                    <button class="time-btn" data-days="90">Last 90 Days</button>
+                    <button class="time-btn" data-days="0">All Time</button>
+                </div>
+
+                <!-- KPI Cards -->
+                <div class="kpi-grid">
+                    <div class="kpi-card kpi-leads">
+                        <div class="kpi-icon-wrap">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                        </div>
+                        <div class="kpi-label">Total Leads</div>
+                        <div class="kpi-num" id="kpi-total-leads">—</div>
+                        <div class="kpi-delta" id="kpi-leads-delta">loading…</div>
+                    </div>
+                    <div class="kpi-card kpi-pipeline">
+                        <div class="kpi-icon-wrap">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>
+                        </div>
+                        <div class="kpi-label">Pipeline Value</div>
+                        <div class="kpi-num" id="kpi-pipeline-value">—</div>
+                        <div class="kpi-delta" id="kpi-value-note">from budget data</div>
+                    </div>
+                    <div class="kpi-card kpi-conversion">
+                        <div class="kpi-icon-wrap">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
+                        </div>
+                        <div class="kpi-label">Conversion Rate</div>
+                        <div class="kpi-num" id="kpi-conversion-rate">—</div>
+                        <div class="kpi-delta">Inbox → Opportunity+</div>
+                    </div>
+                    <div class="kpi-card kpi-campaigns">
+                        <div class="kpi-icon-wrap">
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+                        </div>
+                        <div class="kpi-label">Active Campaigns</div>
+                        <div class="kpi-num" id="kpi-active-campaigns">—</div>
+                        <div class="kpi-delta">email sequences live</div>
+                    </div>
+                </div>
+
+                <!-- Charts Row -->
+                <div class="charts-row">
+                    <div class="chart-card glass-panel">
+                        <div class="chart-header">
+                            <h3>Lead Volume</h3>
+                            <span class="chart-period" id="volume-period-label">Last 7 days</span>
+                        </div>
+                        <div class="bar-chart-wrap">
+                            <div id="lead-volume-chart" class="bar-chart"></div>
+                            <div id="lead-volume-labels" class="bar-chart-labels"></div>
+                        </div>
+                    </div>
+                    <div class="chart-card glass-panel">
+                        <div class="chart-header">
+                            <h3>Pipeline Funnel</h3>
+                            <span class="chart-period">by stage</span>
+                        </div>
+                        <div id="pipeline-funnel-chart" class="funnel-chart"></div>
+                    </div>
+                </div>
+
+                <!-- Bottom Row: Distribution + Activity Feed -->
+                <div class="analytics-bottom-row">
+                    <div class="chart-card glass-panel">
+                        <div class="chart-header">
+                            <h3>Stage Distribution</h3>
+                        </div>
+                        <div id="stage-distribution-chart" class="donut-chart-wrap"></div>
+                    </div>
+                    <div class="chart-card glass-panel">
+                        <div class="chart-header">
+                            <h3>Recent Activity</h3>
+                            <span class="chart-period">latest events</span>
+                        </div>
+                        <div id="activity-feed" class="activity-feed"></div>
+                    </div>
+                </div>
+
+            </section>
 
     <!-- Sequence Editor Modal -->
     <div id="sequence-modal" class="hidden"
@@ -292,11 +521,23 @@
                 <div style="display: flex; align-items: center; gap: 1rem;">
                     <!-- Campaign Type Toggle -->
                     <div class="campaign-toggle" style="display: flex; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 0.25rem;">
-                        <button id="toggle-ai" class="btn btn-sm active" style="padding: 0.25rem 0.75rem; border-radius: 6px; font-size: 0.8rem; background: var(--accent-color); color: white; border: none; cursor: pointer;">✨ AI Auto</button>
+                        <button id="toggle-ai" class="btn btn-sm active" style="padding: 0.25rem 0.75rem; border-radius: 6px; font-size: 0.8rem; background: var(--accent-color); color: white; border: none; cursor: pointer;">✨ AI Auto <span id="toggle-ai-lock" style="display:none;font-size:0.7rem;opacity:0.8;">🔒</span></button>
                         <button id="toggle-manual" class="btn btn-sm" style="padding: 0.25rem 0.75rem; border-radius: 6px; font-size: 0.8rem; background: transparent; color: var(--text-secondary); border: none; cursor: pointer;">✍️ Manual</button>
                         <button id="toggle-rule" class="btn btn-sm" style="padding: 0.25rem 0.75rem; border-radius: 6px; font-size: 0.8rem; background: transparent; color: var(--text-secondary); border: none; cursor: pointer;">⚙️ Rule-Based</button>
                     </div>
                     <button id="close-sequence-modal" class="btn btn-outline" style="padding: 0.25rem 0.75rem;">✕</button>
+                </div>
+            </div>
+
+            <!-- Upgrade prompt — shown for free plan (post-trial) users -->
+            <div id="upgrade-prompt-banner" style="display:none;margin-bottom:1.5rem;padding:1rem 1.25rem;background:linear-gradient(135deg,rgba(239,68,68,0.12),rgba(251,146,60,0.08));border:1px solid rgba(239,68,68,0.25);border-radius:12px;">
+                <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+                    <span style="font-size:1.1rem;">🔒</span>
+                    <div style="flex:1;min-width:0;">
+                        <strong style="color:#fca5a5;font-size:0.88rem;">AI Campaigns locked on Free plan</strong>
+                        <p style="color:#94a3b8;font-size:0.78rem;margin:0.15rem 0 0;line-height:1.4;">You can still write sequences manually. Upgrade to unlock AI generation, auto-approve, and unlimited campaigns.</p>
+                    </div>
+                    <button id="modal-upgrade-btn" class="btn btn-primary" style="font-size:0.8rem;padding:0.4rem 1rem;white-space:nowrap;">Upgrade →</button>
                 </div>
             </div>
 
@@ -325,6 +566,35 @@
                 </div>
             </div>
             <p id="sequence-status" style="margin-top: 1rem; text-align: right;"></p>
+        </div>
+    </div>
+
+    <!-- Upgrade Gate Modal -->
+    <div id="upgrade-modal" style="display:none;position:fixed;inset:0;z-index:2000;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);align-items:center;justify-content:center;">
+        <div style="position:relative;max-width:480px;width:90%;background:linear-gradient(145deg,#0f0f1e,#13131f);border:1px solid rgba(255,255,255,0.1);border-radius:24px;padding:2rem;box-shadow:0 24px 80px rgba(0,0,0,0.6);">
+            <!-- Close -->
+            <button id="upgrade-modal-close" style="position:absolute;top:1rem;right:1rem;background:none;border:none;color:#64748b;font-size:1.2rem;cursor:pointer;line-height:1;padding:0.25rem 0.5rem;border-radius:6px;">✕</button>
+
+            <!-- Icon + Title -->
+            <div style="text-align:center;margin-bottom:1.5rem;">
+                <div style="width:56px;height:56px;margin:0 auto 1rem;border-radius:50%;background:linear-gradient(135deg,rgba(99,102,241,0.25),rgba(168,85,247,0.15));display:flex;align-items:center;justify-content:center;font-size:1.6rem;border:1px solid rgba(99,102,241,0.3);">🔒</div>
+                <h2 id="upgrade-modal-title" style="margin:0 0 0.4rem;font-size:1.2rem;color:#f1f5f9;">Unlock This Feature</h2>
+                <p id="upgrade-modal-subtitle" style="margin:0;font-size:0.85rem;color:#64748b;line-height:1.5;"></p>
+            </div>
+
+            <!-- Feature list -->
+            <div id="upgrade-modal-features" style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1.5rem;"></div>
+
+            <!-- Plan required badge -->
+            <div style="text-align:center;margin-bottom:1.5rem;">
+                <span id="upgrade-modal-plan-badge" style="display:inline-block;font-size:0.75rem;padding:0.3rem 0.9rem;background:linear-gradient(90deg,rgba(99,102,241,0.25),rgba(168,85,247,0.2));border:1px solid rgba(99,102,241,0.4);border-radius:999px;color:#a5b4fc;font-weight:600;letter-spacing:0.03em;"></span>
+            </div>
+
+            <!-- CTAs -->
+            <div style="display:flex;flex-direction:column;gap:0.75rem;">
+                <button id="upgrade-modal-cta" class="btn btn-primary" style="width:100%;padding:0.85rem;font-size:0.95rem;font-weight:600;border-radius:12px;">View Upgrade Options →</button>
+                <button id="upgrade-modal-dismiss" style="width:100%;background:none;border:none;color:#475569;font-size:0.82rem;cursor:pointer;padding:0.4rem;">Maybe later</button>
+            </div>
         </div>
     </div>
 

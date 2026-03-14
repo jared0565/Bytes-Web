@@ -17,6 +17,10 @@ function escapeHtml(str) {
 // --- State ---
 // H2: Auth key no longer stored in localStorage — session managed via httpOnly cookie
 let userRole = localStorage.getItem('agency_user_role') || 'sales_rep';
+let userProfile = { name: '', email: '', picture: '', companyName: '' };
+
+// Restore light mode preference
+if (localStorage.getItem('dashboard_light_mode') === '1') document.body.classList.add('light-mode');
 
 // --- Elements ---
 const loginOverlay = document.getElementById('login-overlay');
@@ -61,9 +65,10 @@ const simulateBtn = document.getElementById('simulate-lead-btn');
 const simStatus = document.getElementById('sim-status');
 
 // --- Initialization ---
-// Check for ?social_error or auto-detect an existing session (covers post-OAuth cookie redirect)
 (async () => {
     const params = new URLSearchParams(window.location.search);
+    const step = params.get('step');
+    const pid  = params.get('pid');
 
     if (params.has('social_error')) {
         const errMap = { invalid_state: 'Security check failed. Please try again.', auth_failed: 'Authentication failed. Please try again.', no_code: 'Login was cancelled.' };
@@ -72,55 +77,179 @@ const simStatus = document.getElementById('sim-status');
         return;
     }
 
+    // Post-OAuth 2FA steps
+    if (step === 'verify-2fa' && pid) {
+        history.replaceState(null, '', window.location.pathname);
+        show2faVerify(pid);
+        return;
+    }
+    if (step === 'setup-2fa' && pid) {
+        history.replaceState(null, '', window.location.pathname);
+        show2faSetup(pid);
+        return;
+    }
+
+    // Check for existing session
     try {
         const res = await fetch(`${API_BASE}/api/auth/me`, { credentials: 'include' });
         if (res.ok) {
             const data = await res.json();
             userRole = data.role || 'sales_rep';
             localStorage.setItem('agency_user_role', userRole);
-            if (params.has('social_login')) history.replaceState(null, '', window.location.pathname);
             showDashboard();
             return;
         }
+        if (res.status === 401) {
+            const data = await res.json().catch(() => ({}));
+            if (data.kicked) {
+                loginError.style.color = '#f59e0b';
+                loginError.innerText = 'You were signed out because your account was accessed from another device.';
+            }
+        }
     } catch (_) {}
-    // No active session — login overlay remains visible
+
+    // Show login overlay; ?key=1 reveals legacy admin TOTP fallback
+    if (params.get('key') === '1') {
+        document.getElementById('admin-key-section').style.display = 'block';
+    }
 })();
 
-// --- Auth logic ---
-loginBtn.addEventListener('click', async () => {
-    const key = adminKeyInput.value.trim();
-    if (!key) return;
+// --- 2FA: Verify existing TOTP (returning member) ---
+function show2faVerify(pid) {
+    document.getElementById('social-login-section').style.display = 'none';
+    document.getElementById('verify-2fa-section').style.display = 'block';
+
+    const counterEl = document.getElementById('attempt-counter');
+
+    async function submitVerify() {
+        const code = document.getElementById('totp-verify-input').value.trim();
+        if (!code) return;
+        loginError.innerText = '';
+        const rememberDevice = document.getElementById('remember-device-verify').checked;
+
+        try {
+            const res = await fetch(`${API_BASE}/api/auth/totp/user-verify`, {
+                method: 'POST', credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pid, code, rememberDevice })
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                userRole = data.role;
+                localStorage.setItem('agency_user_role', data.role);
+                showDashboard();
+                return;
+            }
+
+            if (data.locked) {
+                document.getElementById('verify-2fa-section').innerHTML = `
+                    <h2 style="color:#f87171">Account Locked</h2>
+                    <p style="opacity:0.7;font-size:0.9rem;">Too many failed attempts. Your account is locked for 24 hours.<br>Please try again later.</p>`;
+                return;
+            }
+
+            loginError.style.color = '#f87171';
+            loginError.innerText = data.error || 'Invalid code.';
+
+            // Show remaining attempts counter
+            const match = data.error?.match(/(\d+) attempt/);
+            if (match) {
+                counterEl.style.display = 'block';
+                counterEl.innerText = `${match[1]} attempt${match[1] !== '1' ? 's' : ''} remaining`;
+            }
+        } catch {
+            loginError.innerText = 'Connection error. Please try again.';
+        }
+    }
+
+    document.getElementById('totp-verify-btn').addEventListener('click', submitVerify);
+    document.getElementById('totp-verify-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitVerify(); });
+}
+
+// --- 2FA: Setup TOTP (new user) ---
+async function show2faSetup(pid) {
+    document.getElementById('social-login-section').style.display = 'none';
+    document.getElementById('setup-2fa-section').style.display = 'block';
 
     try {
-        // H2: credentials:'include' ensures the httpOnly session cookie is set by the browser
-        const res = await fetch(`${API_BASE}/api/auth/login`, {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ key })
-        });
-
-        if (!res.ok) throw new Error('Auth failed');
-
+        const res = await fetch(`${API_BASE}/api/auth/totp/user-setup?pid=${encodeURIComponent(pid)}`, { credentials: 'include' });
+        if (!res.ok) {
+            loginError.innerText = 'Session expired. Please log in again.';
+            document.getElementById('setup-2fa-section').style.display = 'none';
+            document.getElementById('social-login-section').style.display = 'block';
+            return;
+        }
         const data = await res.json();
+        document.getElementById('setup-qr-img').src = data.qrUrl;
+        document.getElementById('setup-secret').textContent = data.secret;
+    } catch {
+        loginError.innerText = 'Connection error. Please try again.';
+        return;
+    }
 
+    async function submitSetup() {
+        const code = document.getElementById('totp-setup-input').value.trim();
+        if (!code) return;
+        loginError.innerText = '';
+        const rememberDevice = document.getElementById('remember-device-setup').checked;
+
+        try {
+            const res = await fetch(`${API_BASE}/api/auth/totp/user-enable`, {
+                method: 'POST', credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pid, code, rememberDevice })
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+                userRole = data.role;
+                localStorage.setItem('agency_user_role', data.role);
+                showDashboard();
+                return;
+            }
+
+            loginError.style.color = '#f87171';
+            loginError.innerText = data.error || 'Invalid code. Try again.';
+        } catch {
+            loginError.innerText = 'Connection error. Please try again.';
+        }
+    }
+
+    document.getElementById('totp-setup-btn').addEventListener('click', submitSetup);
+    document.getElementById('totp-setup-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') submitSetup(); });
+}
+
+// --- Legacy admin TOTP fallback (?key=1) ---
+document.getElementById('totp-btn').addEventListener('click', async () => {
+    const code = document.getElementById('totp-input').value.trim();
+    if (!code) return;
+    loginError.innerText = '';
+    try {
+        const res = await fetch(`${API_BASE}/api/auth/totp`, {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code })
+        });
+        const data = await res.json();
+        if (!res.ok) { loginError.innerText = data.error || 'Invalid code.'; return; }
         userRole = data.role;
         localStorage.setItem('agency_user_role', data.role);
-
         showDashboard();
-    } catch (e) {
-        loginError.innerText = "Connection error or Invalid Key.";
+    } catch {
+        loginError.innerText = 'Connection error. Please try again.';
     }
 });
 
-adminKeyInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') loginBtn.click();
-});
+document.getElementById('totp-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('totp-btn').click(); });
 
 // Social login buttons — redirect to OAuth with redirect=dashboard
 document.querySelectorAll('.btn-social').forEach(btn => {
     btn.addEventListener('click', () => {
         const provider = btn.getAttribute('data-provider');
+        // Preserve ?view= param across the OAuth round-trip
+        const view = new URLSearchParams(window.location.search).get('view');
+        if (view) sessionStorage.setItem('pendingView', view);
         window.location.href = `${API_BASE}/api/auth/${provider}?redirect=dashboard`;
     });
 });
@@ -148,8 +277,50 @@ function showDashboard() {
 
     // Load plan/trial status and render banner
     loadPlanStatus();
+    loadUserProfile();
 
-    switchView('leads');
+    // Navigate to a requested view (?view= param or saved from pre-OAuth redirect)
+    const requestedView = new URLSearchParams(window.location.search).get('view')
+        || sessionStorage.getItem('pendingView');
+    sessionStorage.removeItem('pendingView');
+    switchView(requestedView || 'leads');
+
+    // Single-session enforcement: re-check session whenever the tab regains focus
+    startSessionWatcher();
+}
+
+let sessionWatcherStarted = false;
+function startSessionWatcher() {
+    if (sessionWatcherStarted) return;
+    sessionWatcherStarted = true;
+
+    async function checkSession() {
+        try {
+            const res = await fetch(`${API_BASE}/api/auth/me`, { credentials: 'include' });
+            if (res.status === 401) {
+                const data = await res.json().catch(() => ({}));
+                const msg = data.kicked
+                    ? 'You were signed out because your account was accessed from another device.'
+                    : 'Your session has expired. Please log in again.';
+                showKickedBanner(msg);
+            }
+        } catch { /* network error — ignore */ }
+    }
+
+    // Check on tab focus
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') checkSession();
+    });
+}
+
+function showKickedBanner(message) {
+    const existing = document.getElementById('kicked-banner');
+    if (existing) return; // already shown
+    const banner = document.createElement('div');
+    banner.id = 'kicked-banner';
+    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#b45309;color:#fff;text-align:center;padding:0.85rem 1rem;font-size:0.9rem;font-weight:500;display:flex;align-items:center;justify-content:center;gap:1rem;';
+    banner.innerHTML = `<span>${message}</span><button onclick="location.reload()" style="background:#fff;color:#b45309;border:none;border-radius:6px;padding:0.3rem 0.9rem;font-weight:600;cursor:pointer;">Log In Again</button>`;
+    document.body.prepend(banner);
 }
 
 async function loadPlanStatus() {
@@ -178,6 +349,71 @@ function renderPlanBanner() {
         banner.innerHTML = `🔒 <strong>Free Plan</strong> — AI features are disabled. Max 10 leads/day · 50 contacts. <a href="/onboarding/" style="color:#fb923c;text-decoration:underline;margin-left:8px;">Upgrade your plan →</a>`;
     }
 }
+
+// --- User Profile ---
+async function loadUserProfile() {
+    try {
+        const res = await fetch(`${API_BASE}/api/auth/me`, { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        userProfile = { name: data.name || '', email: data.email || '', picture: data.picture || '', companyName: data.companyName || '' };
+        renderUserProfile();
+    } catch {}
+}
+
+function renderUserProfile() {
+    // Company name in sidebar
+    const companyDisplay = document.getElementById('company-name-display');
+    if (companyDisplay) companyDisplay.textContent = userProfile.companyName || 'My Dashboard';
+
+    // Avatar — show profile picture or initials
+    const avatarImg = document.getElementById('user-avatar-img');
+    const avatarInitials = document.getElementById('user-avatar-initials');
+    if (userProfile.picture && avatarImg) {
+        avatarImg.src = userProfile.picture;
+        avatarImg.style.display = 'block';
+        if (avatarInitials) avatarInitials.style.display = 'none';
+    } else if (avatarInitials) {
+        const words = userProfile.name ? userProfile.name.trim().split(/\s+/) : [];
+        avatarInitials.textContent = words.length >= 2
+            ? (words[0][0] + words[words.length - 1][0]).toUpperCase()
+            : (userProfile.name[0] || '?').toUpperCase();
+    }
+
+    // Dropdown header
+    const ddName = document.getElementById('dd-user-name');
+    const ddEmail = document.getElementById('dd-user-email');
+    if (ddName) ddName.textContent = userProfile.name || 'User';
+    if (ddEmail) ddEmail.textContent = userProfile.email || '';
+}
+
+// Avatar dropdown toggle
+document.getElementById('user-avatar-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.getElementById('user-dropdown-menu').classList.toggle('open');
+});
+document.addEventListener('click', () => {
+    document.getElementById('user-dropdown-menu')?.classList.remove('open');
+});
+
+// Dropdown actions
+document.getElementById('dd-upgrade').addEventListener('click', () => {
+    const plan = planStatus.plan || 'free';
+    window.open(`https://web.bytesai.com/?upgrade=${plan}#pricing`, '_blank');
+    document.getElementById('user-dropdown-menu').classList.remove('open');
+});
+document.getElementById('dd-profile-settings').addEventListener('click', () => {
+    switchView('clients');
+    document.getElementById('user-dropdown-menu').classList.remove('open');
+});
+document.getElementById('dd-dark-mode').addEventListener('click', () => {
+    const isLight = document.body.classList.toggle('light-mode');
+    document.getElementById('dd-dark-mode').querySelector('svg').style.opacity = isLight ? '0.5' : '1';
+    localStorage.setItem('dashboard_light_mode', isLight ? '1' : '0');
+});
+
+// Settings cog → settings view
+document.getElementById('settings-cog-btn').addEventListener('click', () => switchView('clients'));
 
 // --- Navigation ---
 navItems.forEach(item => {
@@ -208,15 +444,19 @@ function switchView(viewName) {
     navItems.forEach(nav => nav.classList.toggle('active', nav.getAttribute('data-view') === viewName));
     views.forEach(view => view.classList.toggle('hidden', view.id !== `${viewName}-view`));
 
-    viewTitle.innerText = viewName.charAt(0).toUpperCase() + viewName.slice(1);
+    const titles = { leads: 'Captured Leads', logs: 'Chat Logs', clients: 'Manage Clients', chatbot: 'Chatbot & Installations', analytics: 'Analytics & Reports' };
+    viewTitle.innerText = titles[viewName] || (viewName.charAt(0).toUpperCase() + viewName.slice(1));
     if (viewName === 'leads') loadLeads();
     if (viewName === 'logs') loadLogs();
+    if (viewName === 'chatbot') loadChatbotView();
+    if (viewName === 'analytics') loadAnalytics();
 }
 
 refreshBtn.addEventListener('click', () => {
     const activeView = document.querySelector('.nav-item.active').getAttribute('data-view');
     if (activeView === 'leads') loadLeads();
     if (activeView === 'logs') loadLogs();
+    if (activeView === 'analytics') loadAnalytics();
 });
 
 // --- Data Fetching ---
@@ -309,7 +549,7 @@ function renderLeads(leads) {
             </div>` : ''}
             <div class="lead-card-footer">
                 <div class="lead-card-time">${new Date(l.timestamp).toLocaleDateString()}</div>
-                ${!l.locked ? `<button class="btn btn-outline manage-campaign-btn" data-id="${escapeHtml(String(l.id))}" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">Campaign</button>` : ''}
+                ${!l.locked ? `<button class="btn btn-outline manage-campaign-btn" data-id="${escapeHtml(String(l.id))}" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">${isFreeLocked() ? '🔒 ' : ''}Campaign</button>` : ''}
             </div>
             <div style="margin-top: 0.5rem;">
                 ${l.has_lightning_badge ? '<span class="badge" title="Lightning Response" style="background: rgba(234, 179, 8, 0.2); color: #eab308; border-color: #eab308; font-size: 0.7rem; display: inline-block; margin-right: 0.25rem;">⚡ Fast Action</span>' : ''}
@@ -425,13 +665,21 @@ loadConfigBtn.addEventListener('click', async () => {
             configBranding.checked = data.showBranding !== false;
             configReferral.value = data.referralId || '';
 
-            // Branding is mandatory for Free Tier
-            if (configMode.value === 'free') {
+            // Badge mandatory on free (lifetime), trial, and starter — removable on pro+
+            const brandingLocked = data.brandingMandatory ?? (data.inTrial || data.plan === 'free' || data.plan === 'starter');
+            if (brandingLocked) {
                 configBranding.checked = true;
                 configBranding.disabled = true;
-                configBranding.parentElement.querySelector('label').innerText += " (Mandatory for Free)";
+                configBranding.onclick = (e) => { e.preventDefault(); showUpgradeModal('remove_branding'); };
+                const lockNote = data.inTrial
+                    ? ' 🔒 (Trial — Pro+ to remove)'
+                    : data.plan === 'starter'
+                        ? ' 🔒 (Starter — upgrade to Pro to remove)'
+                        : ' 🔒 (Free — upgrade to Pro to remove)';
+                configBranding.parentElement.querySelector('label').innerText = `Show "Powered by BytesAI"${lockNote}`;
             } else {
                 configBranding.disabled = false;
+                configBranding.onclick = null;
                 configBranding.parentElement.querySelector('label').innerText = "Show \"Powered by BytesAI\"";
             }
             configStatus.innerText = "Settings loaded!";
@@ -623,8 +871,120 @@ if (templateSelect) {
     });
 }
 
+// ─── Upgrade Gate Modal ───────────────────────────────────────────────────────
+
+// Helper — true when user is on post-trial free plan
+function isFreeLocked() {
+    return !planStatus.inTrial && planStatus.plan === 'free';
+}
+
+const UPGRADE_FEATURES = {
+    ai_campaigns: {
+        title: 'AI Campaign Generation',
+        subtitle: 'Let Gemini AI write personalised email sequences based on each lead\'s chat history — automatically.',
+        features: [
+            '✨ AI-written email sequences per lead',
+            '🚀 Auto-approve and deploy campaigns',
+            '📈 Unlimited campaigns per month',
+            '🎯 PAS framework optimised copy',
+        ],
+        plan: 'Starter',
+    },
+    approve_deploy: {
+        title: 'Approve & Deploy Campaigns',
+        subtitle: 'Instantly deploy email sequences to start the drip campaign to your lead.',
+        features: [
+            '📤 One-click campaign deployment',
+            '⏱️ Automated drip scheduling',
+            '📊 Campaign performance tracking',
+        ],
+        plan: 'Starter',
+    },
+    remove_branding: {
+        title: 'Remove "Powered by BytesAI" Badge',
+        subtitle: 'White-label the chatbot widget — no BytesAI attribution visible to your visitors.',
+        features: [
+            '🏷️ Full white-label widget',
+            '🎨 Your brand, your identity',
+            '💼 Professional client deployments',
+            '📎 Free & Starter plans keep the badge as a referral link',
+        ],
+        plan: 'Pro',
+    },
+    more_domains: {
+        title: 'More Installation Domains',
+        subtitle: 'Install your chatbot on multiple websites and subdomains simultaneously.',
+        features: [
+            '🌐 3 domains on Starter, 10 on Pro, 50 on Business',
+            '✱ Wildcard subdomain support (*.yoursite.com)',
+            '🔄 Manage all installations from one dashboard',
+        ],
+        plan: 'Starter',
+    },
+};
+
+function showUpgradeModal(featureKey) {
+    const feature = UPGRADE_FEATURES[featureKey] || UPGRADE_FEATURES.ai_campaigns;
+    const modal = document.getElementById('upgrade-modal');
+    if (!modal) return;
+
+    document.getElementById('upgrade-modal-title').textContent = `Unlock: ${feature.title}`;
+    document.getElementById('upgrade-modal-subtitle').textContent = feature.subtitle;
+    document.getElementById('upgrade-modal-plan-badge').textContent = `Requires ${feature.plan} plan or above`;
+
+    const featureList = document.getElementById('upgrade-modal-features');
+    featureList.innerHTML = feature.features.map(f =>
+        `<div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0.75rem;background:rgba(255,255,255,0.04);border-radius:8px;font-size:0.83rem;color:#cbd5e1;">${escapeHtml(f)}</div>`
+    ).join('');
+
+    modal.style.display = 'flex';
+    // Animate in
+    const box = modal.querySelector('div');
+    if (box) { box.style.transform = 'scale(0.93)'; box.style.opacity = '0'; requestAnimationFrame(() => { box.style.transition = 'transform 0.2s ease, opacity 0.2s ease'; box.style.transform = 'scale(1)'; box.style.opacity = '1'; }); }
+}
+
+function hideUpgradeModal() {
+    const modal = document.getElementById('upgrade-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+// Modal controls
+document.getElementById('upgrade-modal-close')?.addEventListener('click', hideUpgradeModal);
+document.getElementById('upgrade-modal-dismiss')?.addEventListener('click', hideUpgradeModal);
+document.getElementById('upgrade-modal')?.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('upgrade-modal')) hideUpgradeModal();
+});
+document.getElementById('upgrade-modal-cta')?.addEventListener('click', () => {
+    const plan = planStatus.plan || 'free';
+    window.open(`https://web.bytesai.com/?upgrade=${plan}#pricing`, '_blank');
+    hideUpgradeModal();
+});
+// Remove the old inline banner button
+document.getElementById('modal-upgrade-btn')?.addEventListener('click', () => {
+    showUpgradeModal('ai_campaigns');
+});
+
+function applyModalPlanState() {
+    const locked = isFreeLocked();
+    const lockIcon = document.getElementById('toggle-ai-lock');
+    const upgradeBanner = document.getElementById('upgrade-prompt-banner');
+    if (lockIcon) lockIcon.style.display = locked ? 'inline' : 'none';
+    if (upgradeBanner) upgradeBanner.style.display = locked ? 'block' : 'none';
+    if (locked && toggleAiBtn) {
+        toggleAiBtn.style.opacity = '0.45';
+        toggleAiBtn.title = 'AI generation requires a paid plan';
+    } else if (toggleAiBtn) {
+        toggleAiBtn.style.opacity = '';
+        toggleAiBtn.title = '';
+    }
+}
+
 if (toggleAiBtn) {
     toggleAiBtn.addEventListener('click', () => {
+        if (isFreeLocked()) {
+            showUpgradeModal('ai_campaigns');
+            return;
+        }
         campaignMode = 'ai';
         updateModeUI('ai');
         if (!currentSequences || currentSequences.length === 0 || (currentSequences.length > 0 && !currentSequences[0].id)) {
@@ -678,14 +1038,19 @@ closeSequenceModalBtn.addEventListener('click', () => {
 
 async function openSequenceModal(leadId) {
     currentLeadId = leadId;
-    campaignMode = 'ai';
-    updateModeUI('ai');
-    
+    // Free plan (post-trial): default to manual mode — AI is locked
+    const startMode = isFreeLocked() ? 'manual' : 'ai';
+    campaignMode = startMode;
+    updateModeUI(startMode);
+
     sequenceModal.classList.remove('hidden');
     sequenceEditorContainer.innerHTML = '';
     saveSequenceBtn.classList.add('hidden');
     approveSequenceBtn.classList.add('hidden');
     sequenceStatus.innerText = '';
+
+    // Apply lock state for the plan
+    applyModalPlanState();
 
     // Get context on the current lead
     const lead = window.allLeads?.find(l => l.id == leadId);
@@ -836,6 +1201,7 @@ saveSequenceBtn.addEventListener('click', async () => {
 });
 
 approveSequenceBtn.addEventListener('click', async () => {
+    if (isFreeLocked()) { showUpgradeModal('approve_deploy'); return; }
     if (!confirm('Are you sure you want to approve this sequence? It will be drip-fed to the lead automatically.')) return;
 
     // Save first just in case
@@ -870,3 +1236,425 @@ approveSequenceBtn.addEventListener('click', async () => {
         sequenceStatus.style.color = 'var(--error)';
     }
 });
+
+// ─── Chatbot & Installations View ────────────────────────────────────────────
+
+const PLAN_INSTALL_LIMITS = {
+    free:       { maxInstalls: 1,  maxDomains: 1  },
+    starter:    { maxInstalls: 3,  maxDomains: 3  },
+    pro:        { maxInstalls: 10, maxDomains: 10 },
+    business:   { maxInstalls: 50, maxDomains: 50 },
+    enterprise: { maxInstalls: -1, maxDomains: -1 },
+};
+
+let installationData = { clientId: '', allowedDomains: [], maxInstalls: 1, maxDomains: 1, plan: 'free', inTrial: true };
+
+async function loadChatbotView() {
+    try {
+        const res = await fetch(`${API_BASE}/api/installations`, { credentials: 'include' });
+        if (!res.ok) return;
+        installationData = await res.json();
+    } catch { /* use cached */ }
+    renderChatbotView();
+}
+
+function renderChatbotView() {
+    const { clientId, allowedDomains, maxInstalls, maxDomains, plan, inTrial } = installationData;
+
+    // Embed code
+    const embedEl = document.getElementById('dash-embed-code');
+    if (embedEl && clientId) {
+        embedEl.textContent = `<!-- BytesAI Chatbot Widget Start -->\n<script src="https://ai.bytesfx.com/widget.js"\n  data-client-id="${escapeHtml(clientId)}"></` + `script>\n<!-- BytesAI Chatbot Widget End -->`;
+    }
+
+    // Plan badge
+    const planBadge = document.getElementById('dash-install-plan-badge');
+    if (planBadge) planBadge.textContent = inTrial ? `Trial · ${planStatus.trialDaysLeft || 0}d left` : (plan.charAt(0).toUpperCase() + plan.slice(1));
+
+    // Limits
+    const maxInstallsEl = document.getElementById('dash-max-installs');
+    const maxDomainsEl = document.getElementById('dash-max-domains');
+    if (maxInstallsEl) maxInstallsEl.textContent = maxInstalls === -1 ? '∞' : maxInstalls;
+    if (maxDomainsEl) maxDomainsEl.textContent = maxDomains === -1 ? '∞' : maxDomains;
+
+    const noteEl = document.getElementById('dash-install-limit-note');
+    if (noteEl) {
+        const domLabel = maxDomains === -1 ? 'unlimited domains' : `<strong style="color:#e2e8f0;">${maxDomains} domain${maxDomains !== 1 ? 's' : ''}</strong>`;
+        noteEl.innerHTML = inTrial
+            ? `Your 7-day trial runs on Free plan limits — ${domLabel}. Choose a paid plan when your trial ends to expand.`
+            : plan === 'free'
+                ? `Your <strong style="color:#e2e8f0;">Free</strong> plan includes ${domLabel} — this is a permanent tier. Upgrade anytime to add more.`
+                : `Your <strong style="color:#e2e8f0;">${plan.charAt(0).toUpperCase() + plan.slice(1)}</strong> plan allows ${domLabel}.`;
+    }
+
+    // Upgrade button
+    const upgBtn = document.getElementById('dash-upgrade-install-btn');
+    if (upgBtn) {
+        upgBtn.style.display = (maxDomains === -1) ? 'none' : 'block';
+        upgBtn.onclick = () => showUpgradeModal('more_domains');
+    }
+
+    // Domain list
+    renderDomainList(allowedDomains, maxDomains);
+}
+
+function renderDomainList(domains, maxDomains) {
+    const list = document.getElementById('dash-domain-list');
+    const countEl = document.getElementById('dash-domain-count');
+    const limitEl = document.getElementById('dash-domain-limit');
+    if (!list) return;
+
+    if (countEl) countEl.textContent = domains.length;
+    if (limitEl) limitEl.textContent = maxDomains === -1 ? '∞' : maxDomains;
+
+    list.innerHTML = '';
+    if (domains.length === 0) {
+        list.innerHTML = '<p style="color:var(--text-secondary);font-size:0.82rem;font-style:italic;margin:0;">No domains added yet. Add your first domain below.</p>';
+        return;
+    }
+    domains.forEach((domain, i) => {
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:0.75rem;background:rgba(0,0,0,0.25);border-radius:10px;padding:0.55rem 1rem;';
+        row.innerHTML = `<span style="flex:1;font-size:0.85rem;color:#e2e8f0;">${escapeHtml(domain)}</span>
+            <button data-index="${i}" class="domain-remove-btn" style="background:none;border:none;color:#f87171;cursor:pointer;font-size:0.8rem;padding:0.15rem 0.4rem;border-radius:4px;" title="Remove">✕</button>`;
+        list.appendChild(row);
+    });
+    list.querySelectorAll('.domain-remove-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const idx = parseInt(btn.dataset.index, 10);
+            installationData.allowedDomains.splice(idx, 1);
+            renderDomainList(installationData.allowedDomains, installationData.maxDomains);
+        });
+    });
+}
+
+document.getElementById('dash-add-domain-btn').addEventListener('click', () => {
+    const input = document.getElementById('dash-new-domain');
+    const val = input.value.trim().toLowerCase();
+    if (!val) return;
+    const domainRe = /^(\*\.)?[a-zA-Z0-9][a-zA-Z0-9\-\.]{0,252}[a-zA-Z0-9]$/;
+    if (!domainRe.test(val)) {
+        document.getElementById('dash-domains-status').textContent = 'Invalid domain format.';
+        document.getElementById('dash-domains-status').style.color = '#f87171';
+        return;
+    }
+    const { maxDomains, allowedDomains } = installationData;
+    if (maxDomains !== -1 && allowedDomains.length >= maxDomains) {
+        showUpgradeModal('more_domains');
+        return;
+    }
+    if (allowedDomains.includes(val)) {
+        document.getElementById('dash-domains-status').textContent = 'Domain already in list.';
+        document.getElementById('dash-domains-status').style.color = '#f59e0b';
+        return;
+    }
+    installationData.allowedDomains.push(val);
+    input.value = '';
+    document.getElementById('dash-domains-status').textContent = '';
+    renderDomainList(installationData.allowedDomains, installationData.maxDomains);
+});
+
+document.getElementById('dash-new-domain').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); document.getElementById('dash-add-domain-btn').click(); }
+});
+
+document.getElementById('dash-save-domains-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('dash-save-domains-btn');
+    const status = document.getElementById('dash-domains-status');
+    btn.textContent = 'Saving…';
+    btn.disabled = true;
+    try {
+        const res = await fetch(`${API_BASE}/api/installations`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ allowedDomains: installationData.allowedDomains }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+            installationData.allowedDomains = data.allowedDomains;
+            status.textContent = '✓ Domains saved!';
+            status.style.color = '#34d399';
+            renderDomainList(installationData.allowedDomains, installationData.maxDomains);
+        } else {
+            status.textContent = data.error || 'Save failed.';
+            status.style.color = '#f87171';
+        }
+    } catch {
+        status.textContent = 'Network error.';
+        status.style.color = '#f87171';
+    } finally {
+        btn.textContent = 'Save Domains';
+        btn.disabled = false;
+        setTimeout(() => { if (status.textContent.startsWith('✓')) status.textContent = ''; }, 3000);
+    }
+});
+
+document.getElementById('dash-copy-embed-btn').addEventListener('click', () => {
+    const code = document.getElementById('dash-embed-code')?.textContent;
+    if (!code) return;
+    navigator.clipboard.writeText(code);
+    const btn = document.getElementById('dash-copy-embed-btn');
+    btn.textContent = 'Copied! ✅';
+    setTimeout(() => { btn.textContent = 'Copy Code'; }, 2000);
+});
+
+// ─── Analytics & Reports ──────────────────────────────────────────────────────
+
+let analyticsDays = 7;
+let analyticsListenersAttached = false;
+
+async function loadAnalytics() {
+    if (!window.allLeads || window.allLeads.length === 0) {
+        await loadLeads();
+    }
+    renderAnalytics(window.allLeads || []);
+
+    if (!analyticsListenersAttached) {
+        analyticsListenersAttached = true;
+        document.querySelectorAll('.time-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                analyticsDays = parseInt(btn.dataset.days, 10);
+                renderAnalytics(window.allLeads || []);
+            });
+        });
+    }
+}
+
+function renderAnalytics(leads) {
+    const now = Date.now();
+    const cutoff = analyticsDays > 0 ? now - analyticsDays * 86400000 : 0;
+    const filtered = analyticsDays > 0
+        ? leads.filter(l => new Date(l.timestamp).getTime() > cutoff)
+        : leads;
+
+    const total = filtered.length;
+    const todayCount = leads.filter(l => new Date(l.timestamp).getTime() > now - 86400000).length;
+
+    const totalLeadsEl = document.getElementById('kpi-total-leads');
+    const leadsDeltaEl = document.getElementById('kpi-leads-delta');
+    if (totalLeadsEl) totalLeadsEl.textContent = total;
+    if (leadsDeltaEl) {
+        leadsDeltaEl.textContent = `+${todayCount} today`;
+        leadsDeltaEl.style.color = todayCount > 0 ? '#34d399' : 'var(--text-secondary)';
+    }
+
+    // Pipeline value
+    let totalValue = 0, hasValue = false;
+    filtered.forEach(l => {
+        const n = parseBudgetValue(l.budget);
+        if (n > 0) { totalValue += n; hasValue = true; }
+    });
+    const pipelineEl = document.getElementById('kpi-pipeline-value');
+    const valueNoteEl = document.getElementById('kpi-value-note');
+    if (pipelineEl) pipelineEl.textContent = hasValue ? formatCurrencyShort(totalValue) : 'N/A';
+    if (valueNoteEl) valueNoteEl.textContent = hasValue ? `across ${total} lead${total !== 1 ? 's' : ''}` : 'no budget data';
+
+    // Conversion rate: leads that reached opportunity or further
+    const converted = filtered.filter(l =>
+        ['opportunity', 'priority', 'campaign', 'active', 'drafting', 'sequence_generated'].includes(l.pipeline_stage)
+    ).length;
+    const rate = total > 0 ? Math.round((converted / total) * 100) : 0;
+    const convEl = document.getElementById('kpi-conversion-rate');
+    if (convEl) convEl.textContent = `${rate}%`;
+
+    // Active campaigns
+    const activeCampaigns = filtered.filter(l => l.pipeline_stage === 'active').length;
+    const activeCampEl = document.getElementById('kpi-active-campaigns');
+    if (activeCampEl) activeCampEl.textContent = activeCampaigns;
+
+    // Charts
+    renderLeadVolumeChart(leads, analyticsDays);
+    renderFunnelChart(filtered);
+    renderStageDonut(filtered);
+    renderActivityFeed(leads);
+}
+
+function parseBudgetValue(str) {
+    if (!str) return 0;
+    const s = String(str).replace(/[£€$,\s]/g, '').toLowerCase();
+    const m = s.match(/([\d.]+)([km]?)/);
+    if (!m) return 0;
+    let n = parseFloat(m[1]);
+    if (m[2] === 'k') n *= 1000;
+    if (m[2] === 'm') n *= 1000000;
+    return Math.round(n);
+}
+
+function formatCurrencyShort(n) {
+    if (n >= 1000000) return `$${(n / 1000000).toFixed(1)}M`;
+    if (n >= 1000) return `$${(n / 1000).toFixed(1)}K`;
+    return `$${n}`;
+}
+
+function renderLeadVolumeChart(allLeadsData, days) {
+    const chartEl = document.getElementById('lead-volume-chart');
+    const labelsEl = document.getElementById('lead-volume-labels');
+    const periodLabel = document.getElementById('volume-period-label');
+    if (!chartEl || !labelsEl) return;
+
+    if (periodLabel) {
+        periodLabel.textContent = days === 0 ? 'All time' : `Last ${days} days`;
+    }
+
+    const effectiveDays = days === 0 ? 14 : Math.min(days, 30);
+    const buckets = [];
+    const now = new Date();
+    for (let i = effectiveDays - 1; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(d.getDate() - i);
+        d.setHours(0, 0, 0, 0);
+        buckets.push({ date: d, count: 0 });
+    }
+
+    (days === 0 ? allLeadsData : allLeadsData.filter(l => new Date(l.timestamp).getTime() > Date.now() - effectiveDays * 86400000))
+        .forEach(l => {
+            const ts = new Date(l.timestamp);
+            ts.setHours(0, 0, 0, 0);
+            const bucket = buckets.find(b => b.date.getTime() === ts.getTime());
+            if (bucket) bucket.count++;
+        });
+
+    const maxCount = Math.max(...buckets.map(b => b.count), 1);
+
+    chartEl.innerHTML = buckets.map(b => {
+        const pct = Math.max((b.count / maxCount) * 100, 2);
+        return `<div class="bar-col">
+            <div class="bar-fill" style="height:${pct}%;" title="${b.count} lead${b.count !== 1 ? 's' : ''}">
+                ${b.count > 0 ? `<span class="bar-val">${b.count}</span>` : ''}
+            </div>
+        </div>`;
+    }).join('');
+
+    const step = effectiveDays > 14 ? 7 : effectiveDays > 7 ? 2 : 1;
+    labelsEl.innerHTML = buckets.map((b, i) => {
+        const show = (i % step === 0) || i === buckets.length - 1;
+        return `<span class="bar-label" style="visibility:${show ? 'visible' : 'hidden'}">${b.date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })}</span>`;
+    }).join('');
+}
+
+function renderFunnelChart(leads) {
+    const el = document.getElementById('pipeline-funnel-chart');
+    if (!el) return;
+
+    const stageGroups = [
+        { label: 'Inbox',       keys: ['lead'],                                color: '#6366f1' },
+        { label: 'Priority',    keys: ['priority'],                            color: '#f59e0b' },
+        { label: 'Opportunity', keys: ['opportunity'],                         color: '#60a5fa' },
+        { label: 'Campaign',    keys: ['drafting', 'sequence_generated', 'active', 'campaign'], color: '#34d399' },
+    ];
+
+    const counts = stageGroups.map(s => ({
+        ...s,
+        count: leads.filter(l => s.keys.includes(l.pipeline_stage)).length,
+    }));
+
+    const maxCount = Math.max(...counts.map(c => c.count), 1);
+
+    el.innerHTML = counts.map((s, i) => {
+        const pct = Math.max((s.count / maxCount) * 100, 3);
+        const prev = counts[i - 1];
+        const dropPct = prev && prev.count > 0
+            ? Math.round((s.count / prev.count) * 100)
+            : null;
+        return `<div class="funnel-row">
+            <span class="funnel-label">${escapeHtml(s.label)}</span>
+            <div class="funnel-bar-wrap">
+                <div class="funnel-bar" style="width:${pct}%;background:${s.color};"></div>
+                <span class="funnel-count">${s.count}</span>
+            </div>
+            <span class="funnel-conv">${dropPct !== null ? `↓ ${dropPct}%` : ''}</span>
+        </div>`;
+    }).join('');
+}
+
+function renderStageDonut(leads) {
+    const el = document.getElementById('stage-distribution-chart');
+    if (!el) return;
+
+    const stageConfig = [
+        { key: 'lead',               label: 'Inbox',         color: '#6366f1' },
+        { key: 'priority',           label: 'Priority',      color: '#f59e0b' },
+        { key: 'opportunity',        label: 'Opportunity',   color: '#60a5fa' },
+        { key: 'drafting',           label: 'Drafting',      color: '#a78bfa' },
+        { key: 'sequence_generated', label: 'Seq. Ready',    color: '#818cf8' },
+        { key: 'active',             label: 'Active',        color: '#34d399' },
+    ];
+
+    const total = leads.length;
+    if (total === 0) {
+        el.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;padding:1.5rem 0;text-align:center;">No data for period.</p>';
+        return;
+    }
+
+    const slices = stageConfig
+        .map(s => ({ ...s, count: leads.filter(l => l.pipeline_stage === s.key).length }))
+        .filter(s => s.count > 0);
+
+    const r = 54, cx = 68, cy = 68, sw = 22;
+    const circ = 2 * Math.PI * r;
+    let offset = 0;
+    const circles = slices.map(s => {
+        const dash = (s.count / total) * circ;
+        const c = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="${sw}" stroke-dasharray="${dash.toFixed(2)} ${(circ - dash).toFixed(2)}" stroke-dashoffset="${(-offset).toFixed(2)}" />`;
+        offset += dash;
+        return c;
+    }).join('');
+
+    const legend = slices.map(s => `
+        <div class="legend-row">
+            <span class="legend-dot" style="background:${s.color}"></span>
+            <span class="legend-label">${escapeHtml(s.label)}</span>
+            <span class="legend-count">${s.count}</span>
+            <span class="legend-pct">${Math.round((s.count / total) * 100)}%</span>
+        </div>`).join('');
+
+    el.innerHTML = `<div class="donut-layout">
+        <svg width="136" height="136" viewBox="0 0 136 136" style="transform:rotate(-90deg);flex-shrink:0;">
+            <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="${sw}"/>
+            ${circles}
+        </svg>
+        <div class="donut-legend">${legend}</div>
+    </div>`;
+}
+
+function renderActivityFeed(leads) {
+    const el = document.getElementById('activity-feed');
+    if (!el) return;
+
+    const sorted = [...leads]
+        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        .slice(0, 15);
+
+    if (sorted.length === 0) {
+        el.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;padding:0.5rem 0;">No activity yet.</p>';
+        return;
+    }
+
+    const stageIcon  = { lead: '👤', priority: '🔥', opportunity: '💡', drafting: '✍️', sequence_generated: '✨', active: '🚀', campaign: '✉️' };
+    const stageEvent = { lead: 'Lead captured', priority: 'Marked priority', opportunity: 'Moved to opportunity', drafting: 'Campaign drafting', sequence_generated: 'AI sequence ready', active: 'Campaign activated', campaign: 'In campaign' };
+
+    el.innerHTML = sorted.map(l => {
+        const stage = l.pipeline_stage || 'lead';
+        const icon  = stageIcon[stage]  || '📋';
+        const event = stageEvent[stage] || stage;
+
+        const age = Date.now() - new Date(l.timestamp).getTime();
+        const rel = age < 60000       ? 'just now'
+                  : age < 3600000     ? `${Math.floor(age / 60000)}m ago`
+                  : age < 86400000    ? `${Math.floor(age / 3600000)}h ago`
+                  : age < 604800000   ? `${Math.floor(age / 86400000)}d ago`
+                  : new Date(l.timestamp).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+
+        return `<div class="activity-item">
+            <span class="activity-icon">${icon}</span>
+            <div class="activity-body">
+                <span class="activity-name">${escapeHtml(l.name || 'Unknown')}</span>
+                <span class="activity-event">${escapeHtml(event)}</span>
+            </div>
+            <span class="activity-time">${rel}</span>
+        </div>`;
+    }).join('');
+}

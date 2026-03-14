@@ -28,6 +28,39 @@ function initInteractions() {
 
   // 3. Initialize Hero Starfield
   initStarfield();
+
+  // 4. Filter pricing tiers when arriving via badge upgrade link (?upgrade=<plan>)
+  const upgradeParam = new URLSearchParams(window.location.search).get('upgrade');
+  if (upgradeParam) {
+    const TIER_ORDER = { free: 0, trial: 0, starter: 1, pro: 2, business: 3, enterprise: 4 };
+    const currentLevel = TIER_ORDER[upgradeParam] ?? 0;
+    document.querySelectorAll('.pricing-card[data-tier]').forEach(card => {
+      if ((TIER_ORDER[card.dataset.tier] ?? 99) <= currentLevel) card.style.display = 'none';
+    });
+  }
+  if (upgradeParam || window.location.hash === '#pricing') {
+    requestAnimationFrame(() => {
+      const el = document.getElementById('pricing');
+      if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' });
+    });
+  }
+
+  // 5. Pricing swipe dots — update active dot as user scrolls the track
+  const track = document.querySelector('.pricing-track');
+  const dots = document.querySelectorAll('.pricing-scroll-hint span');
+  if (track && dots.length) {
+    const updateDots = () => {
+      const cards = track.querySelectorAll('.pricing-card');
+      let closest = 0, minDist = Infinity;
+      cards.forEach((card, i) => {
+        const dist = Math.abs(card.getBoundingClientRect().left - track.getBoundingClientRect().left);
+        if (dist < minDist) { minDist = dist; closest = i; }
+      });
+      dots.forEach((d, i) => d.classList.toggle('active', i === closest));
+    };
+    track.addEventListener('scroll', updateDots, { passive: true });
+    updateDots();
+  }
 }
 
 // Global Animation Frame ID to prevent multiple loops
@@ -159,20 +192,129 @@ function initStarfield() {
 function renderHome() {
   return `
     <div class="page-view home-view">
-      <!-- 1. HERO SECTION -->
-      <section class="hero-v2 reveal">
-        <div class="hero-badge">The Future of AI Lead Generation</div>
-        <h1 class="hero-title">The AI assistant built for <br><span class="text-gradient">modern agencies</span></h1>
-        <p class="hero-subtitle">Automate prospecting, qualify leads 24/7, and grow your agency — all with the power of BytesAI.</p>
-        
-        <div class="hero-cta-group">
-          <a href="/onboarding/" class="btn btn-primary btn-large">Start Free Trial &rarr;</a>
-          <a href="/dashboard/" class="btn btn-outline btn-large">Agency Login</a>
+
+      <!-- 1. HERO V3 — Split layout with product visual -->
+      <section class="hero-v3">
+        <canvas id="hero-stars-canvas" class="hero-stars-canvas"></canvas>
+        <div class="hero-v3-inner">
+
+          <!-- Left: copy -->
+          <div class="hero-text-col">
+            <div class="hero-badge-v3">
+              <span class="badge-live-dot"></span>
+              AI Chatbot + CRM &middot; One platform
+            </div>
+            <h1 class="hero-title-v3">Capture every lead.<br><span class="text-gradient">Close more deals.</span></h1>
+            <p class="hero-sub-v3">BytesAI captures leads with a smart AI chatbot, qualifies them automatically, and manages the full sales cycle — all in one place. No juggling tools, no dropped leads.</p>
+            <div class="hero-cta-group-v3">
+              <a href="/onboarding/" class="btn btn-primary btn-large hero-cta-primary">Start Free &rarr;</a>
+              <a href="#features" class="btn btn-outline btn-large">See How It Works</a>
+            </div>
+            <div class="hero-proof-row">
+              <div class="proof-avatars">
+                <div class="proof-avatar" style="background:linear-gradient(135deg,#8b5cf6,#d946ef)">E</div>
+                <div class="proof-avatar" style="background:linear-gradient(135deg,#d946ef,#f43f5e)">J</div>
+                <div class="proof-avatar" style="background:linear-gradient(135deg,#06b6d4,#8b5cf6)">P</div>
+                <div class="proof-avatar" style="background:linear-gradient(135deg,#f59e0b,#ef4444)">M</div>
+              </div>
+              <div class="proof-text">
+                <div class="proof-stars">&#9733;&#9733;&#9733;&#9733;&#9733;</div>
+                <span>Trusted by <strong>2,400+</strong> agencies worldwide</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: product mockup -->
+          <div class="hero-visual-col">
+            <div class="hero-dashboard-mockup">
+              <div class="mockup-titlebar">
+                <span class="traffic-light tl-red"></span>
+                <span class="traffic-light tl-yellow"></span>
+                <span class="traffic-light tl-green"></span>
+                <span class="mockup-url-bar">app.bytesai.com</span>
+              </div>
+              <div class="mockup-body">
+                <!-- Chat panel -->
+                <div class="mockup-chat-panel">
+                  <div class="mockup-panel-header">
+                    <span class="mockup-online-dot"></span> AI Chat
+                  </div>
+                  <div class="mockup-messages">
+                    <div class="mockup-msg mockup-bot">Hi! How can I help your agency today?</div>
+                    <div class="mockup-msg mockup-user">Looking for a CRM for my team</div>
+                    <div class="mockup-msg mockup-bot">Great! How many clients do you manage?</div>
+                    <div class="mockup-msg mockup-user">About 200 across 5 people</div>
+                    <div class="mockup-msg mockup-bot mockup-typing"><span></span><span></span><span></span></div>
+                  </div>
+                </div>
+                <!-- CRM panel -->
+                <div class="mockup-crm-panel">
+                  <div class="mockup-panel-header">Pipeline</div>
+                  <div class="mockup-pipeline-cols">
+                    <div class="mockup-col">
+                      <div class="mockup-col-label">New</div>
+                      <div class="mockup-deal">
+                        <div class="deal-n">Apex Media</div>
+                        <div class="deal-v">$2,400/mo</div>
+                      </div>
+                      <div class="mockup-deal mockup-deal-new">
+                        <div class="deal-n">&#9889; Sara M.</div>
+                        <div class="deal-v new-tag">Just captured</div>
+                      </div>
+                    </div>
+                    <div class="mockup-col">
+                      <div class="mockup-col-label">Qualified</div>
+                      <div class="mockup-deal">
+                        <div class="deal-n">CloudScale</div>
+                        <div class="deal-v">$5,000/mo</div>
+                      </div>
+                    </div>
+                    <div class="mockup-col">
+                      <div class="mockup-col-label">Closing</div>
+                      <div class="mockup-deal mockup-deal-closing">
+                        <div class="deal-n">NovaBrand</div>
+                        <div class="deal-v">$12k ✓</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
-        <p class="hero-tiny-text">30-day free trial. Then from $29/month.</p>
       </section>
 
-      <!-- 2. SOCIAL PROOF BAR -->
+      <!-- 2. LOGO MARQUEE -->
+      <section class="logo-marquee-section">
+        <p class="marquee-eyebrow">Trusted by agencies building for the world&rsquo;s best brands</p>
+        <div class="marquee-container">
+          <div class="marquee-content">
+            <span>Apex Agency</span>
+            <span>CloudScale</span>
+            <span>Brightwave</span>
+            <span>NovaMark</span>
+            <span>Pixel &amp; Co</span>
+            <span>GrowthLab</span>
+            <span>Velocity Digital</span>
+            <span>Nexus Media</span>
+            <span>Summit Creative</span>
+            <span>Orbit Agency</span>
+            <span>Apex Agency</span>
+            <span>CloudScale</span>
+            <span>Brightwave</span>
+            <span>NovaMark</span>
+            <span>Pixel &amp; Co</span>
+            <span>GrowthLab</span>
+            <span>Velocity Digital</span>
+            <span>Nexus Media</span>
+            <span>Summit Creative</span>
+            <span>Orbit Agency</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. SOCIAL PROOF BAR -->
       <section class="stats-bar reveal">
         <div class="stat-item">
           <span class="stat-value">2,400+</span>
@@ -222,68 +364,178 @@ function renderHome() {
         </div>
       </section>
 
-      <!-- 4. PRICING TABLE -->
-      <section id="pricing" class="section reveal">
+      <!-- 5. CHATBOT + CRM UNIFIED PLATFORM -->
+      <section class="unified-platform section reveal">
         <div class="section-header">
-          <h2>Simple, transparent pricing</h2>
-          <p>Start free for 30 days, no credit card required.</p>
+          <div class="section-badge-pill">Why BytesAI</div>
+          <h2>One platform. <span class="text-gradient">Two superpowers.</span></h2>
+          <p>Most agencies stitch a chatbot tool to a separate CRM — losing data, context, and revenue at every handoff. BytesAI closes the loop.</p>
         </div>
-        
-        <div class="pricing-grid">
-          <!-- Starter -->
-          <div class="pricing-card glass-card">
-            <div class="pricing-header">
-              <h3>Starter</h3>
-              <div class="price">$29<span>/month</span></div>
-            </div>
-            <ul class="pricing-features">
-              <li>Up to 500 contacts</li>
-              <li>Basic AI pipeline</li>
-              <li>Task management</li>
-              <li>Lead logging</li>
-              <li>Standard reports</li>
+        <div class="platform-split-grid">
+
+          <!-- Chatbot column -->
+          <div class="platform-col chatbot-side glass-card">
+            <div class="platform-col-icon">💬</div>
+            <h3 class="platform-col-title">AI Chatbot</h3>
+            <p class="platform-col-tag">Capture &amp; qualify 24/7</p>
+            <ul class="platform-feat-list">
+              <li>Answers questions and qualifies leads while you sleep</li>
+              <li>Custom AI trained on your services &amp; brand voice</li>
+              <li>Instant response drives 3&times; higher conversion rate</li>
+              <li>Embeds on any website in under 2 minutes</li>
+              <li>Chat logs sync directly into the CRM pipeline</li>
             </ul>
-            <a href="/onboarding/" class="btn btn-outline btn-full">Start Free Trial</a>
           </div>
 
-          <!-- Pro -->
-          <div class="pricing-card glass-card popular">
-            <div class="popular-badge">Most Popular</div>
-            <div class="pricing-header">
-              <h3>Pro</h3>
-              <div class="price">$79<span>/month</span></div>
+          <!-- Connector -->
+          <div class="platform-connector-col">
+            <div class="connector-track">
+              <div class="connector-line-v"></div>
+              <div class="connector-badge-circle">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+              </div>
+              <div class="connector-label">Auto&#8209;sync</div>
+              <div class="connector-line-v"></div>
             </div>
-            <ul class="pricing-features">
-              <li>Up to 5,000 contacts</li>
-              <li>Advanced AI pipeline</li>
-              <li>Full task & calendar</li>
-              <li>Email campaigns</li>
-              <li>Advanced analytics</li>
-              <li>Automation workflows</li>
-            </ul>
-            <a href="/onboarding/" class="btn btn-primary btn-full">Start Free Trial</a>
           </div>
 
-          <!-- Enterprise -->
-          <div class="pricing-card glass-card">
-            <div class="pricing-header">
-              <h3>Enterprise</h3>
-              <div class="price">$199<span>/month</span></div>
-            </div>
-            <ul class="pricing-features">
-              <li>Unlimited contacts</li>
-              <li>Custom pipelines</li>
-              <li>Priority support</li>
-              <li>API access</li>
-              <li>Custom automation</li>
-              <li>Dedicated account manager</li>
+          <!-- CRM column -->
+          <div class="platform-col crm-side glass-card">
+            <div class="platform-col-icon">📊</div>
+            <h3 class="platform-col-title">CRM</h3>
+            <p class="platform-col-tag">Manage &amp; close at scale</p>
+            <ul class="platform-feat-list">
+              <li>Chat-captured leads auto-populate your pipeline</li>
+              <li>AI writes personalised email sequences per lead</li>
+              <li>Track every deal from first contact to close</li>
+              <li>Analytics show exactly what&rsquo;s converting</li>
+              <li>Full history — chat transcript lives on the contact</li>
             </ul>
-            <a href="/onboarding/" class="btn btn-outline btn-full">Start Free Trial</a>
           </div>
+
+        </div>
+        <div class="platform-footer-bar glass-card">
+          <span class="platform-footer-icon">&#128279;</span>
+          <span>No manual data entry. No dropped leads. No tab-switching. Your chatbot and CRM <strong>work as one</strong>.</span>
         </div>
       </section>
 
-      <!-- 5. TESTIMONIALS -->
+      <!-- 6. PRICING TABLE -->
+      <section id="pricing" class="section reveal">
+        <div class="section-header">
+          <h2>Simple, transparent pricing</h2>
+          <p>Start free — upgrade as you grow. No credit card required.</p>
+        </div>
+
+        <!-- 4 main tiers: horizontal scroll-snap on mobile, 4-col grid on desktop -->
+        <div class="pricing-track-wrapper">
+          <div class="pricing-track">
+
+            <!-- Free -->
+            <div class="pricing-card glass-card" data-tier="free">
+              <div class="pricing-header">
+                <h3>Free</h3>
+                <div class="price">$0<span>/month</span></div>
+                <p class="pricing-subtitle">Forever free, no card needed</p>
+              </div>
+              <ul class="pricing-features">
+                <li>10 leads / day</li>
+                <li>50 contacts total</li>
+                <li>1 chatbot domain</li>
+                <li>Manual campaigns only</li>
+                <li>"Powered by BytesAI" badge</li>
+              </ul>
+              <a href="/onboarding/" class="btn btn-outline btn-full">Get Started Free</a>
+            </div>
+
+            <!-- Starter -->
+            <div class="pricing-card glass-card" data-tier="starter">
+              <div class="pricing-header">
+                <h3>Starter</h3>
+                <div class="price">$29<span>/month</span></div>
+                <p class="pricing-subtitle">For growing solo operators</p>
+              </div>
+              <ul class="pricing-features">
+                <li>Up to 500 contacts</li>
+                <li>AI campaign generation</li>
+                <li>3 chatbot domains</li>
+                <li>Email sequences + drip</li>
+                <li>Standard analytics</li>
+                <li>"Powered by BytesAI" badge</li>
+              </ul>
+              <a href="/onboarding/" class="btn btn-outline btn-full">Start Free Trial</a>
+            </div>
+
+            <!-- Pro -->
+            <div class="pricing-card glass-card popular" data-tier="pro">
+              <div class="popular-badge">Most Popular</div>
+              <div class="pricing-header">
+                <h3>Pro</h3>
+                <div class="price">$79<span>/month</span></div>
+                <p class="pricing-subtitle">For agencies scaling fast</p>
+              </div>
+              <ul class="pricing-features">
+                <li>Up to 5,000 contacts</li>
+                <li>Advanced AI pipeline</li>
+                <li>10 chatbot domains</li>
+                <li>Remove BytesAI badge</li>
+                <li>Full task &amp; calendar</li>
+                <li>Advanced analytics</li>
+                <li>Automation workflows</li>
+              </ul>
+              <a href="/onboarding/" class="btn btn-primary btn-full">Start Free Trial</a>
+            </div>
+
+            <!-- Business -->
+            <div class="pricing-card glass-card" data-tier="business">
+              <div class="pricing-header">
+                <h3>Business</h3>
+                <div class="price">$149<span>/month</span></div>
+                <p class="pricing-subtitle">For high-volume agencies</p>
+              </div>
+              <ul class="pricing-features">
+                <li>Up to 25,000 contacts</li>
+                <li>50 chatbot domains</li>
+                <li>Remove BytesAI badge</li>
+                <li>Priority AI processing</li>
+                <li>Multi-user access</li>
+                <li>White-label reports</li>
+                <li>Priority support</li>
+              </ul>
+              <a href="/onboarding/" class="btn btn-outline btn-full">Start Free Trial</a>
+            </div>
+
+          </div>
+
+          <!-- Mobile scroll indicators -->
+          <div class="pricing-scroll-hint">
+            <span></span><span></span><span></span><span></span>
+          </div>
+        </div>
+
+        <!-- Enterprise — full-width, coming soon -->
+        <div class="pricing-enterprise glass-card" data-tier="enterprise">
+          <div class="enterprise-coming-badge">Available Soon</div>
+          <div class="enterprise-inner">
+            <div>
+              <h3>Enterprise</h3>
+              <p class="pricing-subtitle">Custom pricing · Built for large teams and multi-brand agencies</p>
+            </div>
+            <ul class="pricing-features enterprise-features">
+              <li>Unlimited contacts</li>
+              <li>Unlimited domains</li>
+              <li>Custom pipelines &amp; automations</li>
+              <li>Dedicated account manager</li>
+              <li>API access &amp; webhooks</li>
+              <li>SLA &amp; priority support</li>
+            </ul>
+            <a href="mailto:hello@bytesai.com" class="btn btn-outline" style="opacity:0.55;pointer-events:none;cursor:default;">Join Waitlist</a>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- 7. TESTIMONIALS -->
       <section class="section testimonials reveal">
         <div class="section-header">
           <h2>Loved by agency owners</h2>
@@ -316,10 +568,10 @@ function renderHome() {
         </div>
       </section>
 
-      <!-- 6. FINAL CTA -->
+      <!-- 8. FINAL CTA -->
       <section class="final-cta reveal">
         <h2>Ready to grow your agency?</h2>
-        <p>Start your 30-day free trial today. No credit card required.</p>
+        <p>Start free today — full access for 7 days. No credit card required.</p>
         <a href="/onboarding/" class="btn btn-primary btn-large">Get Started for Free &rarr;</a>
       </section>
     </div>
@@ -378,9 +630,10 @@ function renderLeadCapture() {
             <label for="serviceOfInterest">Service of Interest</label>
             <select id="serviceOfInterest" required>
               <option value="" disabled selected>Select a service...</option>
-              <option value="BytesAI Starter ($29)">BytesAI Starter ($29)</option>
-              <option value="BytesAI Pro ($79)">BytesAI Pro ($79)</option>
-              <option value="BytesAI Enterprise ($199)">BytesAI Enterprise ($199)</option>
+              <option value="BytesAI Starter ($29)">BytesAI Starter ($29/mo)</option>
+              <option value="BytesAI Pro ($79)">BytesAI Pro ($79/mo)</option>
+              <option value="BytesAI Business ($149)">BytesAI Business ($149/mo)</option>
+              <option value="BytesAI Enterprise (Custom)">BytesAI Enterprise (Custom pricing)</option>
               <option value="AI Chatbot Development">AI Chatbot Development</option>
               <option value="Website Development">Website Development</option>
               <option value="Other">Other Custom Request</option>
