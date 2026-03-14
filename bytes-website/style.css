@@ -813,20 +813,24 @@ h3 {
         font-size: 2.2rem;
     }
 
+    .pricing-track-wrapper {
+        overflow: hidden;
+    }
     .pricing-track {
         display: flex;
         overflow-x: auto;
         scroll-snap-type: x mandatory;
         -webkit-overflow-scrolling: touch;
         gap: 1rem;
-        padding-bottom: 0.5rem;
+        padding: 0.5rem 1.25rem 1rem;
+        scroll-padding-left: 1.25rem;
         scrollbar-width: none;
     }
     .pricing-track::-webkit-scrollbar { display: none; }
     .pricing-track .pricing-card {
-        flex: 0 0 80vw;
-        max-width: 320px;
-        scroll-snap-align: center;
+        flex: 0 0 calc(100vw - 2.5rem);
+        max-width: none;
+        scroll-snap-align: start;
     }
     .pricing-scroll-hint { display: flex; }
     .pricing-enterprise .enterprise-inner {
@@ -1681,7 +1685,7 @@ h3 {
     position: fixed;
     bottom: 2rem;
     right: 2rem;
-    z-index: 1000;
+    z-index: 99999;
     display: flex;
     flex-direction: column;
     align-items: flex-end;
