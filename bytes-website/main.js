@@ -471,7 +471,7 @@ function renderHome() {
                 <li class="feat-row"><span class="feat-label">Contacts</span><span class="feat-val">500</span></li>
                 <li class="feat-row"><span class="feat-label">Chatbot domains</span><span class="feat-val">3</span></li>
                 <li class="feat-divider"></li>
-                <li class="feat-row"><span class="feat-label">AI campaigns</span><span class="feat-yes">✓</span></li>
+                <li class="feat-row"><span class="feat-label">AI campaigns</span><span class="feat-no">—</span></li>
                 <li class="feat-row"><span class="feat-label">Email sequences</span><span class="feat-yes">✓</span></li>
                 <li class="feat-row"><span class="feat-label">Analytics</span><span class="feat-val">Standard</span></li>
                 <li class="feat-row"><span class="feat-label">Task &amp; calendar</span><span class="feat-no">—</span></li>
@@ -507,7 +507,7 @@ function renderHome() {
                 <li class="feat-row"><span class="feat-label">Automation</span><span class="feat-yes">✓</span></li>
                 <li class="feat-divider"></li>
                 <li class="feat-row"><span class="feat-label">Priority AI</span><span class="feat-no">—</span></li>
-                <li class="feat-row"><span class="feat-label">Multi-user access</span><span class="feat-no">—</span></li>
+                <li class="feat-row"><span class="feat-label">Multi-user access</span><span class="feat-val">2 users</span></li>
                 <li class="feat-row"><span class="feat-label">White-label</span><span class="feat-no">—</span></li>
                 <li class="feat-divider"></li>
                 <li class="feat-row"><span class="feat-label">BytesAI badge</span><span class="feat-val">Removable</span></li>
@@ -535,7 +535,7 @@ function renderHome() {
                 <li class="feat-row"><span class="feat-label">Automation</span><span class="feat-yes">✓</span></li>
                 <li class="feat-divider"></li>
                 <li class="feat-row"><span class="feat-label">Priority AI</span><span class="feat-yes">✓</span></li>
-                <li class="feat-row"><span class="feat-label">Multi-user access</span><span class="feat-yes">✓</span></li>
+                <li class="feat-row"><span class="feat-label">Multi-user access</span><span class="feat-val">5 users</span></li>
                 <li class="feat-row"><span class="feat-label">White-label</span><span class="feat-yes">✓</span></li>
                 <li class="feat-divider"></li>
                 <li class="feat-row"><span class="feat-label">BytesAI badge</span><span class="feat-val">Removable</span></li>
