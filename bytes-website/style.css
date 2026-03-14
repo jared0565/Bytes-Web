@@ -794,8 +794,8 @@ h3 {
     .navbar { padding: 0 1.25rem; }
 
     /* ── Section rhythm ── */
-    .section { padding: 4rem 1.25rem; }
-    .section-header { margin-bottom: 2rem; }
+    .section { padding: 3rem 1.25rem; }
+    .section-header { margin-bottom: 1.5rem; }
     .section-header h2 { font-size: 2rem; }
     .section-header p { font-size: 1rem; }
     .hero-title { font-size: 3rem; }
@@ -859,7 +859,7 @@ h3 {
     .hero-title { font-size: 2.2rem; }
 
     /* Tighter side padding on small phones */
-    .section { padding: 3.5rem 1rem; }
+    .section { padding: 2.5rem 1rem; }
 
     /* Pricing: tighter gap on small phones */
     .pricing-track { gap: 1rem; }
@@ -876,7 +876,7 @@ h3 {
 /* Customer Reviews Section */
 /* ------------------------------------- */
 .reviews-section {
-    padding: 6rem 0 4rem;
+    padding: 4rem 0 3rem;
 }
 
 .reviews-header {
@@ -2340,8 +2340,8 @@ h3 {
     border: 1px solid var(--glass-border);
     backdrop-filter: blur(12px);
     border-radius: 24px;
-    padding: 3rem;
-    margin: 4rem 0;
+    padding: 2rem;
+    margin: 2rem 0;
 }
 
 .stat-item {
@@ -2365,13 +2365,13 @@ h3 {
 
 /* Section Styling */
 .section {
-    padding: 8rem 0;
+    padding: 5rem 0;
 }
 
 .section-header {
     text-align: center;
     max-width: 700px;
-    margin: 0 auto 5rem;
+    margin: 0 auto 3rem;
 }
 
 .section-header h2 {
@@ -2648,9 +2648,9 @@ h3 {
 .final-cta {
     background: var(--accent-gradient);
     border-radius: 32px;
-    padding: 6rem 3rem;
+    padding: 4rem 3rem;
     text-align: center;
-    margin: 6rem 0;
+    margin: 3rem 0;
 }
 
 .final-cta h2 {
@@ -2675,7 +2675,7 @@ h3 {
 .hero-v3 {
     position: relative;
     overflow: hidden;
-    padding: 5.5rem 5% 5rem;
+    padding: 5rem 5% 3.5rem;
 }
 
 .hero-stars-canvas {
