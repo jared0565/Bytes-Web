@@ -314,7 +314,7 @@ function renderHome() {
         </div>
       </section>
 
-      <!-- 3. CHATBOT + CRM UNIFIED PLATFORM -->
+      <!-- 3. TWO SUPERPOWERS -->
       <section class="unified-platform section reveal">
         <div class="section-header">
           <div class="section-badge-pill">Why BytesAI</div>
@@ -370,27 +370,7 @@ function renderHome() {
         </div>
       </section>
 
-      <!-- 4. SOCIAL PROOF BAR -->
-      <section class="stats-bar reveal">
-        <div class="stat-item">
-          <span class="stat-value">2,400+</span>
-          <span class="stat-label">Agencies</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">180K+</span>
-          <span class="stat-label">Leads Managed</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">$2.1B+</span>
-          <span class="stat-label">Deals Closed</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">4.9★</span>
-          <span class="stat-label">Avg Rating</span>
-        </div>
-      </section>
-
-      <!-- 5. FEATURE GRID -->
+      <!-- 4. FEATURE GRID -->
       <section id="features" class="section reveal">
         <div class="section-header">
           <h2>Everything your agency needs</h2>
@@ -427,6 +407,26 @@ function renderHome() {
             <h3>Tasks & Calendar</h3>
             <p>Keep your team aligned with shared tasks, follow-up reminders, and deal deadlines.</p>
           </div>
+        </div>
+      </section>
+
+      <!-- 5. SOCIAL PROOF BAR -->
+      <section class="stats-bar reveal">
+        <div class="stat-item">
+          <span class="stat-value">2,400+</span>
+          <span class="stat-label">Agencies</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value">180K+</span>
+          <span class="stat-label">Leads Managed</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value">$2.1B+</span>
+          <span class="stat-label">Deals Closed</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value">4.9★</span>
+          <span class="stat-label">Avg Rating</span>
         </div>
       </section>
 
