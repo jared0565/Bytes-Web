@@ -317,6 +317,27 @@
                             <label style="flex: 1;">Show "Powered by BytesAI"</label>
                             <input type="checkbox" id="config-branding" style="width: 20px; height: 20px;">
                         </div>
+
+                        <!-- White-label section — Business/Enterprise only -->
+                        <div id="white-label-section" style="display:none; margin-top: 1.5rem; padding: 1.25rem; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; background: rgba(255,255,255,0.03);">
+                            <p style="font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-color); margin: 0 0 1rem;">Custom Widget Branding</p>
+                            <div class="form-group">
+                                <label>Bot Display Name</label>
+                                <input type="text" id="config-widget-name" placeholder="e.g. Acme Assistant">
+                            </div>
+                            <div class="form-group">
+                                <label>Accent Color <span style="font-size:0.75rem;color:var(--text-secondary);">(hex, e.g. #6366f1)</span></label>
+                                <div style="display:flex;gap:0.75rem;align-items:center;">
+                                    <input type="color" id="config-widget-color-picker" style="width:48px;height:40px;border-radius:8px;border:1px solid var(--border-color);background:none;cursor:pointer;padding:2px;">
+                                    <input type="text" id="config-widget-color" placeholder="#6366f1" style="flex:1;">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Bot Avatar URL <span style="font-size:0.75rem;color:var(--text-secondary);">(optional, replaces chat icon)</span></label>
+                                <input type="text" id="config-widget-avatar" placeholder="https://your-cdn.com/avatar.png">
+                            </div>
+                        </div>
+
                         <div class="form-group">
                             <label>Affiliate/Referral ID</label>
                             <input type="text" id="config-referral" placeholder="e.g. client_123_ref">

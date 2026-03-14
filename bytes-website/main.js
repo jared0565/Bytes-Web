@@ -451,9 +451,9 @@ function renderHome() {
                 <li class="feat-divider"></li>
                 <li class="feat-row"><span class="feat-label">Priority AI</span><span class="feat-no">—</span></li>
                 <li class="feat-row"><span class="feat-label">Multi-user access</span><span class="feat-no">—</span></li>
-                <li class="feat-row"><span class="feat-label">White-label</span><span class="feat-no">—</span></li>
+                <li class="feat-row"><span class="feat-label">Remove BytesAI badge</span><span class="feat-no">—</span></li>
+                <li class="feat-row"><span class="feat-label">Custom widget branding</span><span class="feat-no">—</span></li>
                 <li class="feat-divider"></li>
-                <li class="feat-row"><span class="feat-label">BytesAI badge</span><span class="feat-muted">Mandatory</span></li>
                 <li class="feat-row"><span class="feat-label">Support</span><span class="feat-val">Community</span></li>
               </ul>
               <a href="/onboarding/" class="btn btn-outline btn-full">Get Started Free</a>
@@ -479,9 +479,9 @@ function renderHome() {
                 <li class="feat-divider"></li>
                 <li class="feat-row"><span class="feat-label">Priority AI</span><span class="feat-no">—</span></li>
                 <li class="feat-row"><span class="feat-label">Multi-user access</span><span class="feat-no">—</span></li>
-                <li class="feat-row"><span class="feat-label">White-label</span><span class="feat-no">—</span></li>
+                <li class="feat-row"><span class="feat-label">Remove BytesAI badge</span><span class="feat-no">—</span></li>
+                <li class="feat-row"><span class="feat-label">Custom widget branding</span><span class="feat-no">—</span></li>
                 <li class="feat-divider"></li>
-                <li class="feat-row"><span class="feat-label">BytesAI badge</span><span class="feat-muted">Mandatory</span></li>
                 <li class="feat-row"><span class="feat-label">Support</span><span class="feat-val">Email</span></li>
               </ul>
               <a href="/onboarding/" class="btn btn-outline btn-full">Start Free Trial</a>
@@ -508,9 +508,9 @@ function renderHome() {
                 <li class="feat-divider"></li>
                 <li class="feat-row"><span class="feat-label">Priority AI</span><span class="feat-no">—</span></li>
                 <li class="feat-row"><span class="feat-label">Multi-user access</span><span class="feat-val">2 users</span></li>
-                <li class="feat-row"><span class="feat-label">White-label</span><span class="feat-no">—</span></li>
+                <li class="feat-row"><span class="feat-label">Remove BytesAI badge</span><span class="feat-yes">✓</span></li>
+                <li class="feat-row"><span class="feat-label">Custom widget branding</span><span class="feat-no">—</span></li>
                 <li class="feat-divider"></li>
-                <li class="feat-row"><span class="feat-label">BytesAI badge</span><span class="feat-val">Removable</span></li>
                 <li class="feat-row"><span class="feat-label">Support</span><span class="feat-val">Email</span></li>
               </ul>
               <a href="/onboarding/" class="btn btn-primary btn-full">Start Free Trial</a>
@@ -536,9 +536,9 @@ function renderHome() {
                 <li class="feat-divider"></li>
                 <li class="feat-row"><span class="feat-label">Priority AI</span><span class="feat-yes">✓</span></li>
                 <li class="feat-row"><span class="feat-label">Multi-user access</span><span class="feat-val">5 users</span></li>
-                <li class="feat-row"><span class="feat-label">White-label</span><span class="feat-yes">✓</span></li>
+                <li class="feat-row"><span class="feat-label">Remove BytesAI badge</span><span class="feat-yes">✓</span></li>
+                <li class="feat-row"><span class="feat-label">Custom widget branding</span><span class="feat-yes">✓</span></li>
                 <li class="feat-divider"></li>
-                <li class="feat-row"><span class="feat-label">BytesAI badge</span><span class="feat-val">Removable</span></li>
                 <li class="feat-row"><span class="feat-label">Support</span><span class="feat-val">Priority</span></li>
               </ul>
               <a href="/onboarding/" class="btn btn-outline btn-full">Start Free Trial</a>

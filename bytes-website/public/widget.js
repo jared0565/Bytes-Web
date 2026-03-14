@@ -319,20 +319,38 @@
             ? baseBadgeUrl + (baseBadgeUrl.includes('?') ? `&ref=${refId}` : `?ref=${refId}`)
             : baseBadgeUrl;
 
+        // White-label customization (business+ only — enforced by backend)
+        const widgetName = config.widgetName || 'BytesAI';
+        const widgetAccentColor = config.widgetAccentColor || '#6366f1';
+        const widgetAvatar = config.widgetAvatar || '';
+
         const container = document.createElement('div');
         container.className = 'chatbot-widget-container';
+
+        // Apply custom accent color via CSS variable override
+        if (config.widgetAccentColor) {
+            const accentHex = config.widgetAccentColor;
+            const customStyle = document.createElement('style');
+            customStyle.textContent = `.chatbot-widget-container { --widget-accent: ${accentHex}; --widget-accent-hover: ${accentHex}; --widget-accent-glow: ${accentHex}40; }`;
+            document.head.appendChild(customStyle);
+        }
+
+        const launcherContent = widgetAvatar
+            ? `<img src="${widgetAvatar}" alt="${widgetName}" style="width:38px;height:38px;border-radius:50%;object-fit:cover;">`
+            : `<svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"></path></svg>`;
+
         container.innerHTML = `
             <div id="chatbot-window" class="chatbot-window hidden">
                 <div class="chatbot-header">
                     <div class="chatbot-title">
                         <div class="status-dot"></div>
-                        BytesAI 
+                        ${widgetName}
                     </div>
                     <button class="btn-close-chat" id="btn-close-chat">&times;</button>
                 </div>
                 <div class="chatbot-messages" id="chatbot-messages">
                     <div class="chat-message bot-message">
-                        Hi there! I'm BytesAI. How can I help you scale today?
+                        Hi there! I'm ${widgetName}. How can I help you scale today?
                     </div>
                 </div>
                 <div class="chatbot-input-area">
@@ -348,7 +366,7 @@
                 </div>
             </div>
             <button class="chatbot-launcher" id="chatbot-launcher">
-                <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"></path></svg>
+                ${launcherContent}
             </button>
         `;
         document.body.appendChild(container);

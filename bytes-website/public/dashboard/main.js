@@ -56,6 +56,19 @@ const configAutoApprove = document.getElementById('config-auto-approve');
 const saveConfigBtn = document.getElementById('save-config-btn');
 const loadConfigBtn = document.getElementById('load-config-btn');
 const configStatus = document.getElementById('config-status');
+const whiteLabelSection = document.getElementById('white-label-section');
+const configWidgetName = document.getElementById('config-widget-name');
+const configWidgetColor = document.getElementById('config-widget-color');
+const configWidgetColorPicker = document.getElementById('config-widget-color-picker');
+const configWidgetAvatar = document.getElementById('config-widget-avatar');
+
+// Keep color text input and color picker in sync
+if (configWidgetColorPicker) {
+    configWidgetColorPicker.addEventListener('input', () => { configWidgetColor.value = configWidgetColorPicker.value; });
+    configWidgetColor.addEventListener('input', () => {
+        if (/^#[0-9a-fA-F]{6}$/.test(configWidgetColor.value)) configWidgetColorPicker.value = configWidgetColor.value;
+    });
+}
 
 // Simulator Elements
 const simClientId = document.getElementById('sim-client-id');
@@ -665,6 +678,20 @@ loadConfigBtn.addEventListener('click', async () => {
             configBranding.checked = data.showBranding !== false;
             configReferral.value = data.referralId || '';
 
+            // White-label section visibility
+            if (whiteLabelSection) {
+                if (data.whiteLabelEnabled) {
+                    whiteLabelSection.style.display = 'block';
+                    configWidgetName.value = data.widgetName || '';
+                    const color = data.widgetAccentColor || '#6366f1';
+                    configWidgetColor.value = color;
+                    configWidgetColorPicker.value = /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#6366f1';
+                    configWidgetAvatar.value = data.widgetAvatar || '';
+                } else {
+                    whiteLabelSection.style.display = 'none';
+                }
+            }
+
             // Badge mandatory on free (lifetime), trial, and starter — removable on pro+
             const brandingLocked = data.brandingMandatory ?? (data.inTrial || data.plan === 'free' || data.plan === 'starter');
             if (brandingLocked) {
@@ -716,22 +743,28 @@ saveConfigBtn.addEventListener('click', async () => {
         return;
     }
 
+    const settings = {
+        systemPrompt: prompt,
+        mode: mode,
+        companyName: configCompanyName.value,
+        showBranding: branding,
+        referralId: referral
+    };
+
+    // Include white-label fields if the section is visible
+    if (whiteLabelSection && whiteLabelSection.style.display !== 'none') {
+        if (configWidgetName.value.trim()) settings.widgetName = configWidgetName.value.trim();
+        if (configWidgetColor.value.trim()) settings.widgetAccentColor = configWidgetColor.value.trim();
+        if (configWidgetAvatar.value.trim()) settings.widgetAvatar = configWidgetAvatar.value.trim();
+    }
+
     configStatus.innerText = "Saving...";
     try {
         const res = await fetch(`${API_BASE}/api/config`, {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                clientId: cid,
-                settings: {
-                    systemPrompt: prompt,
-                    mode: mode,
-                    companyName: configCompanyName.value,
-                    showBranding: branding,
-                    referralId: referral
-                }
-            })
+            body: JSON.stringify({ clientId: cid, settings })
         });
 
         if (res.ok) {

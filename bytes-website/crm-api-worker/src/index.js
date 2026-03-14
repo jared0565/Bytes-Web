@@ -774,7 +774,14 @@ app.get('/api/config', requireAuth, async (c) => {
     } else if (config.showBranding === undefined) {
         config.showBranding = false;
     }
-    return c.json({ ...config, plan: planStatus.plan, inTrial: planStatus.inTrial, brandingMandatory });
+    // Custom widget branding (name, accent color, avatar) — business and enterprise only
+    const whiteLabelEnabled = ['business', 'enterprise'].includes(planStatus.plan) && !planStatus.inTrial;
+    if (!whiteLabelEnabled) {
+        delete config.widgetName;
+        delete config.widgetAccentColor;
+        delete config.widgetAvatar;
+    }
+    return c.json({ ...config, plan: planStatus.plan, inTrial: planStatus.inTrial, brandingMandatory, whiteLabelEnabled });
 });
 
 app.post('/api/config', requireAuth, async (c) => {
@@ -785,6 +792,13 @@ app.post('/api/config', requireAuth, async (c) => {
     const planStatus = await getPlanStatus(c.env, clientId);
     if (planStatus.inTrial || planStatus.plan === 'free' || planStatus.plan === 'starter') {
         settings.showBranding = true;
+    }
+    // Strip white-label fields for plans below business
+    const whiteLabelEnabled = ['business', 'enterprise'].includes(planStatus.plan) && !planStatus.inTrial;
+    if (!whiteLabelEnabled) {
+        delete settings.widgetName;
+        delete settings.widgetAccentColor;
+        delete settings.widgetAvatar;
     }
     await c.env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify(settings));
     return c.json({ success: true });
