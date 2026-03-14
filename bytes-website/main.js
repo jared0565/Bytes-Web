@@ -314,57 +314,7 @@ function renderHome() {
         </div>
       </section>
 
-      <!-- 3. SOCIAL PROOF BAR -->
-      <section class="stats-bar reveal">
-        <div class="stat-item">
-          <span class="stat-value">2,400+</span>
-          <span class="stat-label">Agencies</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">180K+</span>
-          <span class="stat-label">Leads Managed</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">$2.1B+</span>
-          <span class="stat-label">Deals Closed</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-value">4.9★</span>
-          <span class="stat-label">Avg Rating</span>
-        </div>
-      </section>
-
-      <!-- 3. FEATURE GRID -->
-      <section id="features" class="section reveal">
-        <div class="section-header">
-          <h2>Everything your agency needs</h2>
-          <p>A complete suite of tools designed for agencies managing multiple clients and complex sales cycles.</p>
-        </div>
-        <div class="features-grid">
-          <div class="glass-card feature-item">
-            <div class="feature-icon-box">👥</div>
-            <h3>Contact Management</h3>
-            <p>Centralize all client data, communication history, and relationships in one place.</p>
-          </div>
-          <div class="glass-card feature-item">
-            <div class="feature-icon-box">📊</div>
-            <h3>Deal Pipeline</h3>
-            <p>Visualize and manage every deal stage from prospecting to closing.</p>
-          </div>
-          <div class="glass-card feature-item">
-            <div class="feature-icon-box">📈</div>
-            <h3>Reports & Analytics</h3>
-            <p>Real-time dashboards to track revenue, team performance and growth.</p>
-          </div>
-          <div class="glass-card feature-item">
-            <div class="feature-icon-box">🤖</div>
-            <h3>Automation</h3>
-            <p>Automate repetitive tasks, follow-ups, and workflows to save hours daily.</p>
-          </div>
-        </div>
-      </section>
-
-      <!-- 5. CHATBOT + CRM UNIFIED PLATFORM -->
+      <!-- 3. CHATBOT + CRM UNIFIED PLATFORM -->
       <section class="unified-platform section reveal">
         <div class="section-header">
           <div class="section-badge-pill">Why BytesAI</div>
@@ -417,6 +367,66 @@ function renderHome() {
         <div class="platform-footer-bar glass-card">
           <span class="platform-footer-icon">&#128279;</span>
           <span>No manual data entry. No dropped leads. No tab-switching. Your chatbot and CRM <strong>work as one</strong>.</span>
+        </div>
+      </section>
+
+      <!-- 4. SOCIAL PROOF BAR -->
+      <section class="stats-bar reveal">
+        <div class="stat-item">
+          <span class="stat-value">2,400+</span>
+          <span class="stat-label">Agencies</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value">180K+</span>
+          <span class="stat-label">Leads Managed</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value">$2.1B+</span>
+          <span class="stat-label">Deals Closed</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-value">4.9★</span>
+          <span class="stat-label">Avg Rating</span>
+        </div>
+      </section>
+
+      <!-- 5. FEATURE GRID -->
+      <section id="features" class="section reveal">
+        <div class="section-header">
+          <h2>Everything your agency needs</h2>
+          <p>A complete suite of tools designed for agencies managing multiple clients and complex sales cycles.</p>
+        </div>
+        <div class="features-grid">
+          <div class="glass-card feature-item">
+            <div class="feature-icon-box">👥</div>
+            <h3>Contact Management</h3>
+            <p>Centralize all client data, communication history, and relationships in one place.</p>
+          </div>
+          <div class="glass-card feature-item">
+            <div class="feature-icon-box">📊</div>
+            <h3>Deal Pipeline</h3>
+            <p>Visualize and manage every deal stage from prospecting to closing.</p>
+          </div>
+          <div class="glass-card feature-item">
+            <div class="feature-icon-box">📈</div>
+            <h3>Reports & Analytics</h3>
+            <p>Real-time dashboards to track revenue, team performance and growth.</p>
+          </div>
+          <div class="glass-card feature-item">
+            <div class="feature-icon-box">🤖</div>
+            <h3>AI Automation</h3>
+            <p>Automate follow-ups, campaign sequences, and workflows to save hours daily.</p>
+          </div>
+          <div class="glass-card feature-item">
+            <div class="feature-icon-box">✉️</div>
+            <h3>Email Sequences</h3>
+            <p>AI-generated email campaigns tailored to each lead's intent and conversation history.</p>
+          </div>
+          <div class="glass-card feature-item">
+            <div class="feature-icon-box">🗓️</div>
+            <h3>Tasks & Calendar</h3>
+            <p>Keep your team aligned with shared tasks, follow-up reminders, and deal deadlines.</p>
+          </div>
         </div>
       </section>
 
