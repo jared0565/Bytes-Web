@@ -801,6 +801,9 @@ h3 {
     .hero-title { font-size: 3rem; }
     .hero-subtitle { font-size: 1.1rem; }
 
+    /* ── Hero — reduce excessive top padding ── */
+    .hero-v3 { padding: 5rem 1.25rem 3rem; }
+
     /* ── Stats bar ── */
     .stats-bar {
         grid-template-columns: repeat(2, 1fr);
@@ -811,35 +814,23 @@ h3 {
     /* ── Feature grid — single column ── */
     .features-grid { grid-template-columns: 1fr; gap: 1rem; }
 
-    /* ── Pricing: true one-card-per-screen carousel ──
-         Strategy: bleed the wrapper to the viewport edge (negative
-         margin cancels the .section side padding), then let each
-         card be exactly 100% of the now-full-width track.          */
+    /* ── Pricing: vertical stack — one card per scroll stop ── */
     .pricing-track-wrapper {
-        margin: 0 -1.25rem;   /* cancel section side padding → full-bleed */
-        overflow: hidden;     /* clip non-active cards from peeking */
+        overflow: visible;
     }
     .pricing-track {
         display: flex;
-        overflow-x: scroll;
-        scroll-snap-type: x mandatory;
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
-        gap: 0;
+        flex-direction: column;
+        overflow: visible;
+        gap: 1.25rem;
         padding: 0;
     }
-    .pricing-track::-webkit-scrollbar { display: none; }
     .pricing-track .pricing-card {
-        flex: 0 0 100%;       /* exactly one card = full track width */
+        width: 100%;
         min-width: 0;
-        scroll-snap-align: start;
-        border-radius: 0;     /* full-bleed; inner glass-card padding still applies */
+        border-radius: 20px;
     }
-    /* Restore border-radius on first / last card */
-    .pricing-track .pricing-card:first-child { border-radius: 24px 24px 0 0; }
-    .pricing-track .pricing-card:last-child  { border-radius: 0 0 24px 24px; }
-
-    .pricing-scroll-hint { display: flex; }
+    .pricing-scroll-hint { display: none; }
 
     /* ── Enterprise ── */
     .pricing-enterprise .enterprise-inner { grid-template-columns: 1fr; gap: 1.5rem; }
@@ -857,35 +848,21 @@ h3 {
     /* ── Footer ── */
     .site-footer { padding: 3.5rem 1.25rem 2rem; }
 
-    /* ================================================================
-       Chatbot FAB — force position:fixed with high z-index on ALL
-       mobile breakpoints so no stacking-context from animations or
-       transforms can bury it.
-       ================================================================ */
-    .chatbot-launcher {
-        position: fixed !important;
-        bottom: 1.5rem !important;
-        right: 1.5rem !important;
-        z-index: 99999 !important;
-        display: flex !important;
-        pointer-events: auto !important;
-        width: 56px !important;
-        height: 56px !important;
-    }
 }
 
 /* =====================================================
    Mobile — 480px
    ===================================================== */
 @media (max-width: 480px) {
-    .hero-v2 { padding: 6rem 1rem 3rem; }
+    .hero-v3 { padding: 4rem 1rem 2.5rem; }
+    .hero-v2 { padding: 4rem 1rem 2.5rem; }
     .hero-title { font-size: 2.2rem; }
 
     /* Tighter side padding on small phones */
     .section { padding: 3.5rem 1rem; }
 
-    /* Pricing wrapper matches the new 1rem section padding */
-    .pricing-track-wrapper { margin: 0 -1rem; }
+    /* Pricing: tighter gap on small phones */
+    .pricing-track { gap: 1rem; }
 
     .stats-bar { grid-template-columns: 1fr; padding: 1.5rem 1rem; }
     .final-cta h2 { font-size: 2rem; }
@@ -1717,7 +1694,12 @@ h3 {
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    pointer-events: none;
+    pointer-events: auto;
+}
+
+/* Prevent the hidden window from intercepting clicks/taps */
+.chatbot-window.hidden {
+    pointer-events: none !important;
 }
 
 .chatbot-launcher {
@@ -2051,11 +2033,21 @@ h3 {
 }
 
 /* =========================================================================
-   Mobile Chat App Layout (WhatsApp / Telegram style)
+   Mobile Chat App Layout (WhatsApp / Telegram style) — all phones ≤ 768px
    ========================================================================= */
-@media (max-width: 480px) {
+@media (max-width: 768px) {
 
-    /* Chatbot launcher — fixed FAB (z-index bumped to 99999) */
+    /* Chatbot widget container — fixed, always on top */
+    .chatbot-widget {
+        position: fixed !important;
+        bottom: 0 !important;
+        right: 0 !important;
+        width: auto !important;
+        pointer-events: none !important;
+        z-index: 100000 !important;
+    }
+
+    /* Chatbot launcher FAB */
     .chatbot-launcher {
         display: flex !important;
         width: 56px !important;
@@ -2066,14 +2058,15 @@ h3 {
         border-radius: 50%;
         border: none;
         position: fixed !important;
-        bottom: 1.5rem !important;
-        right: 1.5rem !important;
-        z-index: 99999 !important;
+        bottom: 1.25rem !important;
+        right: 1.25rem !important;
+        z-index: 100001 !important;
         align-items: center;
         justify-content: center;
         cursor: pointer;
         transition: transform 0.2s ease, box-shadow 0.2s ease;
         pointer-events: auto !important;
+        touch-action: manipulation !important;
     }
 
     /* Used by JS to hide the launcher when chat is open */

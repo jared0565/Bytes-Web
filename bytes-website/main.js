@@ -974,7 +974,7 @@ function initChatbot() {
     { role: 'model', parts: [{ text: "Hi there! I'm BytesAI. How can I help you scale today?" }] }
   ];
 
-  const isMobile = () => window.innerWidth <= 480;
+  const isMobile = () => window.innerWidth <= 768;
 
   // --- Mobile keyboard handler using visualViewport API ---
   function handleViewportResize() {
