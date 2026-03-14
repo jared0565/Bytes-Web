@@ -2753,7 +2753,7 @@ h3 {
     display: flex;
     gap: 1rem;
     align-items: center;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     margin-bottom: 2.5rem;
 }
 
