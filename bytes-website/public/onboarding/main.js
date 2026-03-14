@@ -248,7 +248,7 @@ next2.addEventListener('click', async () => {
         embedCode.textContent = snippet.trim();
 
         // Populate install limits card (trial = 1 domain / 1 installation)
-        const planLimits = { free: [1,1], trial: [1,1], starter: [3,3], pro: [10,10], business: [50,50], enterprise: ['∞','∞'] };
+        const planLimits = { free: [1,1], trial: [1,1], starter: [3,3], pro: [10,10], business: [25,25], enterprise: ['∞','∞'] };
         const trialDaysLeft = resData.trialDaysLeft || 7;
         const [maxSites, maxDomains] = planLimits.trial;
         const sitesEl = document.getElementById('install-max-sites');

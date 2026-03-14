@@ -286,7 +286,7 @@ const INSTALL_LIMITS = {
     free:       { maxInstalls: 1,  maxDomains: 1  },
     starter:    { maxInstalls: 3,  maxDomains: 3  },
     pro:        { maxInstalls: 10, maxDomains: 10 },
-    business:   { maxInstalls: 50, maxDomains: 50 },
+    business:   { maxInstalls: 25, maxDomains: 25 },
     enterprise: { maxInstalls: -1, maxDomains: -1 }, // -1 = unlimited
 };
 

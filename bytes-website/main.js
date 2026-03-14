@@ -467,7 +467,7 @@ function renderHome() {
                 <p class="pricing-subtitle">For growing solo operators</p>
               </div>
               <ul class="pricing-features">
-                <li class="feat-row"><span class="feat-label">Leads / day</span><span class="feat-val">100</span></li>
+                <li class="feat-row"><span class="feat-label">Leads / day</span><span class="feat-val">50</span></li>
                 <li class="feat-row"><span class="feat-label">Contacts</span><span class="feat-val">500</span></li>
                 <li class="feat-row"><span class="feat-label">Chatbot domains</span><span class="feat-val">3</span></li>
                 <li class="feat-divider"></li>
@@ -496,7 +496,7 @@ function renderHome() {
                 <p class="pricing-subtitle">For agencies scaling fast</p>
               </div>
               <ul class="pricing-features">
-                <li class="feat-row"><span class="feat-label">Leads / day</span><span class="feat-val">Unlimited</span></li>
+                <li class="feat-row"><span class="feat-label">Leads / day</span><span class="feat-val">100</span></li>
                 <li class="feat-row"><span class="feat-label">Contacts</span><span class="feat-val">5,000</span></li>
                 <li class="feat-row"><span class="feat-label">Chatbot domains</span><span class="feat-val">10</span></li>
                 <li class="feat-divider"></li>
@@ -524,9 +524,9 @@ function renderHome() {
                 <p class="pricing-subtitle">For high-volume agencies</p>
               </div>
               <ul class="pricing-features">
-                <li class="feat-row"><span class="feat-label">Leads / day</span><span class="feat-val">Unlimited</span></li>
+                <li class="feat-row"><span class="feat-label">Leads / day</span><span class="feat-val">250</span></li>
                 <li class="feat-row"><span class="feat-label">Contacts</span><span class="feat-val">25,000</span></li>
-                <li class="feat-row"><span class="feat-label">Chatbot domains</span><span class="feat-val">50</span></li>
+                <li class="feat-row"><span class="feat-label">Chatbot domains</span><span class="feat-val">25</span></li>
                 <li class="feat-divider"></li>
                 <li class="feat-row"><span class="feat-label">AI campaigns</span><span class="feat-yes">✓</span></li>
                 <li class="feat-row"><span class="feat-label">Email sequences</span><span class="feat-yes">✓</span></li>
