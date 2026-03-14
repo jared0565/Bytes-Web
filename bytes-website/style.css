@@ -788,83 +788,111 @@ h3 {
    ===================================================== */
 
 /* =====================================================
-   Mobile Adjustments
+   Mobile — 768px
    ===================================================== */
 @media (max-width: 768px) {
-    .navbar {
-        padding: 0 1.5rem;
-    }
+    .navbar { padding: 0 1.25rem; }
 
-    .hero-title {
-        font-size: 3rem;
-    }
+    /* ── Section rhythm ── */
+    .section { padding: 4rem 1.25rem; }
+    .section-header { margin-bottom: 2rem; }
+    .section-header h2 { font-size: 2rem; }
+    .section-header p { font-size: 1rem; }
+    .hero-title { font-size: 3rem; }
+    .hero-subtitle { font-size: 1.1rem; }
 
-    .hero-subtitle {
-        font-size: 1.1rem;
-    }
-
+    /* ── Stats bar ── */
     .stats-bar {
         grid-template-columns: repeat(2, 1fr);
         gap: 1.5rem;
-        padding: 2rem;
+        padding: 2rem 1.25rem;
     }
 
-    .section-header h2 {
-        font-size: 2.2rem;
-    }
+    /* ── Feature grid — single column ── */
+    .features-grid { grid-template-columns: 1fr; gap: 1rem; }
 
+    /* ── Pricing: true one-card-per-screen carousel ──
+         Strategy: bleed the wrapper to the viewport edge (negative
+         margin cancels the .section side padding), then let each
+         card be exactly 100% of the now-full-width track.          */
     .pricing-track-wrapper {
-        overflow: hidden;
+        margin: 0 -1.25rem;   /* cancel section side padding → full-bleed */
+        overflow: hidden;     /* clip non-active cards from peeking */
     }
     .pricing-track {
         display: flex;
-        overflow-x: auto;
+        overflow-x: scroll;
         scroll-snap-type: x mandatory;
         -webkit-overflow-scrolling: touch;
-        gap: 1rem;
-        padding: 0.5rem 1.25rem 1rem;
-        scroll-padding-left: 1.25rem;
         scrollbar-width: none;
+        gap: 0;
+        padding: 0;
     }
     .pricing-track::-webkit-scrollbar { display: none; }
     .pricing-track .pricing-card {
-        flex: 0 0 calc(100vw - 2.5rem);
-        max-width: none;
+        flex: 0 0 100%;       /* exactly one card = full track width */
+        min-width: 0;
         scroll-snap-align: start;
+        border-radius: 0;     /* full-bleed; inner glass-card padding still applies */
     }
+    /* Restore border-radius on first / last card */
+    .pricing-track .pricing-card:first-child { border-radius: 24px 24px 0 0; }
+    .pricing-track .pricing-card:last-child  { border-radius: 0 0 24px 24px; }
+
     .pricing-scroll-hint { display: flex; }
-    .pricing-enterprise .enterprise-inner {
-        grid-template-columns: 1fr;
-    }
-    .enterprise-features {
-        grid-template-columns: 1fr 1fr;
+
+    /* ── Enterprise ── */
+    .pricing-enterprise .enterprise-inner { grid-template-columns: 1fr; gap: 1.5rem; }
+    .enterprise-features { grid-template-columns: 1fr 1fr; }
+
+    /* ── Testimonials & reviews — single column ── */
+    .testimonials-grid { grid-template-columns: 1fr; }
+    .masonry-grid { grid-template-columns: 1fr; }
+    .reviews-section { padding: 4rem 1.25rem 3rem; }
+
+    /* ── Final CTA ── */
+    .final-cta { padding: 4rem 1.25rem; }
+    .final-cta h2 { font-size: 2.2rem; }
+
+    /* ── Footer ── */
+    .site-footer { padding: 3.5rem 1.25rem 2rem; }
+
+    /* ================================================================
+       Chatbot FAB — force position:fixed with high z-index on ALL
+       mobile breakpoints so no stacking-context from animations or
+       transforms can bury it.
+       ================================================================ */
+    .chatbot-launcher {
+        position: fixed !important;
+        bottom: 1.5rem !important;
+        right: 1.5rem !important;
+        z-index: 99999 !important;
+        display: flex !important;
+        pointer-events: auto !important;
+        width: 56px !important;
+        height: 56px !important;
     }
 }
 
+/* =====================================================
+   Mobile — 480px
+   ===================================================== */
 @media (max-width: 480px) {
-    .hero-v2 {
-        padding: 6rem 1rem 3rem;
-    }
+    .hero-v2 { padding: 6rem 1rem 3rem; }
+    .hero-title { font-size: 2.2rem; }
 
-    .hero-title {
-        font-size: 2.2rem;
-    }
+    /* Tighter side padding on small phones */
+    .section { padding: 3.5rem 1rem; }
 
-    .stats-bar {
-        grid-template-columns: 1fr;
-    }
+    /* Pricing wrapper matches the new 1rem section padding */
+    .pricing-track-wrapper { margin: 0 -1rem; }
 
-    .final-cta h2 {
-        font-size: 2rem;
-    }
-
-    .glass-panel {
-        padding: 1.5rem;
-    }
-
-    .bento-card {
-        padding: 1.5rem;
-    }
+    .stats-bar { grid-template-columns: 1fr; padding: 1.5rem 1rem; }
+    .final-cta h2 { font-size: 2rem; }
+    .glass-panel { padding: 1.5rem; }
+    .bento-card { padding: 1.5rem; }
+    .reviews-section { padding: 3.5rem 1rem 2.5rem; }
+    .site-footer { padding: 3rem 1rem 1.5rem; }
 }
 
 /* ------------------------------------- */
@@ -2027,25 +2055,25 @@ h3 {
    ========================================================================= */
 @media (max-width: 480px) {
 
-    /* Show the launcher again — styled as a premium FAB */
+    /* Chatbot launcher — fixed FAB (z-index bumped to 99999) */
     .chatbot-launcher {
-        display: flex;
-        width: 56px;
-        height: 56px;
+        display: flex !important;
+        width: 56px !important;
+        height: 56px !important;
         background: linear-gradient(135deg, var(--accent-hover) 0%, var(--accent-color) 100%);
         box-shadow: 0 6px 24px var(--accent-glow);
         color: #fff;
         border-radius: 50%;
         border: none;
-        position: fixed;
-        bottom: 1.5rem;
-        right: 1.5rem;
-        z-index: 10001;
+        position: fixed !important;
+        bottom: 1.5rem !important;
+        right: 1.5rem !important;
+        z-index: 99999 !important;
         align-items: center;
         justify-content: center;
         cursor: pointer;
         transition: transform 0.2s ease, box-shadow 0.2s ease;
-        pointer-events: auto;
+        pointer-events: auto !important;
     }
 
     /* Used by JS to hide the launcher when chat is open */
