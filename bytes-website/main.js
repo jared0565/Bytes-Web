@@ -207,8 +207,8 @@ function renderHome() {
             <h1 class="hero-title-v3">Capture every lead.<br><span class="text-gradient">Close more deals.</span></h1>
             <p class="hero-sub-v3">BytesAI captures leads with a smart AI chatbot, qualifies them automatically, and manages the full sales cycle — all in one place. No juggling tools, no dropped leads.</p>
             <div class="hero-cta-group-v3">
-              <a href="/onboarding/" class="btn btn-primary btn-large hero-cta-primary">Start Free &rarr;</a>
               <a href="#features" class="btn btn-outline btn-large">See How It Works</a>
+              <a href="/onboarding/" class="btn btn-primary btn-large hero-cta-primary">Start Free &rarr;</a>
             </div>
             <div class="hero-proof-row">
               <div class="proof-avatars">
