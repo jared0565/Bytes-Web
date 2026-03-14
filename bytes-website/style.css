@@ -2457,20 +2457,55 @@ h3 {
     flex-grow: 1;
 }
 
-.pricing-features li {
-    margin-bottom: 0.75rem;
-    padding-left: 1.6rem;
-    position: relative;
+/* Comparison row layout */
+.feat-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    font-size: 0.83rem;
+}
+.feat-row:last-child { border-bottom: none; }
+
+.feat-label {
     color: var(--text-secondary);
-    font-size: 0.88rem;
+    flex: 1;
+    min-width: 0;
 }
 
-.pricing-features li::before {
-    content: "✓";
-    position: absolute;
-    left: 0;
-    color: var(--accent-color);
-    font-weight: 900;
+.feat-val {
+    color: var(--text-primary);
+    font-weight: 600;
+    font-size: 0.82rem;
+    white-space: nowrap;
+}
+
+.feat-yes {
+    color: #34d399;
+    font-weight: 700;
+    font-size: 0.9rem;
+}
+
+.feat-no {
+    color: rgba(255,255,255,0.2);
+    font-weight: 500;
+}
+
+.feat-muted {
+    color: rgba(255,255,255,0.35);
+    font-size: 0.8rem;
+    font-style: italic;
+}
+
+.feat-divider {
+    display: block;
+    height: 1px;
+    background: rgba(255,255,255,0.08);
+    margin: 0.4rem 0;
+    padding: 0 !important;
+    border: none !important;
 }
 
 .btn-full {

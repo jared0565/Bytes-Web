@@ -439,11 +439,22 @@ function renderHome() {
                 <p class="pricing-subtitle">Forever free, no card needed</p>
               </div>
               <ul class="pricing-features">
-                <li>10 leads / day</li>
-                <li>50 contacts total</li>
-                <li>1 chatbot domain</li>
-                <li>Manual campaigns only</li>
-                <li>"Powered by BytesAI" badge</li>
+                <li class="feat-row"><span class="feat-label">Leads / day</span><span class="feat-val">10</span></li>
+                <li class="feat-row"><span class="feat-label">Contacts</span><span class="feat-val">50</span></li>
+                <li class="feat-row"><span class="feat-label">Chatbot domains</span><span class="feat-val">1</span></li>
+                <li class="feat-divider"></li>
+                <li class="feat-row"><span class="feat-label">AI campaigns</span><span class="feat-no">—</span></li>
+                <li class="feat-row"><span class="feat-label">Email sequences</span><span class="feat-no">—</span></li>
+                <li class="feat-row"><span class="feat-label">Analytics</span><span class="feat-no">—</span></li>
+                <li class="feat-row"><span class="feat-label">Task &amp; calendar</span><span class="feat-no">—</span></li>
+                <li class="feat-row"><span class="feat-label">Automation</span><span class="feat-no">—</span></li>
+                <li class="feat-divider"></li>
+                <li class="feat-row"><span class="feat-label">Priority AI</span><span class="feat-no">—</span></li>
+                <li class="feat-row"><span class="feat-label">Multi-user access</span><span class="feat-no">—</span></li>
+                <li class="feat-row"><span class="feat-label">White-label</span><span class="feat-no">—</span></li>
+                <li class="feat-divider"></li>
+                <li class="feat-row"><span class="feat-label">BytesAI badge</span><span class="feat-muted">Mandatory</span></li>
+                <li class="feat-row"><span class="feat-label">Support</span><span class="feat-val">Community</span></li>
               </ul>
               <a href="/onboarding/" class="btn btn-outline btn-full">Get Started Free</a>
             </div>
@@ -456,12 +467,22 @@ function renderHome() {
                 <p class="pricing-subtitle">For growing solo operators</p>
               </div>
               <ul class="pricing-features">
-                <li>Up to 500 contacts</li>
-                <li>AI campaign generation</li>
-                <li>3 chatbot domains</li>
-                <li>Email sequences + drip</li>
-                <li>Standard analytics</li>
-                <li>"Powered by BytesAI" badge</li>
+                <li class="feat-row"><span class="feat-label">Leads / day</span><span class="feat-val">100</span></li>
+                <li class="feat-row"><span class="feat-label">Contacts</span><span class="feat-val">500</span></li>
+                <li class="feat-row"><span class="feat-label">Chatbot domains</span><span class="feat-val">3</span></li>
+                <li class="feat-divider"></li>
+                <li class="feat-row"><span class="feat-label">AI campaigns</span><span class="feat-yes">✓</span></li>
+                <li class="feat-row"><span class="feat-label">Email sequences</span><span class="feat-yes">✓</span></li>
+                <li class="feat-row"><span class="feat-label">Analytics</span><span class="feat-val">Standard</span></li>
+                <li class="feat-row"><span class="feat-label">Task &amp; calendar</span><span class="feat-no">—</span></li>
+                <li class="feat-row"><span class="feat-label">Automation</span><span class="feat-no">—</span></li>
+                <li class="feat-divider"></li>
+                <li class="feat-row"><span class="feat-label">Priority AI</span><span class="feat-no">—</span></li>
+                <li class="feat-row"><span class="feat-label">Multi-user access</span><span class="feat-no">—</span></li>
+                <li class="feat-row"><span class="feat-label">White-label</span><span class="feat-no">—</span></li>
+                <li class="feat-divider"></li>
+                <li class="feat-row"><span class="feat-label">BytesAI badge</span><span class="feat-muted">Mandatory</span></li>
+                <li class="feat-row"><span class="feat-label">Support</span><span class="feat-val">Email</span></li>
               </ul>
               <a href="/onboarding/" class="btn btn-outline btn-full">Start Free Trial</a>
             </div>
@@ -475,13 +496,22 @@ function renderHome() {
                 <p class="pricing-subtitle">For agencies scaling fast</p>
               </div>
               <ul class="pricing-features">
-                <li>Up to 5,000 contacts</li>
-                <li>Advanced AI pipeline</li>
-                <li>10 chatbot domains</li>
-                <li>Remove BytesAI badge</li>
-                <li>Full task &amp; calendar</li>
-                <li>Advanced analytics</li>
-                <li>Automation workflows</li>
+                <li class="feat-row"><span class="feat-label">Leads / day</span><span class="feat-val">Unlimited</span></li>
+                <li class="feat-row"><span class="feat-label">Contacts</span><span class="feat-val">5,000</span></li>
+                <li class="feat-row"><span class="feat-label">Chatbot domains</span><span class="feat-val">10</span></li>
+                <li class="feat-divider"></li>
+                <li class="feat-row"><span class="feat-label">AI campaigns</span><span class="feat-yes">✓</span></li>
+                <li class="feat-row"><span class="feat-label">Email sequences</span><span class="feat-yes">✓</span></li>
+                <li class="feat-row"><span class="feat-label">Analytics</span><span class="feat-val">Advanced</span></li>
+                <li class="feat-row"><span class="feat-label">Task &amp; calendar</span><span class="feat-yes">✓</span></li>
+                <li class="feat-row"><span class="feat-label">Automation</span><span class="feat-yes">✓</span></li>
+                <li class="feat-divider"></li>
+                <li class="feat-row"><span class="feat-label">Priority AI</span><span class="feat-no">—</span></li>
+                <li class="feat-row"><span class="feat-label">Multi-user access</span><span class="feat-no">—</span></li>
+                <li class="feat-row"><span class="feat-label">White-label</span><span class="feat-no">—</span></li>
+                <li class="feat-divider"></li>
+                <li class="feat-row"><span class="feat-label">BytesAI badge</span><span class="feat-val">Removable</span></li>
+                <li class="feat-row"><span class="feat-label">Support</span><span class="feat-val">Email</span></li>
               </ul>
               <a href="/onboarding/" class="btn btn-primary btn-full">Start Free Trial</a>
             </div>
@@ -494,13 +524,22 @@ function renderHome() {
                 <p class="pricing-subtitle">For high-volume agencies</p>
               </div>
               <ul class="pricing-features">
-                <li>Up to 25,000 contacts</li>
-                <li>50 chatbot domains</li>
-                <li>Remove BytesAI badge</li>
-                <li>Priority AI processing</li>
-                <li>Multi-user access</li>
-                <li>White-label reports</li>
-                <li>Priority support</li>
+                <li class="feat-row"><span class="feat-label">Leads / day</span><span class="feat-val">Unlimited</span></li>
+                <li class="feat-row"><span class="feat-label">Contacts</span><span class="feat-val">25,000</span></li>
+                <li class="feat-row"><span class="feat-label">Chatbot domains</span><span class="feat-val">50</span></li>
+                <li class="feat-divider"></li>
+                <li class="feat-row"><span class="feat-label">AI campaigns</span><span class="feat-yes">✓</span></li>
+                <li class="feat-row"><span class="feat-label">Email sequences</span><span class="feat-yes">✓</span></li>
+                <li class="feat-row"><span class="feat-label">Analytics</span><span class="feat-val">Advanced</span></li>
+                <li class="feat-row"><span class="feat-label">Task &amp; calendar</span><span class="feat-yes">✓</span></li>
+                <li class="feat-row"><span class="feat-label">Automation</span><span class="feat-yes">✓</span></li>
+                <li class="feat-divider"></li>
+                <li class="feat-row"><span class="feat-label">Priority AI</span><span class="feat-yes">✓</span></li>
+                <li class="feat-row"><span class="feat-label">Multi-user access</span><span class="feat-yes">✓</span></li>
+                <li class="feat-row"><span class="feat-label">White-label</span><span class="feat-yes">✓</span></li>
+                <li class="feat-divider"></li>
+                <li class="feat-row"><span class="feat-label">BytesAI badge</span><span class="feat-val">Removable</span></li>
+                <li class="feat-row"><span class="feat-label">Support</span><span class="feat-val">Priority</span></li>
               </ul>
               <a href="/onboarding/" class="btn btn-outline btn-full">Start Free Trial</a>
             </div>
