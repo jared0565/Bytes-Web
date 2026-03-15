@@ -62,24 +62,24 @@ async function signHmac(message, secret) {
     return [...new Uint8Array(sig)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function generateOAuthState(secret, dest = 'onboarding') {
+async function generateOAuthState(secret, dest = 'onboarding', bypass = '') {
     const ts  = Date.now().toString();
-    const msg = `${ts}|${dest}`;
+    const msg = bypass ? `${ts}|${dest}|${bypass}` : `${ts}|${dest}`;
     const sig = await signHmac(msg, secret);
     return `${msg}.${sig}`;
 }
 
-// Returns { valid: boolean, dest: 'onboarding'|'dashboard' }
+// Returns { valid: boolean, dest: 'onboarding'|'dashboard', bypass: string }
 async function validateOAuthState(state, secret) {
-    if (!state || typeof state !== 'string') return { valid: false, dest: 'onboarding' };
+    if (!state || typeof state !== 'string') return { valid: false, dest: 'onboarding', bypass: '' };
     const dot = state.lastIndexOf('.');
-    if (dot === -1) return { valid: false, dest: 'onboarding' };
+    if (dot === -1) return { valid: false, dest: 'onboarding', bypass: '' };
     const msg = state.slice(0, dot);
     const sig = state.slice(dot + 1);
-    const [ts, dest = 'onboarding'] = msg.split('|');
+    const [ts, dest = 'onboarding', bypass = ''] = msg.split('|');
     const expected = await signHmac(msg, secret);
     const age = Date.now() - parseInt(ts, 10);
-    return { valid: sig === expected && age > 0 && age < 10 * 60 * 1000, dest };
+    return { valid: sig === expected && age > 0 && age < 10 * 60 * 1000, dest, bypass };
 }
 
 // ─── TOTP (RFC 6238) — native HMAC-SHA1, no external library ────────────────
@@ -478,14 +478,27 @@ app.get('/api/auth/exchange', async (c) => {
     return c.json({ name: data.name, email: data.email, provider: data.provider });
 });
 
+// Pre-OAuth device trust check — called via fetch before the OAuth redirect.
+// Reads device_token cookie, issues a short-lived single-use bypass token if trusted.
+app.get('/api/auth/device-bypass', async (c) => {
+    const deviceToken = getCookie(c, 'device_token');
+    if (!deviceToken) return c.json({ token: null });
+    const userId = await c.env.OAUTH_TOKENS.get(`device:${deviceToken}`);
+    if (!userId) return c.json({ token: null });
+    const bypassToken = crypto.randomUUID();
+    await c.env.OAUTH_TOKENS.put(`device_bypass:${bypassToken}`, userId, { expirationTtl: 600 });
+    return c.json({ token: bypassToken });
+});
+
 // OAuth — redirect to provider  (?redirect=dashboard for dashboard login)
 app.get('/api/auth/:provider', async (c) => {
     const provider = c.req.param('provider');
     const redirectUri = c.env.AUTH_REDIRECT_URL
         ? c.env.AUTH_REDIRECT_URL.replace('{{provider}}', provider)
         : `${new URL(c.req.url).origin}/api/auth/${provider}/callback`;
-    const dest  = c.req.query('redirect') === 'dashboard' ? 'dashboard' : 'onboarding';
-    const state = await generateOAuthState(c.env.OAUTH_STATE_SECRET, dest);
+    const dest   = c.req.query('redirect') === 'dashboard' ? 'dashboard' : 'onboarding';
+    const bypass = c.req.query('bypass') || '';
+    const state  = await generateOAuthState(c.env.OAUTH_STATE_SECRET, dest, bypass);
 
     let authUrl = '';
     if (provider === 'google') {
@@ -514,7 +527,7 @@ app.get('/api/auth/:provider/callback', async (c) => {
 
     if (!code) return c.redirect(`${onboardUrl}?social_error=no_code`);
 
-    const { valid, dest } = await validateOAuthState(state, c.env.OAUTH_STATE_SECRET);
+    const { valid, dest, bypass } = await validateOAuthState(state, c.env.OAUTH_STATE_SECRET);
     if (!valid) {
         console.warn(`[OAuth] Invalid state for provider: ${provider}`);
         const errTarget = dest === 'dashboard' ? dashUrl : onboardUrl;
@@ -540,9 +553,22 @@ app.get('/api/auth/:provider/callback', async (c) => {
         if (dest === 'dashboard') {
             const userId = userRecord.id;
 
-            // Device trust check — skip 2FA on remembered machines
+            // Device trust check — skip 2FA on remembered machines.
+            // Prefer bypass token (carried through state, not subject to cookie partitioning).
+            // Fallback to direct cookie check in case bypass fetch wasn't used.
             const hasTotp = await c.env.OAUTH_TOKENS.get(`totp:secret:${userId}`);
-            if (hasTotp && await checkDeviceToken(c, userId)) {
+            let trusted = false;
+            if (hasTotp && bypass) {
+                const bypassUserId = await c.env.OAUTH_TOKENS.get(`device_bypass:${bypass}`);
+                if (bypassUserId === String(userId)) {
+                    trusted = true;
+                    await c.env.OAUTH_TOKENS.delete(`device_bypass:${bypass}`);
+                }
+            }
+            if (hasTotp && !trusted) {
+                trusted = await checkDeviceToken(c, userId);
+            }
+            if (hasTotp && trusted) {
                 const thirtyDays = 30 * 24 * 3600;
                 await issueSession(c, { role: 'admin', clientId: 'agency_demo', provider, userId }, thirtyDays);
                 return c.redirect(dashUrl);

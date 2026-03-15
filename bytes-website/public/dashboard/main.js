@@ -258,12 +258,22 @@ document.getElementById('totp-input').addEventListener('keydown', (e) => { if (e
 
 // Social login buttons — redirect to OAuth with redirect=dashboard
 document.querySelectorAll('.btn-social').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
         const provider = btn.getAttribute('data-provider');
         // Preserve ?view= param across the OAuth round-trip
         const view = new URLSearchParams(window.location.search).get('view');
         if (view) sessionStorage.setItem('pendingView', view);
-        window.location.href = `${API_BASE}/api/auth/${provider}?redirect=dashboard`;
+        // Pre-fetch device bypass token via fetch (reliable cross-origin cookie read,
+        // avoids browser cookie partitioning that blocks the cookie in OAuth callback navigations)
+        let bypassParam = '';
+        try {
+            const res = await fetch(`${API_BASE}/api/auth/device-bypass`, { credentials: 'include' });
+            if (res.ok) {
+                const { token } = await res.json();
+                if (token) bypassParam = `&bypass=${encodeURIComponent(token)}`;
+            }
+        } catch (_) {}
+        window.location.href = `${API_BASE}/api/auth/${provider}?redirect=dashboard${bypassParam}`;
     });
 });
 
