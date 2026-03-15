@@ -417,7 +417,7 @@ document.getElementById('dd-upgrade').addEventListener('click', () => {
     document.getElementById('user-dropdown-menu').classList.remove('open');
 });
 document.getElementById('dd-profile-settings').addEventListener('click', () => {
-    switchView('clients');
+    switchView('chatbot');
     document.getElementById('user-dropdown-menu').classList.remove('open');
 });
 document.getElementById('dd-dark-mode').addEventListener('click', () => {
@@ -426,8 +426,8 @@ document.getElementById('dd-dark-mode').addEventListener('click', () => {
     localStorage.setItem('dashboard_light_mode', isLight ? '1' : '0');
 });
 
-// Settings cog → settings view
-document.getElementById('settings-cog-btn').addEventListener('click', () => switchView('clients'));
+// Settings cog → chatbot/settings view
+document.getElementById('settings-cog-btn').addEventListener('click', () => switchView('chatbot'));
 
 // --- Navigation ---
 navItems.forEach(item => {
