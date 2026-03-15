@@ -21,6 +21,13 @@
     box-sizing: border-box;
 }
 
+/* Prevent horizontal scroll without breaking position:fixed on iOS Safari.
+   Setting overflow-x on html (not just body) keeps the viewport as the
+   scroll container, which is required for position:fixed to work correctly. */
+html {
+    overflow-x: hidden;
+}
+
 body {
     font-family: 'Inter', 'Outfit', sans-serif;
     background: var(--bg-primary);
@@ -804,15 +811,8 @@ h3 {
     /* ── Hero — reduce excessive top padding ── */
     .hero-v3 { padding: 5rem 1.25rem 3rem; }
 
-    /* ── Stats bar ── */
-    .stats-bar {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 1.5rem;
-        padding: 2rem 1.25rem;
-    }
-
-    /* ── Feature grid — single column ── */
-    .features-grid { grid-template-columns: 1fr; gap: 1rem; }
+    /* ── Stats bar — 2 columns on tablet/phone ── */
+    /* NOTE: override declared again after base rule below to win the cascade */
 
     /* ── Pricing: vertical stack — one card per scroll stop ── */
     .pricing-track-wrapper {
@@ -864,7 +864,7 @@ h3 {
     /* Pricing: tighter gap on small phones */
     .pricing-track { gap: 1rem; }
 
-    .stats-bar { grid-template-columns: 1fr; padding: 1.5rem 1rem; }
+    /* stats-bar 1-column override declared after base rule below */
     .final-cta h2 { font-size: 2rem; }
     .glass-panel { padding: 1.5rem; }
     .bento-card { padding: 1.5rem; }
@@ -1717,6 +1717,10 @@ h3 {
     transition: transform 0.3s ease, box-shadow 0.3s ease;
     pointer-events: auto;
     position: relative;
+    /* Force GPU compositing layer — ensures position:fixed works on iOS Safari */
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    will-change: transform;
     /* Gentle attention bounce every 4s */
     animation: fab-bounce 4s ease-in-out 3s infinite;
 }
@@ -2067,6 +2071,10 @@ h3 {
         transition: transform 0.2s ease, box-shadow 0.2s ease;
         pointer-events: auto !important;
         touch-action: manipulation !important;
+        /* Promote to own compositing layer so iOS Safari respects position:fixed */
+        -webkit-transform: translateZ(0) !important;
+        transform: translateZ(0) !important;
+        will-change: transform;
     }
 
     /* Used by JS to hide the launcher when chat is open */
@@ -2344,6 +2352,23 @@ h3 {
     margin: 2rem 0;
 }
 
+/* Stats bar responsive — declared AFTER base to win the cascade */
+@media (max-width: 768px) {
+    .stats-bar {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.5rem;
+        padding: 2rem 1.25rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .stats-bar {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+        padding: 1.5rem 1rem;
+    }
+}
+
 .stat-item {
     text-align: center;
 }
@@ -2393,6 +2418,10 @@ h3 {
 
 @media (max-width: 900px) {
     .features-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 768px) {
+    .features-grid { grid-template-columns: 1fr; gap: 1rem; }
 }
 
 .glass-card {
