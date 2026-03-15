@@ -111,6 +111,22 @@ h3 {
     color: var(--text-primary);
 }
 
+/* Login link — subtle ghost button style so it sits between plain nav links and the primary CTA */
+.nav-login {
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    color: var(--text-primary) !important;
+    padding: 0.45rem 1rem;
+    font-size: 0.9rem;
+    transition: border-color 0.25s ease, background 0.25s ease, color 0.25s ease;
+}
+
+.nav-login:hover {
+    border-color: rgba(139, 92, 246, 0.5);
+    background: rgba(139, 92, 246, 0.08);
+    color: var(--text-primary) !important;
+}
+
 /* Dropdown specific */
 .dropdown {
     position: relative;
