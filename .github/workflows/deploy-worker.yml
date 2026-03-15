@@ -11,6 +11,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      - name: Deploy CRM API Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: 'bytes-website/crm-api-worker'
+
       - name: Deploy Worker (API)
         uses: cloudflare/wrangler-action@v3
         with:

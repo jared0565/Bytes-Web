@@ -481,7 +481,9 @@ app.get('/api/auth/exchange', async (c) => {
 // OAuth — redirect to provider  (?redirect=dashboard for dashboard login)
 app.get('/api/auth/:provider', async (c) => {
     const provider = c.req.param('provider');
-    const redirectUri = (c.env.AUTH_REDIRECT_URL || '').replace('{{provider}}', provider);
+    const redirectUri = c.env.AUTH_REDIRECT_URL
+        ? c.env.AUTH_REDIRECT_URL.replace('{{provider}}', provider)
+        : `${new URL(c.req.url).origin}/api/auth/${provider}/callback`;
     const dest  = c.req.query('redirect') === 'dashboard' ? 'dashboard' : 'onboarding';
     const state = await generateOAuthState(c.env.OAUTH_STATE_SECRET, dest);
 
@@ -504,7 +506,9 @@ app.get('/api/auth/:provider/callback', async (c) => {
     const provider    = c.req.param('provider');
     const code        = c.req.query('code');
     const state       = c.req.query('state');
-    const redirectUri = (c.env.AUTH_REDIRECT_URL || '').replace('{{provider}}', provider);
+    const redirectUri = c.env.AUTH_REDIRECT_URL
+        ? c.env.AUTH_REDIRECT_URL.replace('{{provider}}', provider)
+        : `${new URL(c.req.url).origin}/api/auth/${provider}/callback`;
     const onboardUrl  = c.env.FRONTEND_ONBOARDING_URL || '/onboarding/';
     const dashUrl     = c.env.FRONTEND_DASHBOARD_URL  || '/dashboard/';
 
