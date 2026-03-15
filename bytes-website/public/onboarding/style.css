@@ -1,5 +1,5 @@
 :root {
-    --bg-primary: #020617;
+    --bg-primary: #030712;
     --bg-secondary: #0f172a;
     --accent-color: #8b5cf6;
     --accent-glow: rgba(139, 92, 246, 0.4);
@@ -32,77 +32,23 @@ body {
     padding: 2rem 0;
 }
 
-/* --- Animated Mesh Background --- */
-.bg-glow {
+/* --- Starfield Canvas Background --- */
+#onboarding-stars-canvas {
     position: fixed;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+}
+
+body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
     background:
-        radial-gradient(circle at 75% 25%, rgba(139, 92, 246, 0.15) 0%, transparent 40%),
-        radial-gradient(circle at 25% 75%, rgba(217, 70, 239, 0.1) 0%, transparent 40%),
-        radial-gradient(circle at 50% 50%, rgba(99, 102, 241, 0.05) 0%, transparent 60%);
-    filter: blur(80px);
-    z-index: -2;
-    animation: mesh-rotate 20s linear infinite;
-}
-
-@keyframes mesh-rotate {
-    0% {
-        transform: rotate(0deg);
-    }
-
-    100% {
-        transform: rotate(360deg);
-    }
-}
-
-.bg-blobs {
-    position: fixed;
-    width: 100vw;
-    height: 100vh;
-    top: 0;
-    left: 0;
-    z-index: -1;
-    overflow: hidden;
-}
-
-.blob {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(100px);
-    opacity: 0.4;
-    animation: blob-float 15s infinite ease-in-out;
-}
-
-.blob-1 {
-    width: 500px;
-    height: 500px;
-    background: rgba(139, 92, 246, 0.2);
-    top: -100px;
-    right: -100px;
-}
-
-.blob-2 {
-    width: 400px;
-    height: 400px;
-    background: rgba(217, 70, 239, 0.15);
-    bottom: -100px;
-    left: -100px;
-    animation-delay: -5s;
-}
-
-@keyframes blob-float {
-
-    0%,
-    100% {
-        transform: translate(0, 0) scale(1);
-    }
-
-    50% {
-        transform: translate(50px, -30px) scale(1.1);
-    }
+        radial-gradient(ellipse at 15% 15%, rgba(139, 92, 246, 0.18) 0%, transparent 45%),
+        radial-gradient(ellipse at 85% 80%, rgba(217, 70, 239, 0.12) 0%, transparent 45%);
+    pointer-events: none;
 }
 
 /* --- Content Layout --- */
@@ -111,6 +57,7 @@ body {
     max-width: 850px;
     padding: 2.5rem;
     z-index: 10;
+    position: relative;
     animation: container-reveal 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
@@ -137,9 +84,14 @@ header {
     font-weight: 800;
     margin-bottom: 3rem;
     letter-spacing: -2px;
+    color: white;
 }
 
-.logo span {
+.logo-white {
+    color: white;
+}
+
+.logo-gradient {
     background: linear-gradient(135deg, #8b5cf6, #d946ef);
     -webkit-background-clip: text;
     background-clip: text;
@@ -179,15 +131,24 @@ header {
 }
 
 .step-circle.completed {
-    background: var(--success-color);
-    color: white;
+    background: linear-gradient(135deg, #059669, #34d399);
+    color: transparent;
     border-color: #34d399;
+    box-shadow: 0 0 18px rgba(52, 211, 153, 0.4);
+    font-size: 0;
+}
+
+.step-circle.completed::after {
+    content: '✓';
+    font-size: 1rem;
+    font-weight: 900;
+    color: white;
 }
 
 .step-line {
     width: 50px;
     height: 1px;
-    background: linear-gradient(90deg, var(--border-color) 0%, rgba(255, 255, 255, 0.02) 100%);
+    background: linear-gradient(90deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.04) 100%);
 }
 
 .slide {
@@ -244,8 +205,19 @@ h1 {
 .glass::before {
     content: '';
     position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.7), rgba(217, 70, 239, 0.7), transparent);
+    border-radius: 32px 32px 0 0;
+    pointer-events: none;
+}
+
+.glass::after {
+    content: '';
+    position: absolute;
     inset: 0;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, transparent 100%);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, transparent 60%);
+    border-radius: 32px;
     pointer-events: none;
 }
 
@@ -417,13 +389,22 @@ pre {
     margin-bottom: 2.5rem;
 }
 
+.next-steps {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 1.5rem;
+    flex-wrap: wrap;
+}
+
 .btn-link {
     color: #94a3b8;
     background: none;
     text-decoration: none;
     font-size: 1rem;
-    transition: all 0.3s ease;
+    transition: color 0.3s ease, letter-spacing 0.3s ease;
     font-weight: 600;
+    padding: 1.4rem 2rem;
 }
 
 .btn-link:hover {
