@@ -45,22 +45,6 @@ function initInteractions() {
     });
   }
 
-  // 5. Pricing swipe dots — update active dot as user scrolls the track
-  const track = document.querySelector('.pricing-track');
-  const dots = document.querySelectorAll('.pricing-scroll-hint span');
-  if (track && dots.length) {
-    const updateDots = () => {
-      const cards = track.querySelectorAll('.pricing-card');
-      let closest = 0, minDist = Infinity;
-      cards.forEach((card, i) => {
-        const dist = Math.abs(card.getBoundingClientRect().left - track.getBoundingClientRect().left);
-        if (dist < minDist) { minDist = dist; closest = i; }
-      });
-      dots.forEach((d, i) => d.classList.toggle('active', i === closest));
-    };
-    track.addEventListener('scroll', updateDots, { passive: true });
-    updateDots();
-  }
 }
 
 // Global Animation Frame ID to prevent multiple loops
@@ -437,9 +421,8 @@ function renderHome() {
           <p>Start free — upgrade as you grow. No credit card required.</p>
         </div>
 
-        <!-- 4 main tiers: horizontal scroll-snap on mobile, 4-col grid on desktop -->
-        <div class="pricing-track-wrapper">
-          <div class="pricing-track">
+        <!-- 4 main tiers: 4-col grid on desktop, stacked vertically on mobile -->
+        <div class="pricing-grid">
 
             <!-- Free -->
             <div class="pricing-card glass-card" data-tier="free">
@@ -554,12 +537,6 @@ function renderHome() {
               <a href="/onboarding/" class="btn btn-outline btn-full">Start Free Trial</a>
             </div>
 
-          </div>
-
-          <!-- Mobile scroll indicators -->
-          <div class="pricing-scroll-hint">
-            <span></span><span></span><span></span><span></span>
-          </div>
         </div>
 
         <!-- Enterprise — full-width, coming soon -->
@@ -936,16 +913,16 @@ function initApp() {
     });
   }
 
-  // Logo click — always navigate home (hashchange doesn't fire if hash is already #home)
-  const logoLink = document.querySelector('.logo-container a');
-  if (logoLink) {
-    logoLink.addEventListener('click', (e) => {
-      e.preventDefault();
-      window.location.hash = '#home';
-      router();
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    });
-  }
+  // Logo click AND any a[href="#home"] — always navigate home
+  // hashchange doesn't fire when the hash is already #home, so we force it
+  document.addEventListener('click', (e) => {
+    const link = e.target.closest('a[href="#home"]');
+    if (!link) return;
+    e.preventDefault();
+    window.location.hash = '#home';
+    router();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
 
   // Modal Close on click outside content
   const overlay = document.getElementById('contactModalOverlay');
