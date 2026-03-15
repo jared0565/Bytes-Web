@@ -96,6 +96,8 @@ header {
     margin-bottom: 3rem;
     letter-spacing: -2px;
     color: white;
+    text-decoration: none;
+    display: inline-block;
 }
 
 .logo-white {
