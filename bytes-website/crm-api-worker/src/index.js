@@ -1181,6 +1181,134 @@ async function handleVerificationCron(env) {
     }
 }
 
+// ─── Mail Settings ───────────────────────────────────────────────────────────
+
+// GET /api/mail-settings — returns stored config with secrets masked
+app.get('/api/mail-settings', requireAuth, async (c) => {
+    const user = c.get('user');
+    const raw = await c.env.OAUTH_TOKENS.get(`mail:${user.clientId}`);
+    if (!raw) return c.json({});
+    const data = JSON.parse(raw);
+    // Mask secrets for display
+    if (data.apiKey)   data.apiKey   = '••••' + data.apiKey.slice(-4);
+    if (data.smtpPass) data.smtpPass = '••••••••';
+    return c.json(data);
+});
+
+// POST /api/mail-settings — saves config, preserving masked/omitted secrets
+app.post('/api/mail-settings', requireAuth, async (c) => {
+    const user = c.get('user');
+    let body;
+    try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+
+    const { provider, fromName, fromEmail, apiKey, mailgunDomain, smtpHost, smtpPort, smtpSecurity, smtpUser, smtpPass } = body;
+
+    if (fromEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fromEmail)) {
+        return c.json({ error: 'Invalid from email address' }, 400);
+    }
+
+    const existing = await c.env.OAUTH_TOKENS.get(`mail:${user.clientId}`);
+    const prev = existing ? JSON.parse(existing) : {};
+
+    const settings = {
+        provider:     provider     ?? prev.provider     ?? '',
+        fromName:     fromName     ?? prev.fromName     ?? '',
+        fromEmail:    fromEmail    ?? prev.fromEmail    ?? '',
+        apiKey:       (apiKey && !apiKey.startsWith('••••')) ? apiKey : (prev.apiKey ?? ''),
+        mailgunDomain: mailgunDomain ?? prev.mailgunDomain ?? '',
+        smtpHost:     smtpHost     ?? prev.smtpHost     ?? '',
+        smtpPort:     smtpPort     ?? prev.smtpPort     ?? '587',
+        smtpSecurity: smtpSecurity ?? prev.smtpSecurity ?? 'tls',
+        smtpUser:     smtpUser     ?? prev.smtpUser     ?? '',
+        smtpPass:     (smtpPass && smtpPass !== '••••••••') ? smtpPass : (prev.smtpPass ?? ''),
+    };
+
+    await c.env.OAUTH_TOKENS.put(`mail:${user.clientId}`, JSON.stringify(settings));
+    return c.json({ success: true });
+});
+
+// POST /api/mail-settings/test — sends a test email via configured provider
+app.post('/api/mail-settings/test', requireAuth, async (c) => {
+    const user = c.get('user');
+    const raw = await c.env.OAUTH_TOKENS.get(`mail:${user.clientId}`);
+    if (!raw) return c.json({ error: 'No mail settings saved. Configure and save your settings first.' }, 400);
+
+    const s = JSON.parse(raw);
+    if (!s.provider) return c.json({ error: 'Select an email provider first.' }, 400);
+    if (!s.fromEmail) return c.json({ error: 'From Email is required.' }, 400);
+    if (!s.apiKey && s.provider !== 'smtp') return c.json({ error: 'API Key is required.' }, 400);
+
+    // Send to the authenticated user's registered email
+    const userRow = await c.env.DB.prepare('SELECT email FROM users WHERE id = ?').bind(user.userId).first().catch(() => null);
+    const toEmail = userRow?.email || s.fromEmail;
+
+    const subject = 'BytesAI — Email Sender Test ✅';
+    const html = `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:2rem;background:#0f0f1a;color:#f0f0f5;border-radius:12px;">
+        <h2 style="color:#8b5cf6;margin:0 0 1rem;">Test Email ✅</h2>
+        <p style="margin:0 0 0.5rem;">Your email sender is configured and working correctly.</p>
+        <p style="color:#9aa0a6;font-size:0.85rem;margin:0 0 0.25rem;">Provider: <strong style="color:#f0f0f5;">${escapeHtml(s.provider)}</strong></p>
+        <p style="color:#9aa0a6;font-size:0.85rem;margin:0;">From: <strong style="color:#f0f0f5;">${escapeHtml(s.fromName || '')} &lt;${escapeHtml(s.fromEmail)}&gt;</strong></p>
+        <hr style="border:none;border-top:1px solid rgba(255,255,255,0.08);margin:1.5rem 0;">
+        <p style="font-size:0.75rem;color:#9aa0a6;margin:0;">Sent via BytesAI Dashboard</p>
+    </div>`;
+
+    try {
+        if (s.provider === 'resend') {
+            const res = await fetch('https://api.resend.com/emails', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${s.apiKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ from: `${s.fromName || 'BytesAI'} <${s.fromEmail}>`, to: [toEmail], subject, html }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) return c.json({ error: data.message || 'Resend API error.' }, 400);
+            return c.json({ success: true, sentTo: toEmail });
+        }
+
+        if (s.provider === 'sendgrid') {
+            const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${s.apiKey}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    personalizations: [{ to: [{ email: toEmail }] }],
+                    from: { email: s.fromEmail, name: s.fromName || 'BytesAI' },
+                    subject,
+                    content: [{ type: 'text/html', value: html }],
+                }),
+            });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                return c.json({ error: data.errors?.[0]?.message || 'SendGrid API error.' }, 400);
+            }
+            return c.json({ success: true, sentTo: toEmail });
+        }
+
+        if (s.provider === 'mailgun') {
+            if (!s.mailgunDomain) return c.json({ error: 'Mailgun domain is required.' }, 400);
+            const form = new URLSearchParams({
+                from: `${s.fromName || 'BytesAI'} <${s.fromEmail}>`,
+                to: toEmail, subject, html
+            });
+            const res = await fetch(`https://api.mailgun.net/v3/${s.mailgunDomain}/messages`, {
+                method: 'POST',
+                headers: { 'Authorization': `Basic ${btoa(`api:${s.apiKey}`)}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: form,
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) return c.json({ error: data.message || 'Mailgun API error.' }, 400);
+            return c.json({ success: true, sentTo: toEmail });
+        }
+
+        if (s.provider === 'smtp') {
+            return c.json({ error: 'SMTP test send not yet available. Your SMTP settings are saved and will be used when sending is enabled.' }, 400);
+        }
+
+        return c.json({ error: 'Unsupported provider.' }, 400);
+    } catch (err) {
+        console.error('[Mail] Test send error:', err);
+        return c.json({ error: 'Failed to send. Check your credentials and try again.' }, 500);
+    }
+});
+
 // ─── Export ──────────────────────────────────────────────────────────────────
 export default {
     fetch: app.fetch,

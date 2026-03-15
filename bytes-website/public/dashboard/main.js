@@ -1294,12 +1294,146 @@ const PLAN_INSTALL_LIMITS = {
 let installationData = { clientId: '', allowedDomains: [], maxInstalls: 1, maxDomains: 1, plan: 'free', inTrial: true };
 
 async function loadChatbotView() {
+    // Load installations first so we have clientId
     try {
         const res = await fetch(`${API_BASE}/api/installations`, { credentials: 'include' });
-        if (!res.ok) return;
-        installationData = await res.json();
+        if (res.ok) installationData = await res.json();
     } catch { /* use cached */ }
     renderChatbotView();
+
+    const cid = installationData.clientId;
+    if (!cid) return;
+
+    // Fetch chatbot config, CRM settings, and mail settings in parallel
+    const [configResult, crmResult, mailResult] = await Promise.allSettled([
+        fetch(`${API_BASE}/api/config?clientId=${encodeURIComponent(cid)}`, { credentials: 'include' }),
+        fetch(`${API_BASE}/api/crm-settings`, { credentials: 'include' }),
+        fetch(`${API_BASE}/api/mail-settings`, { credentials: 'include' }),
+    ]);
+
+    if (configResult.status === 'fulfilled' && configResult.value.ok) {
+        populateChatbotSettings(await configResult.value.json());
+    }
+    if (crmResult.status === 'fulfilled' && crmResult.value.ok) {
+        populateCampaignSettings(await crmResult.value.json());
+    }
+    if (mailResult.status === 'fulfilled' && mailResult.value.ok) {
+        populateMailSettings(await mailResult.value.json());
+    }
+}
+
+function populateChatbotSettings(data) {
+    const nameEl   = document.getElementById('settings-company-name');
+    const modeEl   = document.getElementById('settings-mode');
+    const promptEl = document.getElementById('settings-prompt');
+    const brandingEl = document.getElementById('settings-branding');
+    const wlSection  = document.getElementById('settings-wl-section');
+
+    if (nameEl)   nameEl.value   = data.companyName  || '';
+    if (modeEl)   modeEl.value   = data.mode         || 'free';
+    if (promptEl) promptEl.value = data.systemPrompt || '';
+
+    if (brandingEl) {
+        brandingEl.checked  = data.showBranding !== false;
+        const locked = data.brandingMandatory ?? (data.inTrial || data.plan === 'free' || data.plan === 'starter');
+        brandingEl.disabled = locked;
+        const noteEl = document.getElementById('settings-branding-note');
+        if (noteEl) {
+            if (locked) {
+                noteEl.textContent = data.inTrial ? 'Required during your trial'
+                    : data.plan === 'starter' ? 'Required on Starter — upgrade to Pro to remove'
+                    : 'Required on Free — upgrade to Pro to remove';
+                noteEl.style.color = '#f59e0b';
+            } else {
+                noteEl.textContent = 'Optional on your plan';
+                noteEl.style.color = '';
+            }
+        }
+        brandingEl.onclick = locked ? (e) => { e.preventDefault(); showUpgradeModal('remove_branding'); } : null;
+    }
+
+    if (wlSection) {
+        wlSection.style.display = data.whiteLabelEnabled ? 'block' : 'none';
+        if (data.whiteLabelEnabled) {
+            const wlName  = document.getElementById('settings-wl-name');
+            const wlColor = document.getElementById('settings-wl-color');
+            const wlPicker = document.getElementById('settings-wl-color-picker');
+            const wlAvatar = document.getElementById('settings-wl-avatar');
+            if (wlName)   wlName.value   = data.widgetName        || '';
+            if (wlAvatar) wlAvatar.value = data.widgetAvatar      || '';
+            const color = data.widgetAccentColor || '#6366f1';
+            if (wlColor)  wlColor.value  = color;
+            if (wlPicker && /^#[0-9a-fA-F]{6}$/.test(color)) wlPicker.value = color;
+        }
+    }
+}
+
+function populateCampaignSettings(data) {
+    const modeInput    = document.getElementById('settings-campaign-mode');
+    const autoApprove  = document.getElementById('settings-auto-approve');
+    const mode = data.default_campaign_mode || 'ai';
+    if (modeInput)   modeInput.value   = mode;
+    if (autoApprove) autoApprove.checked = data.auto_approve_campaigns === 1;
+    updateCampaignModeUI(mode);
+}
+
+function updateCampaignModeUI(mode) {
+    const descriptions = {
+        ai:     'Gemini AI writes a personalised 5-email sequence based on each lead\'s chat history.',
+        rule:   'A pre-configured template sequence is applied to each verified lead automatically.',
+        manual: 'No sequence is generated — you write each campaign step manually.',
+    };
+    ['ai', 'rule', 'manual'].forEach(m => {
+        document.getElementById(`settings-toggle-${m}`)?.classList.toggle('active', m === mode);
+    });
+    const desc = document.getElementById('settings-mode-description');
+    if (desc) desc.textContent = descriptions[mode] || '';
+}
+
+function populateMailSettings(data) {
+    const provider = data.provider || '';
+    const providerEl = document.getElementById('settings-mail-provider');
+    const fromName   = document.getElementById('settings-mail-from-name');
+    const fromEmail  = document.getElementById('settings-mail-from-email');
+    if (providerEl) providerEl.value = provider;
+    if (fromName)   fromName.value   = data.fromName  || '';
+    if (fromEmail)  fromEmail.value  = data.fromEmail || '';
+    updateMailProviderUI(provider, data);
+}
+
+function updateMailProviderUI(provider, data = {}) {
+    const apiSection   = document.getElementById('settings-mail-api-section');
+    const smtpSection  = document.getElementById('settings-mail-smtp-section');
+    const apiKeyLabel  = document.getElementById('settings-mail-api-key-label');
+    const mgDomainGroup = document.getElementById('settings-mail-mailgun-domain-group');
+    const apiKeyInput  = document.getElementById('settings-mail-api-key');
+
+    if (provider === 'smtp') {
+        if (apiSection)  apiSection.style.display  = 'none';
+        if (smtpSection) smtpSection.style.display = 'block';
+        const host     = document.getElementById('settings-mail-smtp-host');
+        const port     = document.getElementById('settings-mail-smtp-port');
+        const security = document.getElementById('settings-mail-smtp-security');
+        const user     = document.getElementById('settings-mail-smtp-user');
+        const pass     = document.getElementById('settings-mail-smtp-pass');
+        if (host)     host.value     = data.smtpHost     || '';
+        if (port)     port.value     = data.smtpPort     || '587';
+        if (security) security.value = data.smtpSecurity || 'tls';
+        if (user)     user.value     = data.smtpUser     || '';
+        if (pass)     pass.value     = data.smtpPass     || '';
+    } else if (provider) {
+        if (apiSection)  apiSection.style.display  = 'block';
+        if (smtpSection) smtpSection.style.display = 'none';
+        if (apiKeyLabel) apiKeyLabel.textContent = provider === 'resend' ? 'API Key (re_...)'
+            : provider === 'sendgrid' ? 'API Key (SG....)' : 'API Key';
+        if (mgDomainGroup) mgDomainGroup.style.display = provider === 'mailgun' ? 'block' : 'none';
+        if (apiKeyInput) apiKeyInput.value = data.apiKey || '';
+        const mgDomain = document.getElementById('settings-mail-mailgun-domain');
+        if (mgDomain) mgDomain.value = data.mailgunDomain || '';
+    } else {
+        if (apiSection)  apiSection.style.display  = 'none';
+        if (smtpSection) smtpSection.style.display = 'none';
+    }
 }
 
 function renderChatbotView() {
@@ -1441,6 +1575,156 @@ document.getElementById('dash-copy-embed-btn').addEventListener('click', () => {
     const btn = document.getElementById('dash-copy-embed-btn');
     btn.textContent = 'Copied! ✅';
     setTimeout(() => { btn.textContent = 'Copy Code'; }, 2000);
+});
+
+// ─── Settings — Chatbot Behavior ─────────────────────────────────────────────
+
+// White-label color picker sync
+document.getElementById('settings-wl-color-picker')?.addEventListener('input', (e) => {
+    const colorInput = document.getElementById('settings-wl-color');
+    if (colorInput) colorInput.value = e.target.value;
+});
+document.getElementById('settings-wl-color')?.addEventListener('input', (e) => {
+    const picker = document.getElementById('settings-wl-color-picker');
+    if (picker && /^#[0-9a-fA-F]{6}$/.test(e.target.value)) picker.value = e.target.value;
+});
+
+document.getElementById('settings-save-chatbot-btn').addEventListener('click', async () => {
+    const statusEl = document.getElementById('settings-chatbot-status');
+    const cid = installationData.clientId;
+    if (!cid) { statusEl.textContent = 'Not connected.'; statusEl.style.color = 'var(--error)'; return; }
+
+    const settings = {
+        companyName:  document.getElementById('settings-company-name')?.value.trim() || '',
+        mode:         document.getElementById('settings-mode')?.value || 'free',
+        systemPrompt: document.getElementById('settings-prompt')?.value.trim() || '',
+        showBranding: document.getElementById('settings-branding')?.checked !== false,
+    };
+
+    const wlSection = document.getElementById('settings-wl-section');
+    if (wlSection && wlSection.style.display !== 'none') {
+        const name   = document.getElementById('settings-wl-name')?.value.trim();
+        const color  = document.getElementById('settings-wl-color')?.value.trim();
+        const avatar = document.getElementById('settings-wl-avatar')?.value.trim();
+        if (name)   settings.widgetName         = name;
+        if (color)  settings.widgetAccentColor  = color;
+        if (avatar) settings.widgetAvatar       = avatar;
+    }
+
+    statusEl.textContent = 'Saving…'; statusEl.style.color = 'var(--text-secondary)';
+    try {
+        const res = await fetch(`${API_BASE}/api/config`, {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clientId: cid, settings }),
+        });
+        if (res.ok) {
+            statusEl.textContent = '✓ Saved!'; statusEl.style.color = 'var(--success)';
+            setTimeout(() => { if (statusEl.textContent.startsWith('✓')) statusEl.textContent = ''; }, 3000);
+        } else {
+            const err = await res.json().catch(() => ({}));
+            statusEl.textContent = err.error || 'Save failed.'; statusEl.style.color = 'var(--error)';
+        }
+    } catch { statusEl.textContent = 'Network error.'; statusEl.style.color = 'var(--error)'; }
+});
+
+// ─── Settings — Campaign Automation ──────────────────────────────────────────
+
+['ai', 'rule', 'manual'].forEach(mode => {
+    document.getElementById(`settings-toggle-${mode}`)?.addEventListener('click', () => {
+        const modeInput = document.getElementById('settings-campaign-mode');
+        if (modeInput) modeInput.value = mode;
+        updateCampaignModeUI(mode);
+    });
+});
+
+document.getElementById('settings-save-campaign-btn').addEventListener('click', async () => {
+    const statusEl = document.getElementById('settings-campaign-status');
+    const cid = installationData.clientId;
+    if (!cid) { statusEl.textContent = 'Not connected.'; statusEl.style.color = 'var(--error)'; return; }
+
+    const mode = document.getElementById('settings-campaign-mode')?.value || 'ai';
+    const autoApprove = document.getElementById('settings-auto-approve')?.checked || false;
+
+    statusEl.textContent = 'Saving…'; statusEl.style.color = 'var(--text-secondary)';
+    try {
+        const res = await fetch(`${API_BASE}/api/crm-settings`, {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clientId: cid, default_campaign_mode: mode, auto_approve_campaigns: autoApprove }),
+        });
+        if (res.ok) {
+            statusEl.textContent = '✓ Saved!'; statusEl.style.color = 'var(--success)';
+            setTimeout(() => { if (statusEl.textContent.startsWith('✓')) statusEl.textContent = ''; }, 3000);
+        } else {
+            statusEl.textContent = 'Save failed.'; statusEl.style.color = 'var(--error)';
+        }
+    } catch { statusEl.textContent = 'Network error.'; statusEl.style.color = 'var(--error)'; }
+});
+
+// ─── Settings — Email Sender ──────────────────────────────────────────────────
+
+document.getElementById('settings-mail-provider').addEventListener('change', (e) => {
+    updateMailProviderUI(e.target.value);
+});
+
+document.getElementById('settings-save-mail-btn').addEventListener('click', async () => {
+    const statusEl = document.getElementById('settings-mail-status');
+    const provider  = document.getElementById('settings-mail-provider')?.value || '';
+    const fromName  = document.getElementById('settings-mail-from-name')?.value.trim() || '';
+    const fromEmail = document.getElementById('settings-mail-from-email')?.value.trim() || '';
+
+    const body = { provider, fromName, fromEmail };
+
+    if (provider === 'smtp') {
+        body.smtpHost     = document.getElementById('settings-mail-smtp-host')?.value.trim() || '';
+        body.smtpPort     = document.getElementById('settings-mail-smtp-port')?.value.trim() || '587';
+        body.smtpSecurity = document.getElementById('settings-mail-smtp-security')?.value || 'tls';
+        body.smtpUser     = document.getElementById('settings-mail-smtp-user')?.value.trim() || '';
+        const smtpPass    = document.getElementById('settings-mail-smtp-pass')?.value;
+        if (smtpPass && smtpPass !== '••••••••') body.smtpPass = smtpPass;
+    } else if (provider) {
+        const apiKey = document.getElementById('settings-mail-api-key')?.value;
+        if (apiKey && !apiKey.startsWith('••••')) body.apiKey = apiKey;
+        if (provider === 'mailgun') {
+            body.mailgunDomain = document.getElementById('settings-mail-mailgun-domain')?.value.trim() || '';
+        }
+    }
+
+    statusEl.textContent = 'Saving…'; statusEl.style.color = 'var(--text-secondary)';
+    try {
+        const res = await fetch(`${API_BASE}/api/mail-settings`, {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        if (res.ok) {
+            statusEl.textContent = '✓ Saved!'; statusEl.style.color = 'var(--success)';
+            setTimeout(() => { if (statusEl.textContent.startsWith('✓')) statusEl.textContent = ''; }, 3000);
+        } else {
+            const err = await res.json().catch(() => ({}));
+            statusEl.textContent = err.error || 'Save failed.'; statusEl.style.color = 'var(--error)';
+        }
+    } catch { statusEl.textContent = 'Network error.'; statusEl.style.color = 'var(--error)'; }
+});
+
+document.getElementById('settings-test-mail-btn').addEventListener('click', async () => {
+    const statusEl = document.getElementById('settings-mail-status');
+    statusEl.textContent = 'Sending test email…'; statusEl.style.color = 'var(--text-secondary)';
+    try {
+        const res = await fetch(`${API_BASE}/api/mail-settings/test`, {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+            statusEl.textContent = `✓ Test sent to ${escapeHtml(data.sentTo || 'your email')}!`;
+            statusEl.style.color = 'var(--success)';
+            setTimeout(() => { statusEl.textContent = ''; }, 6000);
+        } else {
+            statusEl.textContent = data.error || 'Test failed.'; statusEl.style.color = 'var(--error)';
+        }
+    } catch { statusEl.textContent = 'Network error.'; statusEl.style.color = 'var(--error)'; }
 });
 
 // ─── Analytics & Reports ──────────────────────────────────────────────────────

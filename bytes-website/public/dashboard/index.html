@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BytesAI Agency Dashboard</title>
     <link rel="icon" type="image/png" href="/favicon.png">
-    <link rel="stylesheet" href="style.css?v=2">
+    <link rel="stylesheet" href="style.css?v=3">
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 
@@ -393,62 +393,229 @@
                 </div>
             </section>
 
-            <!-- Chatbot View -->
+            <!-- Settings View -->
             <section id="chatbot-view" class="view hidden">
-                <div class="config-grid">
+                <div class="settings-layout">
 
-                    <!-- Embed Code Card -->
+                    <!-- ── 1. Install Your Chatbot ── -->
                     <div class="glass-panel" style="padding:1.75rem;">
-                        <h3 style="margin:0 0 0.5rem;">Embed Code</h3>
-                        <p style="color:var(--text-secondary);font-size:0.85rem;margin:0 0 1.25rem;">Paste this snippet before the <code style="background:rgba(255,255,255,0.08);padding:0.1rem 0.4rem;border-radius:4px;">&lt;/body&gt;</code> tag on each site where you want the chatbot.</p>
-                        <div style="position:relative;">
-                            <pre id="dash-embed-code" style="background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:1rem 1.25rem;font-size:0.8rem;color:#a5b4fc;overflow-x:auto;white-space:pre-wrap;word-break:break-all;margin:0;">Loading…</pre>
-                            <button id="dash-copy-embed-btn" class="btn btn-outline" style="margin-top:0.75rem;font-size:0.8rem;padding:0.4rem 1rem;">Copy Code</button>
-                        </div>
-                    </div>
-
-                    <!-- Installation Limits Card -->
-                    <div class="glass-panel" style="padding:1.75rem;">
-                        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1.25rem;">
-                            <h3 style="margin:0;flex:1;">Installation Limits</h3>
-                            <span id="dash-install-plan-badge" style="font-size:0.7rem;padding:0.25rem 0.65rem;background:rgba(99,102,241,0.18);border:1px solid rgba(99,102,241,0.35);border-radius:999px;color:#a5b4fc;font-weight:600;">Trial</span>
-                        </div>
-                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
-                            <div style="background:rgba(0,0,0,0.3);border-radius:12px;padding:1rem;text-align:center;">
-                                <div id="dash-max-installs" style="font-size:2rem;font-weight:700;color:#60a5fa;">1</div>
-                                <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.25rem;">Max Installations</div>
+                        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1.25rem;">
+                            <div>
+                                <h3 style="margin:0 0 0.2rem;">Install Your Chatbot</h3>
+                                <p style="color:var(--text-secondary);font-size:0.82rem;margin:0;">Paste this snippet before <code style="background:rgba(255,255,255,0.08);padding:0.1rem 0.35rem;border-radius:4px;">&lt;/body&gt;</code> on every page you want the widget to appear.</p>
                             </div>
-                            <div style="background:rgba(0,0,0,0.3);border-radius:12px;padding:1rem;text-align:center;">
-                                <div id="dash-max-domains" style="font-size:2rem;font-weight:700;color:#34d399;">1</div>
-                                <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.25rem;">Max Domains</div>
-                            </div>
+                            <span id="dash-install-plan-badge" style="font-size:0.7rem;padding:0.25rem 0.65rem;background:rgba(99,102,241,0.18);border:1px solid rgba(99,102,241,0.35);border-radius:999px;color:#a5b4fc;font-weight:600;white-space:nowrap;flex-shrink:0;">Trial</span>
                         </div>
-                        <p style="font-size:0.8rem;color:var(--text-secondary);margin:0 0 1rem;line-height:1.5;" id="dash-install-limit-note">Your <strong style="color:#e2e8f0;">Free</strong> plan includes <strong style="color:#e2e8f0;">1 domain</strong> — this is a permanent tier. Upgrade anytime to add more.</p>
-                        <button id="dash-upgrade-install-btn" class="btn btn-primary" style="width:100%;font-size:0.85rem;">Upgrade Plan →</button>
-                    </div>
+                        <pre id="dash-embed-code" style="background:rgba(0,0,0,0.45);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:1rem 1.25rem;font-size:0.78rem;color:#a5b4fc;overflow-x:auto;white-space:pre-wrap;word-break:break-all;margin:0 0 0.75rem;">Loading…</pre>
+                        <button id="dash-copy-embed-btn" class="btn btn-outline" style="font-size:0.82rem;padding:0.4rem 1rem;">Copy Code</button>
 
-                    <!-- Allowed Domains Card -->
-                    <div class="glass-panel" style="padding:1.75rem;grid-column:1/-1;">
-                        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem;">
-                            <h3 style="margin:0;flex:1;">Allowed Domains</h3>
+                        <hr style="border:none;border-top:1px solid rgba(255,255,255,0.07);margin:1.5rem 0;">
+
+                        <!-- Domains sub-section -->
+                        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.4rem;">
+                            <h4 style="margin:0;flex:1;font-size:0.95rem;font-weight:600;">Allowed Domains</h4>
                             <span style="font-size:0.75rem;color:var(--text-secondary);"><span id="dash-domain-count">0</span> / <span id="dash-domain-limit">1</span> used</span>
                         </div>
-                        <p style="color:var(--text-secondary);font-size:0.82rem;margin:0 0 1.25rem;line-height:1.5;">Add the domains and subdomains where your chatbot is installed. Wildcard subdomains like <code style="background:rgba(255,255,255,0.08);padding:0.1rem 0.35rem;border-radius:4px;">*.example.com</code> are supported.</p>
-
-                        <!-- Domain List -->
-                        <div id="dash-domain-list" style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;">
-                            <!-- Injected by JS -->
-                        </div>
-
-                        <!-- Add Domain Input -->
+                        <p style="color:var(--text-secondary);font-size:0.8rem;margin:0 0 1rem;line-height:1.5;">Add the domains and subdomains where your chatbot is installed. Wildcards like <code style="background:rgba(255,255,255,0.08);padding:0.1rem 0.35rem;border-radius:4px;">*.example.com</code> are supported.</p>
+                        <div id="dash-domain-list" style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;"></div>
                         <div style="display:flex;gap:0.75rem;align-items:center;">
                             <input type="text" id="dash-new-domain" placeholder="e.g. yoursite.com or *.yoursite.com" style="flex:1;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:0.65rem 1rem;color:white;font-size:0.85rem;outline:none;">
                             <button id="dash-add-domain-btn" class="btn btn-outline" style="padding:0.65rem 1.25rem;font-size:0.85rem;">Add</button>
                         </div>
-                        <div style="display:flex;justify-content:flex-end;margin-top:1rem;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.85rem;">
+                            <p id="dash-domains-status" style="font-size:0.82rem;color:#34d399;min-height:1.2em;margin:0;"></p>
                             <button id="dash-save-domains-btn" class="btn btn-primary" style="font-size:0.85rem;">Save Domains</button>
                         </div>
-                        <p id="dash-domains-status" style="text-align:right;font-size:0.82rem;color:#34d399;margin-top:0.5rem;min-height:1.2em;"></p>
+
+                        <!-- Install limits row -->
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-top:1.5rem;">
+                            <div style="background:rgba(0,0,0,0.25);border-radius:10px;padding:0.85rem 1rem;display:flex;align-items:center;gap:0.75rem;">
+                                <span id="dash-max-installs" style="font-size:1.6rem;font-weight:700;color:#60a5fa;line-height:1;">1</span>
+                                <span style="font-size:0.73rem;color:var(--text-secondary);line-height:1.3;">Max<br>Installations</span>
+                            </div>
+                            <div style="background:rgba(0,0,0,0.25);border-radius:10px;padding:0.85rem 1rem;display:flex;align-items:center;gap:0.75rem;">
+                                <span id="dash-max-domains" style="font-size:1.6rem;font-weight:700;color:#34d399;line-height:1;">1</span>
+                                <span style="font-size:0.73rem;color:var(--text-secondary);line-height:1.3;">Max<br>Domains</span>
+                            </div>
+                        </div>
+                        <p id="dash-install-limit-note" style="font-size:0.78rem;color:var(--text-secondary);margin:0.75rem 0 0.5rem;line-height:1.5;"></p>
+                        <button id="dash-upgrade-install-btn" class="btn btn-primary" style="width:100%;font-size:0.85rem;">Upgrade Plan →</button>
+                    </div>
+
+                    <!-- ── 2. Chatbot Behavior ── -->
+                    <div class="glass-panel" style="padding:1.75rem;">
+                        <h3 style="margin:0 0 0.2rem;">Chatbot Behavior</h3>
+                        <p style="color:var(--text-secondary);font-size:0.82rem;margin:0 0 1.5rem;">Customise your widget's identity, operating mode, and AI instructions.</p>
+
+                        <div class="form-group">
+                            <label>Company Name</label>
+                            <input type="text" id="settings-company-name" placeholder="Your Company Name">
+                        </div>
+                        <div class="form-group">
+                            <label>Bot Mode</label>
+                            <select id="settings-mode">
+                                <option value="free">Free — Basic Scripted</option>
+                                <option value="standard">Standard — Advanced Scripted</option>
+                                <option value="ai">AI — Gemini-powered</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>System Prompt <span style="font-size:0.75rem;font-weight:400;color:var(--text-secondary);">— what your chatbot knows about your business</span></label>
+                            <textarea id="settings-prompt" rows="5" placeholder="You are a helpful assistant for [Company]. You specialise in [services]. Only discuss topics relevant to our business..."></textarea>
+                        </div>
+
+                        <!-- Toggle rows -->
+                        <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:1rem;margin-top:0.25rem;">
+                            <div class="sett-toggle-row">
+                                <div>
+                                    <p class="sett-label">Show "Powered by BytesAI" badge</p>
+                                    <p class="sett-note" id="settings-branding-note">Required on Free &amp; Trial plans</p>
+                                </div>
+                                <label class="sett-toggle">
+                                    <input type="checkbox" id="settings-branding" checked>
+                                    <span class="sett-toggle-thumb"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- White-label (Business/Enterprise gated) -->
+                        <div id="settings-wl-section" style="display:none;border:1px solid rgba(99,102,241,0.25);border-radius:12px;padding:1.25rem;margin-top:1.25rem;background:rgba(99,102,241,0.04);">
+                            <p style="font-size:0.72rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:#a5b4fc;margin:0 0 1rem;">Custom Widget Branding</p>
+                            <div class="form-group">
+                                <label>Bot Display Name</label>
+                                <input type="text" id="settings-wl-name" placeholder="e.g. Acme Assistant">
+                            </div>
+                            <div class="form-group">
+                                <label>Accent Color <span style="font-size:0.75rem;color:var(--text-secondary);">(hex)</span></label>
+                                <div style="display:flex;gap:0.75rem;align-items:center;">
+                                    <input type="color" id="settings-wl-color-picker" style="width:48px;height:40px;border-radius:8px;border:1px solid var(--glass-border);background:none;cursor:pointer;padding:2px;">
+                                    <input type="text" id="settings-wl-color" placeholder="#6366f1" style="flex:1;">
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label>Bot Avatar URL <span style="font-size:0.75rem;color:var(--text-secondary);">(optional — replaces chat icon)</span></label>
+                                <input type="text" id="settings-wl-avatar" placeholder="https://cdn.example.com/avatar.png">
+                            </div>
+                        </div>
+
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-top:1.25rem;">
+                            <p id="settings-chatbot-status" style="font-size:0.82rem;margin:0;min-height:1em;"></p>
+                            <button id="settings-save-chatbot-btn" class="btn btn-primary">Save Chatbot Settings</button>
+                        </div>
+                    </div>
+
+                    <!-- ── 3. Campaign Automation ── -->
+                    <div class="glass-panel" style="padding:1.75rem;">
+                        <h3 style="margin:0 0 0.2rem;">Campaign Automation</h3>
+                        <p style="color:var(--text-secondary);font-size:0.82rem;margin:0 0 1.5rem;">Control how email sequences are generated and deployed when a lead verifies their email.</p>
+
+                        <div class="form-group">
+                            <label>Default Sequence Generation Mode</label>
+                            <div style="display:flex;background:rgba(0,0,0,0.35);border-radius:10px;padding:0.3rem;gap:0.25rem;margin-top:0.4rem;">
+                                <button id="settings-toggle-ai" class="sett-mode-btn active" data-mode="ai">✨ AI Auto</button>
+                                <button id="settings-toggle-rule" class="sett-mode-btn" data-mode="rule">⚙️ Rule-Based</button>
+                                <button id="settings-toggle-manual" class="sett-mode-btn" data-mode="manual">✍️ Manual</button>
+                            </div>
+                            <input type="hidden" id="settings-campaign-mode" value="ai">
+                            <p id="settings-mode-description" style="font-size:0.78rem;color:var(--text-secondary);margin:0.6rem 0 0;line-height:1.5;min-height:1.2em;"></p>
+                        </div>
+
+                        <div style="border-top:1px solid rgba(255,255,255,0.07);padding-top:1rem;margin-top:0.25rem;">
+                            <div class="sett-toggle-row">
+                                <div>
+                                    <p class="sett-label">Auto-approve campaigns</p>
+                                    <p class="sett-note">Sequences go live automatically when a lead verifies their email</p>
+                                </div>
+                                <label class="sett-toggle">
+                                    <input type="checkbox" id="settings-auto-approve">
+                                    <span class="sett-toggle-thumb"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-top:1.25rem;">
+                            <p id="settings-campaign-status" style="font-size:0.82rem;margin:0;min-height:1em;"></p>
+                            <button id="settings-save-campaign-btn" class="btn btn-primary">Save Campaign Settings</button>
+                        </div>
+                    </div>
+
+                    <!-- ── 4. Email Sender ── -->
+                    <div class="glass-panel" style="padding:1.75rem;">
+                        <h3 style="margin:0 0 0.2rem;">Email Sender</h3>
+                        <p style="color:var(--text-secondary);font-size:0.82rem;margin:0 0 1.5rem;">Configure the provider that sends verification emails and drip campaigns to your leads.</p>
+
+                        <div class="form-group">
+                            <label>Email Provider</label>
+                            <select id="settings-mail-provider">
+                                <option value="">— Select provider —</option>
+                                <option value="resend">Resend (recommended)</option>
+                                <option value="sendgrid">SendGrid</option>
+                                <option value="mailgun">Mailgun</option>
+                                <option value="smtp">Custom SMTP</option>
+                            </select>
+                        </div>
+
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label>From Name</label>
+                                <input type="text" id="settings-mail-from-name" placeholder="Jane Smith">
+                            </div>
+                            <div class="form-group" style="margin-bottom:0;">
+                                <label>From Email</label>
+                                <input type="email" id="settings-mail-from-email" placeholder="hello@yourdomain.com">
+                            </div>
+                        </div>
+
+                        <!-- API-based providers -->
+                        <div id="settings-mail-api-section" style="display:none;margin-top:0.75rem;">
+                            <div class="form-group" style="margin-bottom:0.75rem;">
+                                <label id="settings-mail-api-key-label">API Key</label>
+                                <input type="password" id="settings-mail-api-key" placeholder="••••••••" autocomplete="off">
+                            </div>
+                            <div class="form-group" id="settings-mail-mailgun-domain-group" style="display:none;margin-bottom:0;">
+                                <label>Mailgun Domain <span style="font-size:0.75rem;color:var(--text-secondary);">(e.g. mg.yourdomain.com)</span></label>
+                                <input type="text" id="settings-mail-mailgun-domain" placeholder="mg.yourdomain.com">
+                            </div>
+                        </div>
+
+                        <!-- SMTP section -->
+                        <div id="settings-mail-smtp-section" style="display:none;margin-top:0.75rem;">
+                            <div style="display:grid;grid-template-columns:1fr 100px 110px;gap:0.75rem;">
+                                <div class="form-group" style="margin-bottom:0;">
+                                    <label>SMTP Host</label>
+                                    <input type="text" id="settings-mail-smtp-host" placeholder="smtp.yourprovider.com">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0;">
+                                    <label>Port</label>
+                                    <input type="text" id="settings-mail-smtp-port" placeholder="587">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0;">
+                                    <label>Security</label>
+                                    <select id="settings-mail-smtp-security">
+                                        <option value="tls">TLS</option>
+                                        <option value="ssl">SSL</option>
+                                        <option value="none">None</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-top:0.75rem;">
+                                <div class="form-group" style="margin-bottom:0;">
+                                    <label>SMTP Username</label>
+                                    <input type="text" id="settings-mail-smtp-user" placeholder="user@yourdomain.com" autocomplete="off">
+                                </div>
+                                <div class="form-group" style="margin-bottom:0;">
+                                    <label>SMTP Password</label>
+                                    <input type="password" id="settings-mail-smtp-pass" placeholder="••••••••" autocomplete="off">
+                                </div>
+                            </div>
+                            <p style="font-size:0.75rem;color:#f59e0b;margin:0.75rem 0 0;background:rgba(245,158,11,0.08);padding:0.5rem 0.75rem;border-radius:8px;border:1px solid rgba(245,158,11,0.2);line-height:1.5;">⚠️ SMTP credentials are saved encrypted. Direct SMTP delivery from Cloudflare Workers uses the TCP Sockets API — enable it in your Cloudflare dashboard.</p>
+                        </div>
+
+                        <div style="display:flex;align-items:center;gap:0.75rem;margin-top:1.25rem;flex-wrap:wrap;">
+                            <button id="settings-save-mail-btn" class="btn btn-primary">Save Mail Settings</button>
+                            <button id="settings-test-mail-btn" class="btn btn-outline">Send Test Email</button>
+                            <p id="settings-mail-status" style="font-size:0.82rem;margin:0;flex:1;text-align:right;min-height:1em;"></p>
+                        </div>
                     </div>
 
                 </div>
