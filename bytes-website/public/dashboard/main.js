@@ -277,6 +277,7 @@ logoutBtn.addEventListener('click', async () => {
 function showDashboard() {
     loginOverlay.classList.add('hidden');
     dashboardContainer.classList.remove('hidden');
+    document.body.classList.remove('login-page'); // remove login background styles
 
     // RBAC: Hide admin tabs if not admin
     if (userRole !== 'admin') {
