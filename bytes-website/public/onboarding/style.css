@@ -17,6 +17,10 @@
     padding: 0;
 }
 
+html {
+    overflow-x: hidden;
+}
+
 body {
     font-family: 'Inter', sans-serif;
     background: var(--bg-primary);
@@ -25,10 +29,9 @@ body {
     min-height: 100vh;
     display: flex;
     justify-content: center;
-    align-items: center;
+    align-items: flex-start;
     overflow-x: hidden;
     overflow-y: auto;
-    perspective: 1000px;
     padding: 2rem 0;
 }
 
@@ -40,8 +43,7 @@ body {
     pointer-events: none;
 }
 
-body::before {
-    content: '';
+#onboarding-bg-tint {
     position: fixed;
     inset: 0;
     z-index: 0;
