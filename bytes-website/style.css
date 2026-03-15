@@ -207,6 +207,14 @@ h3 {
     width: 100%;
 }
 
+/* Home view is full-bleed — each section handles its own padding.
+   Override so the hero sits immediately below the navbar with no extra gap. */
+.home-view {
+    padding: 0;
+    max-width: none;
+    margin: 0;
+}
+
 @keyframes fadeIn {
     from {
         opacity: 0;
@@ -808,8 +816,7 @@ h3 {
     .hero-title { font-size: 3rem; }
     .hero-subtitle { font-size: 1.1rem; }
 
-    /* ── Hero — reduce excessive top padding ── */
-    .hero-v3 { padding: 5rem 1.25rem 3rem; }
+    /* ── Hero — further override declared after 900px block below ── */
 
     /* ── Stats bar — 2 columns on tablet/phone ── */
     /* NOTE: override declared again after base rule below to win the cascade */
@@ -817,9 +824,7 @@ h3 {
     /* ── Pricing: 2-col on tablet ── */
     .pricing-grid { grid-template-columns: repeat(2, 1fr); gap: 1.25rem; }
 
-    /* ── Enterprise ── */
-    .pricing-enterprise .enterprise-inner { grid-template-columns: 1fr; gap: 1.5rem; }
-    .enterprise-features { grid-template-columns: 1fr 1fr; }
+    /* ── Enterprise responsive overrides declared after base rules below ── */
 
     /* ── Testimonials & reviews — single column ── */
     .testimonials-grid { grid-template-columns: 1fr; }
@@ -839,8 +844,7 @@ h3 {
    Mobile — 480px
    ===================================================== */
 @media (max-width: 480px) {
-    .hero-v3 { padding: 4rem 1rem 2.5rem; }
-    .hero-v2 { padding: 4rem 1rem 2.5rem; }
+    .hero-v2 { padding: 2rem 1rem 2.5rem; }
     .hero-title { font-size: 2.2rem; }
 
     /* Tighter side padding on small phones */
@@ -2604,6 +2608,27 @@ h3 {
     text-transform: uppercase;
 }
 
+/* Enterprise responsive — declared AFTER base to win the cascade */
+@media (max-width: 900px) {
+    .pricing-enterprise .enterprise-inner {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+    .enterprise-features {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    .pricing-enterprise .enterprise-inner {
+        grid-template-columns: 1fr;
+        gap: 1.25rem;
+    }
+    .enterprise-features {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
 /* Testimonials */
 .testimonials-grid {
     display: grid;
@@ -2677,7 +2702,7 @@ h3 {
 .hero-v3 {
     position: relative;
     overflow: hidden;
-    padding: 5rem 5% 3.5rem;
+    padding: 2.5rem 5% 3.5rem;
 }
 
 .hero-stars-canvas {
@@ -3035,8 +3060,7 @@ h3 {
         gap: 3rem;
     }
     .hero-v3 {
-        /* Single-column layout — modest top padding, no extra gap above content */
-        padding: 5.5rem 5% 3rem;
+        padding: 2.5rem 5% 3rem;
     }
     .hero-title-v3 {
         font-size: 3.2rem;
@@ -3051,13 +3075,13 @@ h3 {
     }
 }
 
-/* Mobile hero — keep content close to navbar */
+/* Mobile hero — #app already clears the navbar, so only small top padding needed */
 @media (max-width: 768px) {
-    .hero-v3 { padding: 5rem 1.25rem 2.5rem; }
+    .hero-v3 { padding: 2rem 1.25rem 2.5rem; }
 }
 
 @media (max-width: 480px) {
-    .hero-v3 { padding: 5rem 1rem 2rem; }
+    .hero-v3 { padding: 1.5rem 1rem 2rem; }
 }
 
 @media (max-width: 600px) {
