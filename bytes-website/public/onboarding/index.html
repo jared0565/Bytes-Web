@@ -14,9 +14,11 @@
 </head>
 
 <body>
-    <!-- Background -->
-    <div id="onboarding-bg-tint"></div>
-    <canvas id="onboarding-stars-canvas"></canvas>
+    <!-- Background layer — isolated from document flow -->
+    <div id="onboarding-bg-layer">
+        <div id="onboarding-bg-tint"></div>
+        <canvas id="onboarding-stars-canvas"></canvas>
+    </div>
 
     <div id="onboarding-container">
         <header>
