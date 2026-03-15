@@ -27,9 +27,6 @@ body {
     color: var(--text-primary);
     line-height: 1.6;
     min-height: 100vh;
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
     overflow-x: hidden;
     overflow-y: auto;
     padding: 2rem 0;
@@ -58,6 +55,7 @@ body {
     width: 100%;
     max-width: 850px;
     padding: 2.5rem;
+    margin: 0 auto;
     z-index: 10;
     position: relative;
     animation: container-reveal 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
