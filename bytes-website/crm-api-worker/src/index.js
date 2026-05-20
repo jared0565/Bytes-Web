@@ -41,7 +41,7 @@ app.use('*', async (c, next) => {
         'Access-Control-Allow-Origin': origin,
         'Access-Control-Allow-Credentials': 'true',
         'Access-Control-Allow-Methods': 'GET, POST, PUT',
-        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
         'Vary': 'Origin',
     } : {};
     if (c.req.method === 'OPTIONS') {
@@ -153,6 +153,19 @@ async function getPlanStatus(env, clientId) {
 
 // ─── Session helpers ─────────────────────────────────────────────────────────
 
+// Create a short-lived grant token in KV — redeemed by client-side JS via fetch.
+// This avoids the iOS Safari ITP bug where cookies set in cross-site redirect
+// responses (OAuth callback → dashboard navigation) are silently discarded.
+async function issueSessionGrant(c, payload, maxAge) {
+    const grantToken = crypto.randomUUID();
+    await c.env.OAUTH_TOKENS.put(
+        `session_grant:${grantToken}`,
+        JSON.stringify({ ...payload, maxAge }),
+        { expirationTtl: 120 } // 2-minute window to redeem
+    );
+    return grantToken;
+}
+
 // Issue a session JWT, register it in KV for single-session enforcement
 async function issueSession(c, payload, maxAge) {
     const sessionId = crypto.randomUUID();
@@ -160,6 +173,7 @@ async function issueSession(c, payload, maxAge) {
     await c.env.OAUTH_TOKENS.put(sessionKey, sessionId, { expirationTtl: maxAge });
     const token = await signJWT({ ...payload, sessionId }, c.env.JWT_SECRET, maxAge);
     setCookie(c, 'session', token, { httpOnly: true, secure: true, sameSite: 'None', maxAge, path: '/' });
+    return token;
 }
 
 // Check whether the current request carries a valid device trust token for userId
@@ -170,17 +184,24 @@ async function checkDeviceToken(c, userId) {
     return stored === String(userId);
 }
 
-// Write a 30-day device trust cookie + KV entry
+// Write a 30-day device trust cookie + KV entry. Returns token for localStorage storage.
 async function issueDeviceToken(c, userId) {
     const deviceToken = crypto.randomUUID();
     const thirtyDays = 30 * 24 * 3600;
     await c.env.OAUTH_TOKENS.put(`device:${deviceToken}`, String(userId), { expirationTtl: thirtyDays });
     setCookie(c, 'device_token', deviceToken, { httpOnly: true, secure: true, sameSite: 'None', maxAge: thirtyDays, path: '/' });
+    return deviceToken;
 }
 
 // ─── Auth middleware ─────────────────────────────────────────────────────────
 const requireAuth = async (c, next) => {
-    const token = getCookie(c, 'session');
+    let token = getCookie(c, 'session');
+    // Accept Authorization: Bearer <jwt> as fallback (required for mobile where
+    // third-party cookies are blocked by iOS Safari ITP across different domains)
+    if (!token) {
+        const authHeader = c.req.header('Authorization');
+        if (authHeader && authHeader.startsWith('Bearer ')) token = authHeader.slice(7);
+    }
     if (!token) return c.json({ error: 'Unauthorized' }, 401);
     try {
         const payload = await verifyJWT(token, c.env.JWT_SECRET);
@@ -420,14 +441,18 @@ app.post('/api/auth/totp', async (c) => {
     const role = 'admin';
     const clientId = 'agency_demo';
     const thirtyDays = 30 * 24 * 3600;
-    await issueSession(c, { role, clientId }, thirtyDays);
-    return c.json({ success: true, role, clientId });
+    const sessionToken = await issueSession(c, { role, clientId }, thirtyDays);
+    return c.json({ success: true, role, clientId, sessionToken });
 });
 
 // Logout — invalidate active session in KV and clear cookies
 app.post('/api/auth/logout', async (c) => {
     try {
-        const token = getCookie(c, 'session');
+        let token = getCookie(c, 'session');
+        if (!token) {
+            const auth = c.req.header('Authorization');
+            if (auth && auth.startsWith('Bearer ')) token = auth.slice(7);
+        }
         if (token) {
             try {
                 const payload = await verifyJWT(token, c.env.JWT_SECRET);
@@ -479,8 +504,20 @@ app.get('/api/auth/exchange', async (c) => {
 });
 
 // Pre-OAuth device trust check — called via fetch before the OAuth redirect.
-// Reads device_token cookie, issues a short-lived single-use bypass token if trusted.
+// Checks localStorage trust_token param first (avoids cross-site cookie blocking),
+// then falls back to httpOnly device_token cookie.
 app.get('/api/auth/device-bypass', async (c) => {
+    // Primary: localStorage-based trust token passed as query param
+    const trustToken = c.req.query('trust_token');
+    if (trustToken) {
+        const userId = await c.env.OAUTH_TOKENS.get(`device:${trustToken}`);
+        if (userId) {
+            const bypassToken = crypto.randomUUID();
+            await c.env.OAUTH_TOKENS.put(`device_bypass:${bypassToken}`, userId, { expirationTtl: 600 });
+            return c.json({ token: bypassToken });
+        }
+    }
+    // Fallback: httpOnly cookie (may be blocked by browser cookie partitioning)
     const deviceToken = getCookie(c, 'device_token');
     if (!deviceToken) return c.json({ token: null });
     const userId = await c.env.OAUTH_TOKENS.get(`device:${deviceToken}`);
@@ -488,6 +525,22 @@ app.get('/api/auth/device-bypass', async (c) => {
     const bypassToken = crypto.randomUUID();
     await c.env.OAUTH_TOKENS.put(`device_bypass:${bypassToken}`, userId, { expirationTtl: 600 });
     return c.json({ token: bypassToken });
+});
+
+// Redeem a session grant token — called via JS fetch from the dashboard after OAuth redirect.
+// Sets the session cookie in response to an active JS request (not a navigation redirect),
+// which is accepted by iOS Safari ITP / mobile browsers that discard redirect-planted cookies.
+app.get('/api/auth/redeem-grant', async (c) => {
+    const token = c.req.query('token');
+    if (!token || typeof token !== 'string') return c.json({ error: 'Missing token' }, 400);
+
+    const raw = await c.env.OAUTH_TOKENS.get(`session_grant:${token}`);
+    if (!raw) return c.json({ error: 'Grant expired or already used' }, 401);
+
+    await c.env.OAUTH_TOKENS.delete(`session_grant:${token}`); // single-use
+    const { maxAge, ...payload } = JSON.parse(raw);
+    const sessionToken = await issueSession(c, payload, maxAge);
+    return c.json({ success: true, sessionToken });
 });
 
 // OAuth — redirect to provider  (?redirect=dashboard for dashboard login)
@@ -552,37 +605,46 @@ app.get('/api/auth/:provider/callback', async (c) => {
 
         if (dest === 'dashboard') {
             const userId = userRecord.id;
+            const thirtyDays = 30 * 24 * 3600;
 
-            // Device trust check — skip 2FA on remembered machines.
-            // Prefer bypass token (carried through state, not subject to cookie partitioning).
-            // Fallback to direct cookie check in case bypass fetch wasn't used.
+            // Check if this user has 2FA configured (opt-in, never forced)
             const hasTotp = await c.env.OAUTH_TOKENS.get(`totp:secret:${userId}`);
+
+            // No 2FA configured — prompt user to set it up.
+            // Once set up, device trust (localStorage-based) prevents the code being asked again
+            // on trusted devices for 30 days, fixing the "keeps asking every login" problem.
+            if (!hasTotp) {
+                const pendingId = crypto.randomUUID();
+                await c.env.OAUTH_TOKENS.put(`pending_2fa:${pendingId}`, JSON.stringify({
+                    userId, provider, name: userData.name || '', email: userData.email || ''
+                }), { expirationTtl: 600 });
+                return c.redirect(`${dashUrl}?step=setup-2fa&pid=${pendingId}`);
+            }
+
+            // 2FA is enabled — check device trust before requiring code.
+            // Bypass token is pre-fetched before OAuth redirect to avoid cross-site cookie blocking.
+            // Fallback to direct cookie check in case bypass fetch wasn't used.
             let trusted = false;
-            if (hasTotp && bypass) {
+            if (bypass) {
                 const bypassUserId = await c.env.OAUTH_TOKENS.get(`device_bypass:${bypass}`);
                 if (bypassUserId === String(userId)) {
                     trusted = true;
                     await c.env.OAUTH_TOKENS.delete(`device_bypass:${bypass}`);
                 }
             }
-            if (hasTotp && !trusted) {
-                trusted = await checkDeviceToken(c, userId);
-            }
-            if (hasTotp && trusted) {
-                const thirtyDays = 30 * 24 * 3600;
-                await issueSession(c, { role: 'admin', clientId: 'agency_demo', provider, userId }, thirtyDays);
-                return c.redirect(dashUrl);
+            if (!trusted) trusted = await checkDeviceToken(c, userId);
+
+            if (trusted) {
+                const grant = await issueSessionGrant(c, { role: 'admin', clientId: 'agency_demo', provider, userId }, thirtyDays);
+                return c.redirect(`${dashUrl}?session_grant=${grant}`);
             }
 
-            // Create a short-lived pending session for 2FA
+            // Device not trusted — require 2FA verification
             const pendingId = crypto.randomUUID();
             await c.env.OAUTH_TOKENS.put(`pending_2fa:${pendingId}`, JSON.stringify({
                 userId, provider, name: userData.name || '', email: userData.email || ''
             }), { expirationTtl: 600 });
-
-            // Route to verify (existing TOTP) or setup (no TOTP yet)
-            const step = hasTotp ? 'verify-2fa' : 'setup-2fa';
-            return c.redirect(`${dashUrl}?step=${step}&pid=${pendingId}`);
+            return c.redirect(`${dashUrl}?step=verify-2fa&pid=${pendingId}`);
         }
 
         // Onboarding path — opaque token exchange → form pre-fill
@@ -651,9 +713,10 @@ app.post('/api/auth/totp/user-enable', async (c) => {
     await c.env.OAUTH_TOKENS.delete(`pending_2fa:${pid}`);
 
     const thirtyDays = 30 * 24 * 3600;
-    await issueSession(c, { role: 'admin', clientId: 'agency_demo', provider, userId }, thirtyDays);
-    if (rememberDevice) await issueDeviceToken(c, userId);
-    return c.json({ success: true, role: 'admin', clientId: 'agency_demo' });
+    const sessionToken = await issueSession(c, { role: 'admin', clientId: 'agency_demo', provider, userId }, thirtyDays);
+    let deviceTrustToken = null;
+    if (rememberDevice) deviceTrustToken = await issueDeviceToken(c, userId);
+    return c.json({ success: true, role: 'admin', clientId: 'agency_demo', deviceTrustToken, sessionToken });
 });
 
 // 2FA verify — check code, enforce lockout, issue session
@@ -701,9 +764,10 @@ app.post('/api/auth/totp/user-verify', async (c) => {
     await c.env.OAUTH_TOKENS.delete(`pending_2fa:${pid}`);
 
     const thirtyDays = 30 * 24 * 3600;
-    await issueSession(c, { role: 'admin', clientId: 'agency_demo', provider, userId }, thirtyDays);
-    if (rememberDevice) await issueDeviceToken(c, userId);
-    return c.json({ success: true, role: 'admin', clientId: 'agency_demo' });
+    const sessionToken = await issueSession(c, { role: 'admin', clientId: 'agency_demo', provider, userId }, thirtyDays);
+    let deviceTrustToken = null;
+    if (rememberDevice) deviceTrustToken = await issueDeviceToken(c, userId);
+    return c.json({ success: true, role: 'admin', clientId: 'agency_demo', deviceTrustToken, sessionToken });
 });
 
 // Leads

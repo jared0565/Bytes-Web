@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Data Deletion | BytesAI</title>
+  <title>Data Deletion | BytesFX</title>
   <link rel="icon" type="image/png" href="/favicon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,10 +11,18 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    :root {
+      --color-primary: #00d4aa;
+      --bg-primary: #0a0a0f;
+      --text-primary: #ffffff;
+      --text-secondary: #a1a1aa;
+      --glass-border: rgba(255,255,255,0.08);
+    }
+
     body {
       font-family: 'Outfit', sans-serif;
-      background: #0a0a0f;
-      color: #c8cad4;
+      background: var(--bg-primary);
+      color: var(--text-secondary);
       line-height: 1.75;
     }
 
@@ -23,7 +31,7 @@
       align-items: center;
       justify-content: space-between;
       padding: 1.25rem 2rem;
-      border-bottom: 1px solid rgba(255,255,255,0.06);
+      border-bottom: 1px solid var(--glass-border);
       background: rgba(10,10,15,0.9);
       backdrop-filter: blur(12px);
       position: sticky;
@@ -34,16 +42,16 @@
     .logo {
       font-size: 1.5rem;
       font-weight: 700;
-      color: #fff;
+      color: var(--text-primary);
       text-decoration: none;
       letter-spacing: -0.02em;
     }
 
-    .logo span { color: #7c6af7; }
+    .logo span { color: var(--color-primary); }
 
     .back-link {
       font-size: 0.875rem;
-      color: #7c6af7;
+      color: var(--color-primary);
       text-decoration: none;
       transition: opacity 0.2s;
     }
@@ -59,32 +67,32 @@
     .page-header {
       margin-bottom: 3rem;
       padding-bottom: 2rem;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
+      border-bottom: 1px solid var(--glass-border);
     }
 
     .page-header h1 {
       font-size: 2.5rem;
       font-weight: 700;
-      color: #fff;
+      color: var(--text-primary);
       letter-spacing: -0.03em;
       margin-bottom: 0.5rem;
     }
 
     .page-header p {
-      color: #666;
+      color: #71717a;
       font-size: 0.9rem;
     }
 
     h2 {
       font-size: 1.2rem;
       font-weight: 600;
-      color: #fff;
+      color: var(--text-primary);
       margin: 2.5rem 0 0.75rem;
     }
 
     p, li {
       font-size: 0.975rem;
-      color: #9a9cb0;
+      color: var(--text-secondary);
       line-height: 1.75;
     }
 
@@ -95,7 +103,7 @@
 
     li { margin-bottom: 0.4rem; }
 
-    a { color: #7c6af7; text-decoration: none; }
+    a { color: var(--color-primary); text-decoration: none; }
     a:hover { text-decoration: underline; }
 
     .steps {
@@ -117,28 +125,28 @@
       content: counter(step);
       min-width: 2rem;
       height: 2rem;
-      background: rgba(124,106,247,0.15);
-      border: 1px solid rgba(124,106,247,0.3);
+      background: rgba(0, 212, 170, 0.15);
+      border: 1px solid rgba(0, 212, 170, 0.3);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 0.8rem;
       font-weight: 600;
-      color: #7c6af7;
+      color: var(--color-primary);
       flex-shrink: 0;
       margin-top: 0.15rem;
     }
 
     .highlight-box {
-      background: rgba(124,106,247,0.08);
-      border: 1px solid rgba(124,106,247,0.2);
+      background: rgba(0, 212, 170, 0.08);
+      border: 1px solid rgba(0, 212, 170, 0.2);
       border-radius: 10px;
       padding: 1.25rem 1.5rem;
       margin: 2rem 0;
     }
 
-    .highlight-box p { color: #b8b0f7; font-size: 0.9rem; }
+    .highlight-box p { color: #80edc4; font-size: 0.9rem; margin-bottom: 0; }
 
     .email-btn {
       display: inline-flex;
@@ -146,10 +154,10 @@
       gap: 0.5rem;
       margin-top: 1rem;
       padding: 0.75rem 1.5rem;
-      background: rgba(124,106,247,0.12);
-      border: 1px solid rgba(124,106,247,0.3);
+      background: rgba(0, 212, 170, 0.12);
+      border: 1px solid rgba(0, 212, 170, 0.3);
       border-radius: 8px;
-      color: #7c6af7;
+      color: var(--color-primary);
       font-family: inherit;
       font-size: 0.9rem;
       font-weight: 500;
@@ -158,72 +166,70 @@
     }
 
     .email-btn:hover {
-      background: rgba(124,106,247,0.2);
-      border-color: rgba(124,106,247,0.5);
+      background: rgba(0, 212, 170, 0.2);
+      border-color: rgba(0, 212, 170, 0.5);
       text-decoration: none;
     }
 
     footer {
       text-align: center;
       padding: 2rem;
-      border-top: 1px solid rgba(255,255,255,0.06);
+      border-top: 1px solid var(--glass-border);
       font-size: 0.8rem;
-      color: #444;
+      color: #71717a;
     }
   </style>
 </head>
 <body>
 
 <nav>
-  <a href="/" class="logo">Bytes<span>AI</span></a>
-  <a href="/" class="back-link">← Back to Home</a>
+  <a href="/#home" class="logo">Bytes<span>FX</span></a>
+  <a href="/#home" class="back-link">&larr; Back to Home</a>
 </nav>
 
 <main>
   <div class="page-header">
     <h1>Data Deletion</h1>
-    <p>Instructions for removing your data from BytesAI</p>
+    <p>Instructions for removing your data from BytesFX</p>
   </div>
 
   <div class="highlight-box">
-    <p>If you signed in to BytesAI using Facebook, Google, or LinkedIn, you can request full deletion of your account and all associated data at any time.</p>
+    <p>Under data protection laws, you have the right to request deletion of your personal data. We honor all deletion requests within 30 days.</p>
   </div>
 
   <h2>How to delete your data</h2>
   <ol class="steps">
-    <li>Send an email to <a href="mailto:privacy@bytsfx.com">privacy@bytsfx.com</a> with the subject line <strong>"Data Deletion Request"</strong></li>
-    <li>Include the email address associated with your BytesAI account</li>
+    <li>Send an email to <a href="mailto:contact@bytesfx.com">contact@bytesfx.com</a> with the subject line <strong>"Data Deletion Request"</strong></li>
+    <li>Include the email address associated with your inquiry or account</li>
     <li>We will confirm receipt within 48 hours and complete the deletion within 30 days</li>
   </ol>
 
   <h2>What gets deleted</h2>
   <ul>
-    <li>Your account profile (name, email, profile picture)</li>
-    <li>Social login association (Google, Facebook, or LinkedIn)</li>
-    <li>All leads, contacts, and campaign data linked to your account</li>
-    <li>Chat logs and conversation history</li>
-    <li>Chatbot configuration and settings</li>
+    <li>Your contact information (name, email, phone)</li>
+    <li>Any project details or messages you submitted</li>
+    <li>Lead information stored through our website</li>
+    <li>Chat conversation history</li>
+    <li>Any other personal data you provided to us</li>
   </ul>
 
-  <h2>Facebook-specific deletion</h2>
-  <p>If you connected your Facebook account and want to remove BytesAI's access, you can also revoke access directly through Facebook:</p>
+  <h2>Cookie data</h2>
+  <p>To delete cookies stored on your device, you can:</p>
   <ol class="steps">
-    <li>Go to your <a href="https://www.facebook.com/settings?tab=applications" target="_blank" rel="noopener">Facebook Settings → Apps and Websites</a></li>
-    <li>Find <strong>BytesAI CRM</strong> and click <strong>Remove</strong></li>
-    <li>This revokes Facebook's data sharing with BytesAI immediately</li>
+    <li>Clear your browser cookies through your browser settings</li>
+    <li>Or use our cookie consent banner on your next visit to update preferences</li>
   </ol>
-  <p style="margin-top:1rem;">To also delete any data already stored on our servers, send us an email using the button below.</p>
 
-  <a href="mailto:privacy@bytsfx.com?subject=Data Deletion Request" class="email-btn">
-    ✉ Request Data Deletion
+  <a href="mailto:contact@bytesfx.com?subject=Data Deletion Request" class="email-btn">
+    &#9993; Request Data Deletion
   </a>
 
   <h2>Questions?</h2>
-  <p>Contact us at <a href="mailto:privacy@bytsfx.com">privacy@bytsfx.com</a> for any privacy-related requests.</p>
+  <p>Contact us at <a href="mailto:contact@bytesfx.com">contact@bytesfx.com</a> for any privacy-related requests or questions about data deletion.</p>
 </main>
 
 <footer>
-  &copy; 2026 BytesAI. All rights reserved. · <a href="/privacy-policy">Privacy Policy</a>
+  &copy; 2026 Bytes Enterprises Ltd. All rights reserved. &middot; <a href="/privacy-policy.html">Privacy Policy</a>
 </footer>
 
 </body>

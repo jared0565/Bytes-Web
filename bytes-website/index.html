@@ -5,28 +5,54 @@
   <meta charset="UTF-8" />
   <link rel="icon" type="image/png" href="/favicon.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BytesAI | The Future of Lead Generation</title>
+  <title>BytesFX | Premium Web Development & Business Solutions</title>
+  <meta name="description" content="BytesFX delivers high-performance websites, custom applications, and AI chatbots designed for maximum ROI and business growth.">
+
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Styles -->
   <link rel="stylesheet" href="/style.css">
+
+  <!-- Structured Data for Local Business -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    "name": "BytesFX",
+    "alternateName": "Bytes Enterprises Ltd",
+    "description": "Premium web and application development services designed for high engagement and maximum ROI.",
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": "London",
+      "addressCountry": "GB"
+    },
+    "contactPoint": {
+      "@type": "ContactPoint",
+      "email": "contact@bytesfx.com",
+      "contactType": "Customer Service"
+    },
+    "sameAs": [
+      "https://linkedin.com/in/fbmacagba"
+    ]
+  }
+  </script>
 </head>
 
 <body>
   <!-- Top Navigation -->
   <nav class="navbar glass-nav">
-    <!-- Logo on the left -->
     <div class="logo-container">
       <a href="#home" class="logo">
-        Bytes<span class="highlight">AI</span>
+        Bytes<span class="highlight">FX</span>
       </a>
     </div>
 
     <!-- Mobile Menu Toggle -->
     <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle Navigation">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <line x1="3" y1="12" x2="21" y2="12"></line>
         <line x1="3" y1="6" x2="21" y2="6"></line>
         <line x1="3" y1="18" x2="21" y2="18"></line>
@@ -35,9 +61,9 @@
 
     <!-- Menu on the right -->
     <ul class="nav-links" id="navLinks">
-      <li><a href="#pricing" class="nav-item">Pricing</a></li>
-      <li><a href="/dashboard/" class="nav-item nav-login">Log In</a></li>
-      <li><a href="/onboarding/" class="btn btn-primary" style="padding: 0.6rem 1.2rem; font-size: 0.9rem;">Get Started Free</a></li>
+      <li><a href="#services" class="nav-item">Services</a></li>
+      <li><a href="#process" class="nav-item">Process</a></li>
+      <li><a href="#contact" class="nav-item">Contact</a></li>
     </ul>
   </nav>
 
@@ -49,26 +75,27 @@
     <div class="footer-content">
       <div class="footer-brand">
         <a href="#home" class="logo">
-          Bytes<span class="highlight">AI</span>
+          Bytes<span class="highlight">FX</span>
         </a>
         <p class="footer-description">Premium web and application experiences tailored to rapidly scale your business.
         </p>
       </div>
 
       <div class="footer-links-group">
-        <h4>Company</h4>
+        <h4>Services</h4>
         <ul>
-          <li><a href="#home">Home</a></li>
-          <li><a href="#privacy">Privacy Policy</a></li>
-          <li><a href="#terms">Terms of Use</a></li>
+          <li><a href="#services">Website Development</a></li>
+          <li><a href="#services">App Development</a></li>
+          <li><a href="#services">Chatbot Solutions</a></li>
         </ul>
       </div>
 
       <div class="footer-links-group">
-        <h4>Connect</h4>
+        <h4>Legal</h4>
         <ul>
-          <li><a href="https://linkedin.com/in/fbmacagba" target="_blank" rel="noopener noreferrer">LinkedIn</a></li>
-          <li><a href="mailto:contact@bytesai.com">Email Us</a></li>
+          <li><a href="/privacy-policy.html">Privacy Policy</a></li>
+          <li><a href="/terms-of-service.html">Terms of Service</a></li>
+          <li><a href="/cookie-policy.html">Cookie Policy</a></li>
         </ul>
       </div>
 
@@ -78,7 +105,7 @@
           Bytes Enterprises Ltd.<br>
           London, UK
         </p>
-        <a href="mailto:contact@bytesai.com" class="contact-email">contact@bytesai.com</a>
+        <a href="mailto:contact@bytesfx.com" class="contact-email">contact@bytesfx.com</a>
       </div>
     </div>
     <div class="footer-bottom">
@@ -99,9 +126,7 @@
     <div class="cookie-content">
       <div class="cookie-text">
         <h4>We Value Your Privacy</h4>
-        <p>Bytes Enterprises uses cookies to enhance your browsing experience, serve personalized ads or content, and
-          analyze our traffic. By clicking "Accept All", you consent to our use of cookies as described in our <a
-            href="#privacy" class="highlight">Privacy Policy</a>.</p>
+        <p>Bytes Enterprises uses cookies to enhance your browsing experience, serve personalized content, and analyze our traffic. By clicking "Accept All", you consent to our use of cookies as described in our <a href="/privacy-policy.html" class="highlight">Privacy Policy</a>.</p>
       </div>
       <div class="cookie-actions">
         <button id="btnAcceptCookies" class="btn btn-primary">Accept All</button>
@@ -116,22 +141,21 @@
       <div class="chatbot-header">
         <div class="chatbot-title">
           <span class="status-dot"></span>
-          Bytes<span class="highlight">AI</span>
+          Bytes<span class="highlight">FX</span> Assistant
         </div>
         <button id="btnCloseChat" class="btn-close-chat">&times;</button>
       </div>
       <div id="chat-messages" class="chatbot-messages">
         <!-- Messages will be injected here -->
         <div class="chat-message bot-message">
-          <p>Hi there! I'm BytesAI. How can I help you scale today?</p>
+          <p>Hi there! I'm your BytesFX assistant. How can I help you grow your business today?</p>
         </div>
       </div>
       <div class="chatbot-input-area">
         <form id="chatForm">
-          <input type="text" id="chatInput" placeholder="Type your message..." autocomplete="off" required>
+          <input type="text" id="chatInput" placeholder="Ask about our services..." autocomplete="off" required>
           <button type="submit" id="btnSendChat" class="btn-send-chat">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="22" y1="2" x2="11" y2="13"></line>
               <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
             </svg>
@@ -140,14 +164,15 @@
       </div>
     </div>
     <button id="btnOpenChat" class="chatbot-launcher">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-        stroke-linecap="round" stroke-linejoin="round">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
       </svg>
     </button>
   </div>
 
-  <script type="module" src="/main.js"></script>
+  <!-- Main JavaScript -->
+  <script type="module" src="/src/main.js"></script>
+
   <script>
     document.getElementById('currentYear').textContent = new Date().getFullYear();
   </script>

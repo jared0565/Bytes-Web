@@ -1,5 +1,20 @@
 const API_BASE = "https://crm-api.bmorris0565.workers.dev";
 
+// apiFetch: always sends credentials (cookies) AND the stored JWT as Authorization header.
+// The Authorization header is the primary auth mechanism on mobile (iOS Safari ITP blocks
+// cross-site cookies from crm-api.bmorris0565.workers.dev when fetched from web.bytesfx.com).
+function apiFetch(url, opts = {}) {
+    const jwt = localStorage.getItem('bytes_session_jwt');
+    return fetch(url, {
+        ...opts,
+        credentials: 'include',
+        headers: {
+            ...(opts.headers || {}),
+            ...(jwt ? { 'Authorization': `Bearer ${jwt}` } : {}),
+        },
+    });
+}
+
 // --- Plan / Trial state ---
 let planStatus = { plan: 'free', inTrial: true, trialDaysLeft: 7 };
 
@@ -90,6 +105,34 @@ const simStatus = document.getElementById('sim-status');
         return;
     }
 
+    // Redeem session grant from OAuth redirect (mobile-safe cookie establishment).
+    // The grant token is exchanged via JS fetch so the cookie is set in response to an
+    // active request — iOS Safari ITP does not discard these, unlike redirect-planted cookies.
+    const sessionGrant = params.get('session_grant');
+    if (sessionGrant) {
+        history.replaceState(null, '', window.location.pathname);
+        try {
+            const res = await fetch(`${API_BASE}/api/auth/redeem-grant?token=${encodeURIComponent(sessionGrant)}`, { credentials: 'include' });
+            if (res.ok) {
+                const grantData = await res.json();
+                // Store JWT in localStorage so apiFetch can send it as Authorization header.
+                // This is the cross-domain mobile fix: iOS Safari ITP blocks third-party cookies
+                // but cannot block Authorization headers on fetch requests.
+                if (grantData.sessionToken) localStorage.setItem('bytes_session_jwt', grantData.sessionToken);
+                const meRes = await apiFetch(`${API_BASE}/api/auth/me`);
+                if (meRes.ok) {
+                    const data = await meRes.json();
+                    userRole = data.role || 'sales_rep';
+                    localStorage.setItem('agency_user_role', userRole);
+                    showDashboard();
+                    return;
+                }
+            }
+        } catch (_) {}
+        loginError.innerText = 'Login session could not be established. Please try again.';
+        return;
+    }
+
     // Post-OAuth 2FA steps
     if (step === 'verify-2fa' && pid) {
         history.replaceState(null, '', window.location.pathname);
@@ -104,7 +147,7 @@ const simStatus = document.getElementById('sim-status');
 
     // Check for existing session
     try {
-        const res = await fetch(`${API_BASE}/api/auth/me`, { credentials: 'include' });
+        const res = await apiFetch(`${API_BASE}/api/auth/me`);
         if (res.ok) {
             const data = await res.json();
             userRole = data.role || 'sales_rep';
@@ -151,6 +194,8 @@ function show2faVerify(pid) {
             if (res.ok) {
                 userRole = data.role;
                 localStorage.setItem('agency_user_role', data.role);
+                if (data.deviceTrustToken) localStorage.setItem('bytes_device_trust', data.deviceTrustToken);
+                if (data.sessionToken) localStorage.setItem('bytes_session_jwt', data.sessionToken);
                 showDashboard();
                 return;
             }
@@ -218,6 +263,8 @@ async function show2faSetup(pid) {
             if (res.ok) {
                 userRole = data.role;
                 localStorage.setItem('agency_user_role', data.role);
+                if (data.deviceTrustToken) localStorage.setItem('bytes_device_trust', data.deviceTrustToken);
+                if (data.sessionToken) localStorage.setItem('bytes_session_jwt', data.sessionToken);
                 showDashboard();
                 return;
             }
@@ -248,6 +295,7 @@ document.getElementById('totp-btn').addEventListener('click', async () => {
         if (!res.ok) { loginError.innerText = data.error || 'Invalid code.'; return; }
         userRole = data.role;
         localStorage.setItem('agency_user_role', data.role);
+        if (data.sessionToken) localStorage.setItem('bytes_session_jwt', data.sessionToken);
         showDashboard();
     } catch {
         loginError.innerText = 'Connection error. Please try again.';
@@ -263,11 +311,16 @@ document.querySelectorAll('.btn-social').forEach(btn => {
         // Preserve ?view= param across the OAuth round-trip
         const view = new URLSearchParams(window.location.search).get('view');
         if (view) sessionStorage.setItem('pendingView', view);
-        // Pre-fetch device bypass token via fetch (reliable cross-origin cookie read,
-        // avoids browser cookie partitioning that blocks the cookie in OAuth callback navigations)
+        // Pre-fetch device bypass token before OAuth redirect.
+        // Passes localStorage trust token as query param (avoids cross-site cookie blocking).
+        // Falls back to httpOnly cookie check on the server side.
         let bypassParam = '';
         try {
-            const res = await fetch(`${API_BASE}/api/auth/device-bypass`, { credentials: 'include' });
+            const trustToken = localStorage.getItem('bytes_device_trust') || '';
+            const bypassUrl = trustToken
+                ? `${API_BASE}/api/auth/device-bypass?trust_token=${encodeURIComponent(trustToken)}`
+                : `${API_BASE}/api/auth/device-bypass`;
+            const res = await fetch(bypassUrl, { credentials: 'include' });
             if (res.ok) {
                 const { token } = await res.json();
                 if (token) bypassParam = `&bypass=${encodeURIComponent(token)}`;
@@ -279,8 +332,9 @@ document.querySelectorAll('.btn-social').forEach(btn => {
 
 logoutBtn.addEventListener('click', async () => {
     // H2: Clear the httpOnly session cookie server-side
-    await fetch(`${API_BASE}/api/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
+    await apiFetch(`${API_BASE}/api/auth/logout`, { method: 'POST' }).catch(() => {});
     localStorage.removeItem('agency_user_role');
+    localStorage.removeItem('bytes_session_jwt');
     location.reload();
 });
 
@@ -320,7 +374,7 @@ function startSessionWatcher() {
 
     async function checkSession() {
         try {
-            const res = await fetch(`${API_BASE}/api/auth/me`, { credentials: 'include' });
+            const res = await apiFetch(`${API_BASE}/api/auth/me`);
             if (res.status === 401) {
                 const data = await res.json().catch(() => ({}));
                 const msg = data.kicked
@@ -349,7 +403,7 @@ function showKickedBanner(message) {
 
 async function loadPlanStatus() {
     try {
-        const res = await fetch(`${API_BASE}/api/crm-settings`, { credentials: 'include' });
+        const res = await apiFetch(`${API_BASE}/api/crm-settings`);
         if (!res.ok) return;
         const data = await res.json();
         planStatus = { plan: data.plan || 'free', inTrial: data.inTrial || false, trialDaysLeft: data.trialDaysLeft || 0, trialEndsAt: data.trialEndsAt || 0 };
@@ -377,7 +431,7 @@ function renderPlanBanner() {
 // --- User Profile ---
 async function loadUserProfile() {
     try {
-        const res = await fetch(`${API_BASE}/api/auth/me`, { credentials: 'include' });
+        const res = await apiFetch(`${API_BASE}/api/auth/me`);
         if (!res.ok) return;
         const data = await res.json();
         userProfile = { name: data.name || '', email: data.email || '', picture: data.picture || '', companyName: data.companyName || '' };
@@ -486,9 +540,7 @@ refreshBtn.addEventListener('click', () => {
 // --- Data Fetching ---
 async function loadLeads() {
     try {
-        const res = await fetch(`${API_BASE}/api/leads`, {
-            credentials: 'include'
-        });
+        const res = await apiFetch(`${API_BASE}/api/leads`);
 
         if (!res.ok) {
             let errorMsg = 'Access Denied';
@@ -513,9 +565,7 @@ async function loadLeads() {
 
 async function loadLogs() {
     try {
-        const res = await fetch(`${API_BASE}/api/logs`, {
-            credentials: 'include'
-        });
+        const res = await apiFetch(`${API_BASE}/api/logs`);
         if (!res.ok) return;
 
         const data = await res.json();
@@ -631,9 +681,8 @@ function renderLeads(leads) {
             updateKanbanCounts();
 
             try {
-                const res = await fetch(`${API_BASE}/api/leads/${leadId}/stage`, {
+                const res = await apiFetch(`${API_BASE}/api/leads/${leadId}/stage`, {
                     method: 'PUT',
-                    credentials: 'include',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ stage: newStage })
                 });
@@ -677,9 +726,7 @@ loadConfigBtn.addEventListener('click', async () => {
     configStatus.style.color = "white";
 
     try {
-        const res = await fetch(`${API_BASE}/api/config?clientId=${cid}`, {
-            credentials: 'include'
-        });
+        const res = await apiFetch(`${API_BASE}/api/config?clientId=${cid}`);
 
         if (res.ok) {
             const data = await res.json();
@@ -724,9 +771,7 @@ loadConfigBtn.addEventListener('click', async () => {
             configStatus.style.color = "var(--success)";
 
             // LOAD CRM SETTINGS (Mode/Auto-Approve)
-            const crmRes = await fetch(`${API_BASE}/api/crm-settings?clientId=${cid}`, {
-                credentials: 'include'
-            });
+            const crmRes = await apiFetch(`${API_BASE}/api/crm-settings?clientId=${cid}`);
             if (crmRes.ok) {
                 const crmData = await crmRes.json();
                 configCampaignMode.value = crmData.default_campaign_mode || 'ai';
@@ -771,9 +816,8 @@ saveConfigBtn.addEventListener('click', async () => {
 
     configStatus.innerText = "Saving...";
     try {
-        const res = await fetch(`${API_BASE}/api/config`, {
+        const res = await apiFetch(`${API_BASE}/api/config`, {
             method: 'POST',
-            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ clientId: cid, settings })
         });
@@ -783,9 +827,8 @@ saveConfigBtn.addEventListener('click', async () => {
             configStatus.style.color = "var(--success)";
 
             // SAVE CRM SETTINGS
-            await fetch(`${API_BASE}/api/crm-settings`, {
+            await apiFetch(`${API_BASE}/api/crm-settings`, {
                 method: 'POST',
-                credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     clientId: cid,
@@ -818,9 +861,8 @@ simulateBtn.addEventListener('click', async () => {
     simStatus.style.color = "var(--text-secondary)";
 
     try {
-        const res = await fetch(`${API_BASE}/api/test-lead`, {
+        const res = await apiFetch(`${API_BASE}/api/test-lead`, {
             method: 'POST',
-            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ clientId: cid, name, email })
         });
@@ -893,7 +935,7 @@ function updateModeUI(mode) {
 async function loadTemplates() {
     if (availableTemplates.length > 0) return;
     try {
-        const res = await fetch(`${API_BASE}/api/templates`, { credentials: 'include' });
+        const res = await apiFetch(`${API_BASE}/api/templates`);
         availableTemplates = await res.json();
         
         if (templateSelect) {
@@ -1113,9 +1155,7 @@ async function openSequenceModal(leadId) {
     // Fetch existing sequences
     sequenceLoading.classList.remove('hidden');
     try {
-        const res = await fetch(`${API_BASE}/api/sequences?leadId=${leadId}`, {
-            credentials: 'include'
-        });
+        const res = await apiFetch(`${API_BASE}/api/sequences?leadId=${leadId}`);
         const data = await res.json();
 
         if (data && data.length > 0) {
@@ -1152,16 +1192,13 @@ async function generateSequence(leadId) {
     }
 
     try {
-        const res = await fetch(`${API_BASE}/api/generate-sequence`, {
+        const res = await apiFetch(`${API_BASE}/api/generate-sequence`, {
             method: 'POST',
-            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ leadId })
         });
         if (res.ok) {
-            const seqRes = await fetch(`${API_BASE}/api/sequences?leadId=${leadId}`, {
-                credentials: 'include'
-            });
+            const seqRes = await apiFetch(`${API_BASE}/api/sequences?leadId=${leadId}`);
             currentSequences = await seqRes.json();
             renderSequenceEditor();
         } else {
@@ -1216,24 +1253,21 @@ saveSequenceBtn.addEventListener('click', async () => {
             const subject = document.getElementById(`seq-subject-${i}`).value;
             const body = document.getElementById(`seq-body-${i}`).value;
 
-            await fetch(`${API_BASE}/api/sequences`, {
+            await apiFetch(`${API_BASE}/api/sequences`, {
                 method: 'PUT',
-                credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    id: seq.id, 
+                    id: seq.id,
                     leadId: currentLeadId,
                     email_number: seq.email_number,
-                    subject, 
-                    body 
+                    subject,
+                    body
                 })
             });
         }
         
         // Re-fetch to get any newly assigned IDs from manual insertion
-        const seqRes = await fetch(`${API_BASE}/api/sequences?leadId=${currentLeadId}`, {
-            credentials: 'include'
-        });
+        const seqRes = await apiFetch(`${API_BASE}/api/sequences?leadId=${currentLeadId}`);
         currentSequences = await seqRes.json();
         renderSequenceEditor();
         sequenceStatus.innerText = 'Drafts saved successfully.';
@@ -1253,9 +1287,8 @@ approveSequenceBtn.addEventListener('click', async () => {
 
     sequenceStatus.innerText = 'Approving Campaign...';
     try {
-        const res = await fetch(`${API_BASE}/api/sequences/approve`, {
+        const res = await apiFetch(`${API_BASE}/api/sequences/approve`, {
             method: 'POST',
-            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ leadId: currentLeadId })
         });
@@ -1296,7 +1329,7 @@ let installationData = { clientId: '', allowedDomains: [], maxInstalls: 1, maxDo
 async function loadChatbotView() {
     // Load installations first so we have clientId
     try {
-        const res = await fetch(`${API_BASE}/api/installations`, { credentials: 'include' });
+        const res = await apiFetch(`${API_BASE}/api/installations`);
         if (res.ok) installationData = await res.json();
     } catch { /* use cached */ }
     renderChatbotView();
@@ -1306,9 +1339,9 @@ async function loadChatbotView() {
 
     // Fetch chatbot config, CRM settings, and mail settings in parallel
     const [configResult, crmResult, mailResult] = await Promise.allSettled([
-        fetch(`${API_BASE}/api/config?clientId=${encodeURIComponent(cid)}`, { credentials: 'include' }),
-        fetch(`${API_BASE}/api/crm-settings`, { credentials: 'include' }),
-        fetch(`${API_BASE}/api/mail-settings`, { credentials: 'include' }),
+        apiFetch(`${API_BASE}/api/config?clientId=${encodeURIComponent(cid)}`),
+        apiFetch(`${API_BASE}/api/crm-settings`),
+        apiFetch(`${API_BASE}/api/mail-settings`),
     ]);
 
     if (configResult.status === 'fulfilled' && configResult.value.ok) {
@@ -1542,9 +1575,8 @@ document.getElementById('dash-save-domains-btn').addEventListener('click', async
     btn.textContent = 'Saving…';
     btn.disabled = true;
     try {
-        const res = await fetch(`${API_BASE}/api/installations`, {
+        const res = await apiFetch(`${API_BASE}/api/installations`, {
             method: 'POST',
-            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ allowedDomains: installationData.allowedDomains }),
         });
@@ -1613,8 +1645,8 @@ document.getElementById('settings-save-chatbot-btn').addEventListener('click', a
 
     statusEl.textContent = 'Saving…'; statusEl.style.color = 'var(--text-secondary)';
     try {
-        const res = await fetch(`${API_BASE}/api/config`, {
-            method: 'POST', credentials: 'include',
+        const res = await apiFetch(`${API_BASE}/api/config`, {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ clientId: cid, settings }),
         });
@@ -1648,8 +1680,8 @@ document.getElementById('settings-save-campaign-btn').addEventListener('click', 
 
     statusEl.textContent = 'Saving…'; statusEl.style.color = 'var(--text-secondary)';
     try {
-        const res = await fetch(`${API_BASE}/api/crm-settings`, {
-            method: 'POST', credentials: 'include',
+        const res = await apiFetch(`${API_BASE}/api/crm-settings`, {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ clientId: cid, default_campaign_mode: mode, auto_approve_campaigns: autoApprove }),
         });
@@ -1693,8 +1725,8 @@ document.getElementById('settings-save-mail-btn').addEventListener('click', asyn
 
     statusEl.textContent = 'Saving…'; statusEl.style.color = 'var(--text-secondary)';
     try {
-        const res = await fetch(`${API_BASE}/api/mail-settings`, {
-            method: 'POST', credentials: 'include',
+        const res = await apiFetch(`${API_BASE}/api/mail-settings`, {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
         });
@@ -1712,8 +1744,8 @@ document.getElementById('settings-test-mail-btn').addEventListener('click', asyn
     const statusEl = document.getElementById('settings-mail-status');
     statusEl.textContent = 'Sending test email…'; statusEl.style.color = 'var(--text-secondary)';
     try {
-        const res = await fetch(`${API_BASE}/api/mail-settings/test`, {
-            method: 'POST', credentials: 'include',
+        const res = await apiFetch(`${API_BASE}/api/mail-settings/test`, {
+            method: 'POST',
             headers: { 'Content-Type': 'application/json' },
         });
         const data = await res.json().catch(() => ({}));
