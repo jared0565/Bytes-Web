@@ -979,6 +979,7 @@ section {
 .cookie-banner.visible {
   transform: translateY(0);
   opacity: 1;
+  pointer-events: auto;
 }
 
 .cookie-banner.hidden {
