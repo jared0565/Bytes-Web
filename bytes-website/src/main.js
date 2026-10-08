@@ -31,6 +31,9 @@ function handleRouteChange() {
 // ============================================================================
 
 function init() {
+  // Render page content first so the interactions below can find its elements
+  initLeadCapture();
+
   // Set initial route
   handleRouteChange();
 
@@ -45,9 +48,6 @@ function init() {
 
   // Initialize cookie consent
   initCookieConsent();
-
-  // Initialize lead capture
-  initLeadCapture();
 
   // Initialize modal
   initModal();
@@ -101,7 +101,8 @@ function initInteractions() {
 
 function initHeroBackground() {
   const heroBg = document.querySelector('.hero-bg');
-  if (!heroBg) return;
+  // Skip if the rendered markup already includes the orbs
+  if (!heroBg || heroBg.querySelector('.hero-orb')) return;
 
   // Create animated gradient orbs
   for (let i = 0; i < 3; i++) {
