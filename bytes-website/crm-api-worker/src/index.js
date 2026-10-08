@@ -416,8 +416,8 @@ app.post('/api/auth/login', async (c) => {
     }
 
     // No TOTP configured — issue JWT directly (fallback)
-    await issueSession(c, { role, clientId: 'agency_demo' }, 8 * 3600);
-    return c.json({ success: true, role, clientId: 'agency_demo' });
+    const sessionToken = await issueSession(c, { role, clientId: 'agency_demo' }, 8 * 3600);
+    return c.json({ success: true, role, clientId: 'agency_demo', sessionToken });
 });
 
 // Login via TOTP — verify code, issue 30-day JWT
