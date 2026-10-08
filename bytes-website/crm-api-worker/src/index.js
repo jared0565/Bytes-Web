@@ -606,6 +606,14 @@ app.get('/api/auth/:provider/callback', async (c) => {
         }
 
         if (dest === 'dashboard') {
+            // Dashboard sessions are admin, so only allowlisted emails may sign in (fail closed)
+            const adminEmails = (c.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+            const email = (userData.email || '').trim().toLowerCase();
+            if (!email || !adminEmails.includes(email)) {
+                console.warn(`[OAuth] Dashboard login refused for ${provider} user ${userRecord.id}`);
+                return c.redirect(`${dashUrl}?social_error=not_authorized`);
+            }
+
             const userId = userRecord.id;
             const thirtyDays = 30 * 24 * 3600;
 

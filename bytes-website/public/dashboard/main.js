@@ -99,7 +99,7 @@ const simStatus = document.getElementById('sim-status');
     const pid  = params.get('pid');
 
     if (params.has('social_error')) {
-        const errMap = { invalid_state: 'Security check failed. Please try again.', auth_failed: 'Authentication failed. Please try again.', no_code: 'Login was cancelled.' };
+        const errMap = { invalid_state: 'Security check failed. Please try again.', auth_failed: 'Authentication failed. Please try again.', no_code: 'Login was cancelled.', not_authorized: 'This account is not authorized to access the dashboard.' };
         loginError.innerText = errMap[params.get('social_error')] || 'Social login failed. Please try again.';
         history.replaceState(null, '', window.location.pathname);
         return;
