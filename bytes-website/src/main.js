@@ -101,7 +101,8 @@ function initInteractions() {
 
 function initHeroBackground() {
   const heroBg = document.querySelector('.hero-bg');
-  if (!heroBg) return;
+  // Skip if the rendered markup already includes the orbs
+  if (!heroBg || heroBg.querySelector('.hero-orb')) return;
 
   // Create animated gradient orbs
   for (let i = 0; i < 3; i++) {
