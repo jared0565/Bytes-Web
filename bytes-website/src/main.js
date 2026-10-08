@@ -31,6 +31,9 @@ function handleRouteChange() {
 // ============================================================================
 
 function init() {
+  // Render page content first so the interactions below can find its elements
+  initLeadCapture();
+
   // Set initial route
   handleRouteChange();
 
@@ -45,9 +48,6 @@ function init() {
 
   // Initialize cookie consent
   initCookieConsent();
-
-  // Initialize lead capture
-  initLeadCapture();
 
   // Initialize modal
   initModal();
