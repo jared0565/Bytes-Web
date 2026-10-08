@@ -241,7 +241,7 @@ next2.addEventListener('click', async () => {
         // Generate the Embed Code
         const snippet = `
 <!-- BytesAI Chatbot Widget Start -->
-<script src="https://ai.bytesfx.com/widget.js" 
+<script src="https://web.bytesfx.com/widget.js" 
   data-client-id="${registrationData.clientId}"></scr` + `ipt>
 <!-- BytesAI Chatbot Widget End -->`;
 

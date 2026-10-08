@@ -462,15 +462,23 @@ function renderUserProfile() {
     // Avatar — show profile picture or initials
     const avatarImg = document.getElementById('user-avatar-img');
     const avatarInitials = document.getElementById('user-avatar-initials');
-    if (userProfile.picture && avatarImg) {
-        avatarImg.src = userProfile.picture;
-        avatarImg.style.display = 'block';
-        if (avatarInitials) avatarInitials.style.display = 'none';
-    } else if (avatarInitials) {
+    const showInitials = () => {
+        if (avatarImg) avatarImg.style.display = 'none';
+        if (!avatarInitials) return;
+        avatarInitials.style.display = '';
         const words = userProfile.name ? userProfile.name.trim().split(/\s+/) : [];
         avatarInitials.textContent = words.length >= 2
             ? (words[0][0] + words[words.length - 1][0]).toUpperCase()
-            : (userProfile.name[0] || '?').toUpperCase();
+            : ((userProfile.name || '')[0] || '?').toUpperCase();
+    };
+    if (userProfile.picture && avatarImg) {
+        avatarImg.referrerPolicy = 'no-referrer'; // Google avatar URLs can reject requests with a Referer
+        avatarImg.onerror = showInitials;         // expired/blocked picture URL → fall back to initials
+        avatarImg.src = userProfile.picture;
+        avatarImg.style.display = 'block';
+        if (avatarInitials) avatarInitials.style.display = 'none';
+    } else {
+        showInitials();
     }
 
     // Dropdown header
@@ -506,7 +514,10 @@ document.getElementById('dd-dark-mode').addEventListener('click', () => {
 });
 
 // Settings cog → chatbot/settings view
-document.getElementById('settings-cog-btn').addEventListener('click', () => switchView('chatbot'));
+document.getElementById('settings-cog-btn').addEventListener('click', () => {
+    switchView('chatbot');
+    if (window.innerWidth <= 1000 && dashboardSidebar) dashboardSidebar.classList.remove('active');
+});
 
 // --- Navigation ---
 navItems.forEach(item => {
@@ -549,7 +560,7 @@ refreshBtn.addEventListener('click', () => {
     const activeView = document.querySelector('.nav-item.active').getAttribute('data-view');
     if (activeView === 'leads') loadLeads();
     if (activeView === 'logs') loadLogs();
-    if (activeView === 'analytics') loadAnalytics();
+    if (activeView === 'analytics') loadAnalytics(true);
 });
 
 // --- Data Fetching ---
@@ -595,7 +606,8 @@ function renderLeads(leads) {
     window.allLeads = leads;
     // Pipeline Metrics Gamification (CRM logic)
     const pipelineCount = leads.filter(l => ['lead', 'opportunity', 'priority'].includes(l.pipeline_stage)).length;
-    const draftedCount = leads.filter(l => l.pipeline_stage === 'drafting').length;
+    // Generated sequences land in 'campaign' (AI/rule generation) until approved → 'active'
+    const draftedCount = leads.filter(l => ['campaign', 'drafting', 'sequence_generated'].includes(l.pipeline_stage)).length;
     const activeCount = leads.filter(l => l.pipeline_stage === 'active').length;
 
     document.getElementById('metric-captured').innerText = pipelineCount;
@@ -648,6 +660,7 @@ function renderLeads(leads) {
 
         if (card.draggable) {
             card.addEventListener('dragstart', () => {
+                card.dataset.fromStage = card.closest('[data-stage]')?.getAttribute('data-stage') || '';
                 card.classList.add('dragging');
             });
             card.addEventListener('dragend', () => {
@@ -691,6 +704,8 @@ function renderLeads(leads) {
         if (draggable) {
             const newStage = container.getAttribute('data-stage');
             const leadId = draggable.dataset.id;
+            // Same column — nothing changed (and keeps 'active' campaigns from being reset to 'campaign')
+            if (draggable.dataset.fromStage === newStage) return;
             
             // Optimistically update counts
             updateKanbanCounts();
@@ -769,7 +784,9 @@ loadConfigBtn.addEventListener('click', async () => {
             const brandingLocked = data.brandingMandatory ?? (data.inTrial || data.plan === 'free' || data.plan === 'starter');
             if (brandingLocked) {
                 configBranding.checked = true;
-                configBranding.disabled = true;
+                // Not `disabled`: disabled inputs swallow clicks, so the upgrade prompt would never open
+                configBranding.disabled = false;
+                configBranding.setAttribute('aria-disabled', 'true');
                 configBranding.onclick = (e) => { e.preventDefault(); showUpgradeModal('remove_branding'); };
                 const lockNote = data.inTrial
                     ? ' 🔒 (Trial — Pro+ to remove)'
@@ -779,6 +796,7 @@ loadConfigBtn.addEventListener('click', async () => {
                 configBranding.parentElement.querySelector('label').innerText = `Show "Powered by BytesAI"${lockNote}`;
             } else {
                 configBranding.disabled = false;
+                configBranding.removeAttribute('aria-disabled');
                 configBranding.onclick = null;
                 configBranding.parentElement.querySelector('label').innerText = "Show \"Powered by BytesAI\"";
             }
@@ -816,7 +834,7 @@ saveConfigBtn.addEventListener('click', async () => {
 
     const settings = {
         systemPrompt: prompt,
-        mode: mode,
+        ...(mode ? { mode } : {}), // empty select = unknown stored value; keep it rather than resetting
         companyName: configCompanyName.value,
         showBranding: branding,
         referralId: referral
@@ -838,11 +856,8 @@ saveConfigBtn.addEventListener('click', async () => {
         });
 
         if (res.ok) {
-            configStatus.innerText = "Settings saved successfully!";
-            configStatus.style.color = "var(--success)";
-
             // SAVE CRM SETTINGS
-            await apiFetch(`${API_BASE}/api/crm-settings`, {
+            const crmRes = await apiFetch(`${API_BASE}/api/crm-settings`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -851,8 +866,11 @@ saveConfigBtn.addEventListener('click', async () => {
                     auto_approve_campaigns: configAutoApprove.checked
                 })
             });
+            configStatus.innerText = crmRes.ok ? "Settings saved successfully!" : "Chatbot settings saved, but campaign settings failed to save.";
+            configStatus.style.color = crmRes.ok ? "var(--success)" : "var(--error)";
         } else {
-            configStatus.innerText = "Failed to save settings.";
+            const err = await res.json().catch(() => ({}));
+            configStatus.innerText = err.error || "Failed to save settings.";
             configStatus.style.color = "var(--error)";
         }
     } catch (e) {
@@ -1138,7 +1156,7 @@ closeSequenceModalBtn.addEventListener('click', () => {
 });
 
 async function openSequenceModal(leadId) {
-    currentLeadId = leadId;
+    currentLeadId = Number(leadId); // API requires a numeric leadId
     // Free plan (post-trial): default to manual mode — AI is locked
     const startMode = isFreeLocked() ? 'manual' : 'ai';
     campaignMode = startMode;
@@ -1210,7 +1228,7 @@ async function generateSequence(leadId) {
         const res = await apiFetch(`${API_BASE}/api/generate-sequence`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ leadId })
+            body: JSON.stringify({ leadId: Number(leadId) })
         });
         if (res.ok) {
             const seqRes = await apiFetch(`${API_BASE}/api/sequences?leadId=${leadId}`);
@@ -1258,7 +1276,8 @@ function renderSequenceEditor() {
     }
 }
 
-saveSequenceBtn.addEventListener('click', async () => {
+// Returns true when every draft saved, so Approve can wait for it
+async function saveDrafts() {
     sequenceStatus.innerText = 'Saving drafts...';
     sequenceStatus.style.color = 'white';
 
@@ -1268,7 +1287,7 @@ saveSequenceBtn.addEventListener('click', async () => {
             const subject = document.getElementById(`seq-subject-${i}`).value;
             const body = document.getElementById(`seq-body-${i}`).value;
 
-            await apiFetch(`${API_BASE}/api/sequences`, {
+            const res = await apiFetch(`${API_BASE}/api/sequences`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1279,6 +1298,7 @@ saveSequenceBtn.addEventListener('click', async () => {
                     body
                 })
             });
+            if (!res.ok) throw new Error('Save failed');
         }
         
         // Re-fetch to get any newly assigned IDs from manual insertion
@@ -1287,25 +1307,29 @@ saveSequenceBtn.addEventListener('click', async () => {
         renderSequenceEditor();
         sequenceStatus.innerText = 'Drafts saved successfully.';
         sequenceStatus.style.color = 'var(--success)';
+        return true;
     } catch (e) {
         sequenceStatus.innerText = 'Error saving drafts.';
         sequenceStatus.style.color = 'var(--error)';
+        return false;
     }
-});
+}
+
+saveSequenceBtn.addEventListener('click', saveDrafts);
 
 approveSequenceBtn.addEventListener('click', async () => {
     if (isFreeLocked()) { showUpgradeModal('approve_deploy'); return; }
     if (!confirm('Are you sure you want to approve this sequence? It will be drip-fed to the lead automatically.')) return;
 
-    // Save first just in case
-    await saveSequenceBtn.click();
+    // Save first so every step exists as a draft before approval
+    if (!(await saveDrafts())) return;
 
     sequenceStatus.innerText = 'Approving Campaign...';
     try {
         const res = await apiFetch(`${API_BASE}/api/sequences/approve`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ leadId: currentLeadId })
+            body: JSON.stringify({ leadId: Number(currentLeadId) })
         });
 
         if (res.ok) {
@@ -1384,7 +1408,9 @@ function populateChatbotSettings(data) {
     if (brandingEl) {
         brandingEl.checked  = data.showBranding !== false;
         const locked = data.brandingMandatory ?? (data.inTrial || data.plan === 'free' || data.plan === 'starter');
-        brandingEl.disabled = locked;
+        // Not `disabled`: disabled inputs swallow clicks, so the upgrade prompt would never open
+        brandingEl.disabled = false;
+        brandingEl.toggleAttribute('aria-disabled', locked);
         const noteEl = document.getElementById('settings-branding-note');
         if (noteEl) {
             if (locked) {
@@ -1490,7 +1516,7 @@ function renderChatbotView() {
     // Embed code
     const embedEl = document.getElementById('dash-embed-code');
     if (embedEl && clientId) {
-        embedEl.textContent = `<!-- BytesAI Chatbot Widget Start -->\n<script src="https://ai.bytesfx.com/widget.js"\n  data-client-id="${escapeHtml(clientId)}"></` + `script>\n<!-- BytesAI Chatbot Widget End -->`;
+        embedEl.textContent = `<!-- BytesAI Chatbot Widget Start -->\n<script src="https://web.bytesfx.com/widget.js"\n  data-client-id="${escapeHtml(clientId)}"></` + `script>\n<!-- BytesAI Chatbot Widget End -->`;
     }
 
     // Plan badge
@@ -1643,10 +1669,11 @@ document.getElementById('settings-save-chatbot-btn').addEventListener('click', a
 
     const settings = {
         companyName:  document.getElementById('settings-company-name')?.value.trim() || '',
-        mode:         document.getElementById('settings-mode')?.value || 'free',
         systemPrompt: document.getElementById('settings-prompt')?.value.trim() || '',
         showBranding: document.getElementById('settings-branding')?.checked !== false,
     };
+    const modeVal = document.getElementById('settings-mode')?.value;
+    if (modeVal) settings.mode = modeVal;
 
     const wlSection = document.getElementById('settings-wl-section');
     if (wlSection && wlSection.style.display !== 'none') {
@@ -1779,8 +1806,8 @@ document.getElementById('settings-test-mail-btn').addEventListener('click', asyn
 let analyticsDays = 7;
 let analyticsListenersAttached = false;
 
-async function loadAnalytics() {
-    if (!window.allLeads || window.allLeads.length === 0) {
+async function loadAnalytics(force = false) {
+    if (force || !window.allLeads || window.allLeads.length === 0) {
         await loadLeads();
     }
     renderAnalytics(window.allLeads || []);
@@ -1871,7 +1898,8 @@ function renderLeadVolumeChart(allLeadsData, days) {
     if (!chartEl || !labelsEl) return;
 
     if (periodLabel) {
-        periodLabel.textContent = days === 0 ? 'All time' : `Last ${days} days`;
+        // Chart shows at most 30 daily bars (14 for all time) — label what is actually drawn
+        periodLabel.textContent = `Last ${days === 0 ? 14 : Math.min(days, 30)} days`;
     }
 
     const effectiveDays = days === 0 ? 14 : Math.min(days, 30);
@@ -1953,6 +1981,7 @@ function renderStageDonut(leads) {
         { key: 'lead',               label: 'Inbox',         color: '#6366f1' },
         { key: 'priority',           label: 'Priority',      color: '#f59e0b' },
         { key: 'opportunity',        label: 'Opportunity',   color: '#60a5fa' },
+        { key: 'campaign',           label: 'Campaign',      color: '#2dd4bf' },
         { key: 'drafting',           label: 'Drafting',      color: '#a78bfa' },
         { key: 'sequence_generated', label: 'Seq. Ready',    color: '#818cf8' },
         { key: 'active',             label: 'Active',        color: '#34d399' },

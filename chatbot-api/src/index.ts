@@ -83,8 +83,7 @@ export default {
 			const adminKey = request.headers.get('x-admin-key');
 			const storedKey = env.ADMIN_API_KEY ? env.ADMIN_API_KEY.trim() : null;
 
-			// Allow DEV_BYPASS for Onboarding Simulation if specifically enabled
-			if (adminKey !== 'DEV_BYPASS' && (!storedKey || adminKey !== storedKey)) {
+			if (!storedKey || adminKey !== storedKey) {
 				return new Response(JSON.stringify({ error: 'Unauthorised: Invalid Key' }), {
 					status: 401,
 					headers: { ...cors, 'Content-Type': 'application/json' }
@@ -406,9 +405,8 @@ Output EXACTLY in this JSON format:
 
 		// 1.1 Inject Company Name into AI Prompt if present (Pro/Elite Upgrade)
 		const companyName = clientConfig?.companyName || "";
-		if (companyName && (tier === 'pro' || tier === 'elite')) {
-			activeSystemPrompt = activeSystemPrompt.replace("Lead Strategist and Growth Orchestrator", `Lead Strategist at ${companyName}`);
-			activeSystemPrompt = activeSystemPrompt.replace("high-level consultant for this business", `high-level consultant for ${companyName}`);
+		if (companyName && tier !== 'free' && tier !== 'standard') {
+			activeSystemPrompt += `\n\nYou represent ${companyName}. Refer to the business as ${companyName}.`;
 		}
 
 		// 1.2 Inject Gamification Status-Tier Context (Track B)
@@ -852,8 +850,9 @@ Do not force it into every message, but use it naturally when discussing capabil
 
 				// Mark as sent
 				await env.DB.prepare(
-					"UPDATE email_sequences SET status = 'sent', sent_at = ? WHERE id = ?"
-				).bind(Date.now(), sequence.id).run();
+					// Live email_sequences has no sent_at column — setting it made this UPDATE throw every run
+					"UPDATE email_sequences SET status = 'sent' WHERE id = ?"
+				).bind(sequence.id).run();
 
 			} catch (e) {
 				console.error("Failed to process sequence ID", sequence.id, e);
