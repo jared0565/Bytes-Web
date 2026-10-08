@@ -401,15 +401,11 @@ app.post('/api/auth/login', async (c) => {
     const { key } = body;
     if (!key || typeof key !== 'string') return c.json({ error: 'Key required' }, 400);
 
+    // Fail closed: without a configured secret, no key can log in
     const ADMIN_SECRET = c.env.ADMIN_SECRET;
-    let role = 'sales_rep';
-
-    if (ADMIN_SECRET) {
-        if (key === ADMIN_SECRET) role = 'admin';
-        else return c.json({ error: 'Invalid key' }, 401);
-    } else {
-        if (key.toLowerCase().startsWith('admin-')) role = 'admin';
-    }
+    if (!ADMIN_SECRET) return c.json({ error: 'Admin key login is not configured' }, 503);
+    if (key !== ADMIN_SECRET) return c.json({ error: 'Invalid key' }, 401);
+    const role = 'admin';
 
     // Check if TOTP is configured — if so, require second factor
     const totpSecret = await c.env.OAUTH_TOKENS.get('totp:secret');
@@ -428,18 +424,24 @@ app.post('/api/auth/login', async (c) => {
 app.post('/api/auth/totp', async (c) => {
     let body;
     try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
-    const { code } = body;
+    const { code, pendingId } = body;
     if (!code) return c.json({ error: 'Code required' }, 400);
+    if (!pendingId || typeof pendingId !== 'string') return c.json({ error: 'Enter your admin key first' }, 400);
 
     const totpSecret = await c.env.OAUTH_TOKENS.get('totp:secret');
     if (!totpSecret) return c.json({ error: 'TOTP not configured. Run setup first.' }, 503);
 
+    // The code is only a second factor: require a pending login from a valid admin key
+    const pendingKey = `totp:pending:${pendingId}`;
+    const pending = await c.env.OAUTH_TOKENS.get(pendingKey);
+    if (!pending) return c.json({ error: 'Login expired. Enter your admin key again.' }, 401);
+
     if (!(await verifyTOTP(totpSecret, code))) {
         return c.json({ error: 'Invalid code. Try again.' }, 401);
     }
+    await c.env.OAUTH_TOKENS.delete(pendingKey);
 
-    const role = 'admin';
-    const clientId = 'agency_demo';
+    const { role, clientId } = JSON.parse(pending);
     const thirtyDays = 30 * 24 * 3600;
     const sessionToken = await issueSession(c, { role, clientId }, thirtyDays);
     return c.json({ success: true, role, clientId, sessionToken });
