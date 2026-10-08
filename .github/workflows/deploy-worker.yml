@@ -21,6 +21,8 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # wrangler.jsonc needs Wrangler >= 3.91; the action defaults to 3.90
+          wranglerVersion: '4.70.0'
           workingDirectory: 'chatbot-api'
           
       - name: Build Website
@@ -33,4 +35,5 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          wranglerVersion: '4.70.0'
           # The root wrangler.jsonc now points to bytes-website/dist
