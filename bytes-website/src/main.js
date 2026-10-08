@@ -368,10 +368,13 @@ function initCookieConsent() {
     banner.classList.remove('visible');
     setTimeout(() => banner.classList.add('hidden'), 300);
     enableCookies();
-    gtag('consent', 'update', {
-      'analytics_storage': 'granted',
-      'ad_storage': 'granted'
-    });
+    // gtag is only defined when Google Analytics is loaded
+    if (typeof gtag === 'function') {
+      gtag('consent', 'update', {
+        'analytics_storage': 'granted',
+        'ad_storage': 'granted'
+      });
+    }
   });
 
   // Decline cookies
