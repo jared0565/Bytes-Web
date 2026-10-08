@@ -9,6 +9,8 @@ ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:3000,https://bytes-web
 AUTH_REDIRECT_URL = "https://crm-api.bmorris0565.workers.dev/api/auth/{{provider}}/callback"
 FRONTEND_ONBOARDING_URL = "https://web.bytesfx.com/onboarding/"
 FRONTEND_DASHBOARD_URL  = "https://web.bytesfx.com/dashboard/"
+# Only these emails can sign in to the dashboard (comma-separated)
+ADMIN_EMAILS = "fbmacagba@gmail.com,fbm2k11@gmail.com,jared0565@gmail.com"
 
 # D1 SQLite database (shared with chatbot-api — contains leads + chat_logs)
 [[d1_databases]]

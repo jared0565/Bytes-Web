@@ -99,7 +99,7 @@ const simStatus = document.getElementById('sim-status');
     const pid  = params.get('pid');
 
     if (params.has('social_error')) {
-        const errMap = { invalid_state: 'Security check failed. Please try again.', auth_failed: 'Authentication failed. Please try again.', no_code: 'Login was cancelled.' };
+        const errMap = { invalid_state: 'Security check failed. Please try again.', auth_failed: 'Authentication failed. Please try again.', no_code: 'Login was cancelled.', not_authorized: 'This account is not authorized to access the dashboard.' };
         loginError.innerText = errMap[params.get('social_error')] || 'Social login failed. Please try again.';
         history.replaceState(null, '', window.location.pathname);
         return;
@@ -282,17 +282,32 @@ async function show2faSetup(pid) {
 
 // --- Legacy admin TOTP fallback (?key=1) ---
 document.getElementById('totp-btn').addEventListener('click', async () => {
+    const key = document.getElementById('admin-key-input').value;
     const code = document.getElementById('totp-input').value.trim();
-    if (!code) return;
+    if (!key) { loginError.innerText = 'Admin key required.'; return; }
     loginError.innerText = '';
     try {
-        const res = await fetch(`${API_BASE}/api/auth/totp`, {
+        // Step 1: the admin key starts a pending login
+        const loginRes = await fetch(`${API_BASE}/api/auth/login`, {
             method: 'POST', credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code })
+            body: JSON.stringify({ key })
         });
-        const data = await res.json();
-        if (!res.ok) { loginError.innerText = data.error || 'Invalid code.'; return; }
+        const loginData = await loginRes.json();
+        if (!loginRes.ok) { loginError.innerText = loginData.error || 'Invalid key.'; return; }
+
+        let data = loginData;
+        if (loginData.step === 'totp') {
+            // Step 2: the authenticator code completes it
+            if (!code) { loginError.innerText = 'Enter the 6-digit code.'; return; }
+            const res = await fetch(`${API_BASE}/api/auth/totp`, {
+                method: 'POST', credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code, pendingId: loginData.pendingId })
+            });
+            data = await res.json();
+            if (!res.ok) { loginError.innerText = data.error || 'Invalid code.'; return; }
+        }
         userRole = data.role;
         localStorage.setItem('agency_user_role', data.role);
         if (data.sessionToken) localStorage.setItem('bytes_session_jwt', data.sessionToken);
