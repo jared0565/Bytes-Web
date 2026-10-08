@@ -280,8 +280,36 @@ function removeTypingIndicator() {
   document.getElementById('typingIndicator')?.remove();
 }
 
-// Sales-optimized chatbot responses
+const CHAT_API_URL = 'https://ai.bytesfx.com';
+const LINKEDIN_URL = 'https://www.linkedin.com/in/fbmacagba/';
+
+// Ask the AI backend, falling back to canned replies if it's unreachable
 async function generateChatResponse(userMessage) {
+  // chatHistory already ends with the message being sent; the API takes it separately
+  const history = chatHistory.slice(0, -1).map(entry => ({
+    role: entry.sender === 'user' ? 'user' : 'model',
+    parts: [{ text: entry.text }]
+  }));
+
+  try {
+    const res = await fetch(CHAT_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: userMessage, history, clientId: 'default' })
+    });
+    const data = await res.json();
+    if (res.ok && data.response) {
+      return data.response.replace('[LINKEDIN_BUTTON]', LINKEDIN_URL);
+    }
+  } catch (err) {
+    console.error('Chat API error:', err);
+  }
+
+  return getFallbackResponse(userMessage);
+}
+
+// Sales-optimized chatbot responses
+function getFallbackResponse(userMessage) {
   const message = userMessage.toLowerCase();
 
   // Check for lead capture keywords
