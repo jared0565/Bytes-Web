@@ -503,8 +503,19 @@ document.getElementById('dd-upgrade').addEventListener('click', () => {
     window.open(`https://web.bytesfx.com/?upgrade=${plan}#pricing`, '_blank');
     document.getElementById('user-dropdown-menu').classList.remove('open');
 });
-document.getElementById('dd-profile-settings').addEventListener('click', () => {
+// Settings live on the Chatbot page — jump to them and flash the card so the click is visibly answered
+function openSettings() {
     switchView('chatbot');
+    const card = document.getElementById('chatbot-settings-card');
+    if (!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    card.style.outline = '2px solid var(--accent, #6366f1)';
+    card.style.outlineOffset = '4px';
+    setTimeout(() => { card.style.outline = ''; card.style.outlineOffset = ''; }, 1600);
+}
+
+document.getElementById('dd-profile-settings').addEventListener('click', () => {
+    openSettings();
     document.getElementById('user-dropdown-menu').classList.remove('open');
 });
 document.getElementById('dd-dark-mode').addEventListener('click', () => {
@@ -515,7 +526,7 @@ document.getElementById('dd-dark-mode').addEventListener('click', () => {
 
 // Settings cog → chatbot/settings view
 document.getElementById('settings-cog-btn').addEventListener('click', () => {
-    switchView('chatbot');
+    openSettings();
     if (window.innerWidth <= 1000 && dashboardSidebar) dashboardSidebar.classList.remove('active');
 });
 
@@ -1511,7 +1522,9 @@ function updateMailProviderUI(provider, data = {}) {
 }
 
 function renderChatbotView() {
-    const { clientId, allowedDomains, maxInstalls, maxDomains, plan, inTrial } = installationData;
+    const { clientId, maxInstalls, maxDomains, inTrial } = installationData;
+    const allowedDomains = installationData.allowedDomains || [];
+    const plan = installationData.plan || 'free';
 
     // Embed code
     const embedEl = document.getElementById('dash-embed-code');
