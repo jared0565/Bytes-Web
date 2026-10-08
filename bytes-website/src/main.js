@@ -235,6 +235,9 @@ function initChatbot() {
     addChatMessage(message, 'user');
     chatInput.value = '';
 
+    // Block new messages until this reply lands so history stays in order
+    chatInput.disabled = true;
+
     // Show typing indicator
     showTypingIndicator();
 
@@ -242,6 +245,9 @@ function initChatbot() {
     const response = await generateChatResponse(message);
     removeTypingIndicator();
     addChatMessage(response, 'bot');
+
+    chatInput.disabled = false;
+    chatInput.focus();
   });
 }
 
@@ -253,7 +259,8 @@ function addChatMessage(text, sender) {
   messageDiv.className = `chat-message ${sender === 'user' ? 'user-message' : 'bot-message'}`;
 
   const p = document.createElement('p');
-  p.textContent = text;
+  // Show the link, but keep the raw [LINKEDIN_BUTTON] token in history for the API
+  p.textContent = text.replace('[LINKEDIN_BUTTON]', LINKEDIN_URL);
   messageDiv.appendChild(p);
 
   chatMessages.appendChild(messageDiv);
@@ -299,7 +306,7 @@ async function generateChatResponse(userMessage) {
     });
     const data = await res.json();
     if (res.ok && data.response) {
-      return data.response.replace('[LINKEDIN_BUTTON]', LINKEDIN_URL);
+      return data.response;
     }
   } catch (err) {
     console.error('Chat API error:', err);
