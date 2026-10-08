@@ -111,9 +111,9 @@ async function callOpenAI(env: LlmEnv, model: string, effort: Effort, system: st
 	return text;
 }
 
-// Gemini 3.x takes a thinking level; 2.5 takes a token budget (Pro can't go below 128)
+// Gemini 3.x takes a thinking level (low/medium/high); 2.5 takes a token budget (Pro can't go below 128)
 function geminiThinking(model: string, effort: Effort) {
-	if (model.startsWith('gemini-3')) return { thinkingLevel: effort === 'low' ? 'low' : 'high' };
+	if (model.startsWith('gemini-3')) return { thinkingLevel: effort };
 	const isPro = model.includes('pro');
 	const budget = { low: isPro ? 128 : 0, medium: 1024, high: 8192 }[effort];
 	return { thinkingBudget: budget };

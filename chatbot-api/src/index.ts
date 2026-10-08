@@ -1,4 +1,4 @@
-import { callChosenModel, publicCatalog } from './llm';
+import { callChosenModel, publicCatalog, DEFAULT_MODEL } from './llm';
 
 export interface Env {
 	GEMINI_API_KEY: string;
@@ -691,15 +691,14 @@ Do not force it into every message, but use it naturally when discussing capabil
 				});
 			}
 
-			// Client's chosen model (dashboard → Chatbot Behavior). Any failure falls through to the Gemini chain.
+			// Client's chosen model (dashboard → Chatbot Behavior; empty = the Default option shown there).
+			// Any failure falls through to the Gemini chain.
 			let chosenText: string | null = null;
-			const chosenModel = (clientConfig as any)?.llmModel;
-			if (chosenModel) {
-				try {
-					chosenText = (await callChosenModel(env, chosenModel, (clientConfig as any)?.llmEffort, activeSystemPrompt, optimizedContents)).text;
-				} catch (err: any) {
-					console.error(`[LLM] Chosen model ${chosenModel} failed, using default chain:`, err?.message || err);
-				}
+			const chosenModel = (clientConfig as any)?.llmModel || DEFAULT_MODEL;
+			try {
+				chosenText = (await callChosenModel(env, chosenModel, (clientConfig as any)?.llmEffort, activeSystemPrompt, optimizedContents)).text;
+			} catch (err: any) {
+				console.error(`[LLM] Chosen model ${chosenModel} failed, using default chain:`, err?.message || err);
 			}
 
 			// Model Fallback Chain
