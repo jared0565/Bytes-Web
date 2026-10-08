@@ -299,6 +299,8 @@
         }
     `;
 
+    const escapeAttr = (str) => String(str).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+
     // --- Core UI Creation ---
     async function init() {
         const styleSheet = document.createElement("style");
@@ -308,27 +310,28 @@
         // Fetch Config
         let config = {};
         try {
-            const res = await fetch(`${API_URL}/api/config?clientId=${clientId}`);
+            // Public, no-auth endpoint — /api/config is admin-only and rejects customer sites
+            const res = await fetch(`${API_URL}/public/config?clientId=${encodeURIComponent(clientId)}`);
             if (res.ok) config = await res.json();
         } catch (e) { console.error("Config fetch error:", e); }
 
         const showBranding = config.showBranding !== false;
-        const refId = config.referralId || '';
-        const baseBadgeUrl = config.badgeUrl || 'https://web.bytesai.com/';
+        const refId = encodeURIComponent(config.referralId || '');
+        const baseBadgeUrl = config.badgeUrl || 'https://web.bytesfx.com/';
         const brandingUrl = refId
             ? baseBadgeUrl + (baseBadgeUrl.includes('?') ? `&ref=${refId}` : `?ref=${refId}`)
             : baseBadgeUrl;
 
         // White-label customization (business+ only — enforced by backend)
-        const widgetName = config.widgetName || 'BytesAI';
+        const widgetName = escapeAttr(config.widgetName || 'BytesAI');
         const widgetAccentColor = config.widgetAccentColor || '#6366f1';
-        const widgetAvatar = config.widgetAvatar || '';
+        const widgetAvatar = /^https?:\/\//i.test(config.widgetAvatar || '') ? escapeAttr(config.widgetAvatar) : '';
 
         const container = document.createElement('div');
         container.className = 'chatbot-widget-container';
 
         // Apply custom accent color via CSS variable override
-        if (config.widgetAccentColor) {
+        if (/^#[0-9a-f]{6}$/i.test(config.widgetAccentColor || '')) { // hex only — it's injected into CSS
             const accentHex = config.widgetAccentColor;
             const customStyle = document.createElement('style');
             customStyle.textContent = `.chatbot-widget-container { --widget-accent: ${accentHex}; --widget-accent-hover: ${accentHex}; --widget-accent-glow: ${accentHex}40; }`;
