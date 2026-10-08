@@ -235,6 +235,9 @@ function initChatbot() {
     addChatMessage(message, 'user');
     chatInput.value = '';
 
+    // Block new messages until this reply lands so history stays in order
+    chatInput.disabled = true;
+
     // Show typing indicator
     showTypingIndicator();
 
@@ -242,6 +245,9 @@ function initChatbot() {
     const response = await generateChatResponse(message);
     removeTypingIndicator();
     addChatMessage(response, 'bot');
+
+    chatInput.disabled = false;
+    chatInput.focus();
   });
 }
 
@@ -253,7 +259,8 @@ function addChatMessage(text, sender) {
   messageDiv.className = `chat-message ${sender === 'user' ? 'user-message' : 'bot-message'}`;
 
   const p = document.createElement('p');
-  p.textContent = text;
+  // Show the link, but keep the raw [LINKEDIN_BUTTON] token in history for the API
+  p.textContent = text.replace('[LINKEDIN_BUTTON]', LINKEDIN_URL);
   messageDiv.appendChild(p);
 
   chatMessages.appendChild(messageDiv);
@@ -280,8 +287,36 @@ function removeTypingIndicator() {
   document.getElementById('typingIndicator')?.remove();
 }
 
-// Sales-optimized chatbot responses
+const CHAT_API_URL = 'https://ai.bytesfx.com';
+const LINKEDIN_URL = 'https://www.linkedin.com/in/fbmacagba/';
+
+// Ask the AI backend, falling back to canned replies if it's unreachable
 async function generateChatResponse(userMessage) {
+  // chatHistory already ends with the message being sent; the API takes it separately
+  const history = chatHistory.slice(0, -1).map(entry => ({
+    role: entry.sender === 'user' ? 'user' : 'model',
+    parts: [{ text: entry.text }]
+  }));
+
+  try {
+    const res = await fetch(CHAT_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: userMessage, history, clientId: 'default' })
+    });
+    const data = await res.json();
+    if (res.ok && data.response) {
+      return data.response;
+    }
+  } catch (err) {
+    console.error('Chat API error:', err);
+  }
+
+  return getFallbackResponse(userMessage);
+}
+
+// Sales-optimized chatbot responses
+function getFallbackResponse(userMessage) {
   const message = userMessage.toLowerCase();
 
   // Check for lead capture keywords
