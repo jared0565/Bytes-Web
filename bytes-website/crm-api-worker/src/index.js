@@ -599,9 +599,13 @@ app.get('/api/auth/:provider/callback', async (c) => {
 
         // Upsert user record — always get the DB id
         let userRecord = await c.env.DB.prepare('SELECT id FROM users WHERE social_id = ? AND provider = ?').bind(userData.id, provider).first();
+        // users.email is UNIQUE — same email via another provider links to the existing user
+        if (!userRecord && userData.email) {
+            userRecord = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(userData.email).first();
+        }
         if (!userRecord) {
             const result = await c.env.DB.prepare('INSERT INTO users (social_id, provider, email, name, picture, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-                .bind(userData.id, provider, userData.email || '', userData.name || '', userData.picture || '', Date.now()).run();
+                .bind(userData.id, provider, userData.email || null, userData.name || '', userData.picture || '', Date.now()).run();
             userRecord = { id: result.meta.last_row_id };
         }
 
