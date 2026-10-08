@@ -1,5 +1,9 @@
+import { callChosenModel, publicCatalog } from './llm';
+
 export interface Env {
 	GEMINI_API_KEY: string;
+	ANTHROPIC_API_KEY?: string;
+	OPENAI_API_KEY?: string;
 	ADMIN_API_KEY: string;
 	DB: D1Database;
 	CLIENT_SETTINGS: KVNamespace;
@@ -96,6 +100,13 @@ export default {
 
 		if (request.method === 'OPTIONS') {
 			return new Response(null, { headers: cors });
+		}
+
+		// --- Public model catalog for the dashboard's model picker (prices + which providers have keys) ---
+		if (url.pathname === '/public/models' && request.method === 'GET') {
+			return new Response(JSON.stringify(publicCatalog(env)), {
+				headers: { ...cors, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' }
+			});
 		}
 
 		// --- Public widget config (no auth) — only fields the widget needs, never prompts or domains ---
@@ -680,8 +691,19 @@ Do not force it into every message, but use it naturally when discussing capabil
 				});
 			}
 
+			// Client's chosen model (dashboard → Chatbot Behavior). Any failure falls through to the Gemini chain.
+			let chosenText: string | null = null;
+			const chosenModel = (clientConfig as any)?.llmModel;
+			if (chosenModel) {
+				try {
+					chosenText = (await callChosenModel(env, chosenModel, (clientConfig as any)?.llmEffort, activeSystemPrompt, optimizedContents)).text;
+				} catch (err: any) {
+					console.error(`[LLM] Chosen model ${chosenModel} failed, using default chain:`, err?.message || err);
+				}
+			}
+
 			// Model Fallback Chain
-			const MODELS = [
+			const MODELS = chosenText ? [] : [
 				'gemini-3.1-flash-lite-preview',
 				'gemini-2.5-flash',
 				'gemini-2.0-flash'
@@ -728,7 +750,7 @@ Do not force it into every message, but use it naturally when discussing capabil
 				}
 			}
 
-			if (!successfulModel) {
+			if (!successfulModel && !chosenText) {
 				const details = lastError?.details || '';
 				const isQuota = details.includes('429') || details.includes('quota') || details.includes('RESOURCE_EXHAUSTED');
 
@@ -747,7 +769,7 @@ Do not force it into every message, but use it naturally when discussing capabil
 				});
 			}
 
-			const text = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text
+			const text = chosenText || geminiData?.candidates?.[0]?.content?.parts?.[0]?.text
 				|| "I'm having trouble responding right now. Please try again!";
 
 			// --- Lead Extraction ---
