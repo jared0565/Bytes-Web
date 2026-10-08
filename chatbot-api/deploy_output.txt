@@ -1,9 +1,0 @@
-
- Ôøà´©Å wrangler 4.70.0
-ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
-Total Upload: 672.33 KiB / gzip: 94.12 KiB
-Worker Startup Time: 7 ms
-Uploaded chatbot-api (10.51 sec)
-Deployed chatbot-api triggers (4.72 sec)
-  https://chatbot-api.bmorris0565.workers.dev
-Current Version ID: a63b5fc7-1f1e-40fc-8ea0-fd081a692c0b
