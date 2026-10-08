@@ -500,7 +500,7 @@ document.addEventListener('click', () => {
 // Dropdown actions
 document.getElementById('dd-upgrade').addEventListener('click', () => {
     const plan = planStatus.plan || 'free';
-    window.open(`https://web.bytesai.com/?upgrade=${plan}#pricing`, '_blank');
+    window.open(`https://web.bytesfx.com/?upgrade=${plan}#pricing`, '_blank');
     document.getElementById('user-dropdown-menu').classList.remove('open');
 });
 document.getElementById('dd-profile-settings').addEventListener('click', () => {
@@ -1075,7 +1075,7 @@ document.getElementById('upgrade-modal')?.addEventListener('click', (e) => {
 });
 document.getElementById('upgrade-modal-cta')?.addEventListener('click', () => {
     const plan = planStatus.plan || 'free';
-    window.open(`https://web.bytesai.com/?upgrade=${plan}#pricing`, '_blank');
+    window.open(`https://web.bytesfx.com/?upgrade=${plan}#pricing`, '_blank');
     hideUpgradeModal();
 });
 // Remove the old inline banner button

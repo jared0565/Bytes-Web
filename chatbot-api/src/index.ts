@@ -37,6 +37,36 @@ const getCorsHeaders = (origin: string | null) => {
 	};
 };
 
+// Public widget routes are called from customers' sites, so echo the caller's origin
+const getPublicCorsHeaders = (origin: string | null) => ({
+	'Access-Control-Allow-Origin': origin || '*',
+	'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+	'Access-Control-Allow-Headers': 'Content-Type',
+	'Vary': 'Origin'
+});
+
+// Our own site and local dev can always use any client's bot (previews, onboarding demo)
+const isFirstPartyOrigin = (host: string) =>
+	host === 'web.bytesfx.com' || host === 'localhost' || host === '127.0.0.1';
+
+// allowedDomains entries are hostnames, optionally '*.example.com' (matches subdomains and the apex)
+function isOriginAllowed(origin: string | null, allowedDomains: unknown): boolean {
+	if (!Array.isArray(allowedDomains) || allowedDomains.length === 0) return true; // no list saved → unrestricted
+	if (!origin) return false;
+	let host: string;
+	try { host = new URL(origin).hostname.toLowerCase(); } catch { return false; }
+	if (isFirstPartyOrigin(host)) return true;
+	return allowedDomains.some((d) => {
+		if (typeof d !== 'string') return false;
+		const domain = d.toLowerCase();
+		if (domain.startsWith('*.')) {
+			const base = domain.slice(2);
+			return host === base || host.endsWith('.' + base);
+		}
+		return host === domain || host === 'www.' + domain;
+	});
+}
+
 // Simple in-memory rate limiter
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
 const MAX_REQUESTS_PER_WINDOW = 15;
@@ -60,16 +90,40 @@ function isRateLimited(ip: string): boolean {
 export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 		const origin = request.headers.get('Origin');
-		const cors = getCorsHeaders(origin);
+		const url = new URL(request.url);
+		const isAdminRoute = url.pathname.startsWith('/api/');
+		const cors = isAdminRoute ? getCorsHeaders(origin) : getPublicCorsHeaders(origin);
 
 		if (request.method === 'OPTIONS') {
 			return new Response(null, { headers: cors });
 		}
 
-		const url = new URL(request.url);
+		// --- Public widget config (no auth) — only fields the widget needs, never prompts or domains ---
+		if (url.pathname === '/public/config' && request.method === 'GET') {
+			const clientId = url.searchParams.get('clientId') || 'default';
+			let cfg: any = {};
+			try { cfg = JSON.parse(await env.CLIENT_SETTINGS.get(`client:${clientId}`) || '{}'); } catch { cfg = {}; }
+			if (!isOriginAllowed(origin, cfg.allowedDomains)) {
+				return new Response(JSON.stringify({ error: 'This website is not allowed to use this chatbot.' }), {
+					status: 403, headers: { ...cors, 'Content-Type': 'application/json' }
+				});
+			}
+			const tier = cfg.mode || 'free';
+			const pub = {
+				showBranding: tier === 'free' ? true : (cfg.showBranding ?? tier === 'standard'), // same defaults as /api/config
+				referralId: cfg.referralId || '',
+				badgeUrl: (cfg.badgeUrl || '').replace('web.bytesai.com', 'web.bytesfx.com'), // older records saved the wrong domain
+				widgetName: cfg.widgetName || '',
+				widgetAccentColor: cfg.widgetAccentColor || '',
+				widgetAvatar: cfg.widgetAvatar || ''
+			};
+			return new Response(JSON.stringify(pub), {
+				headers: { ...cors, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' }
+			});
+		}
 
 		// --- Administrative Routes (Protected) ---
-		if (url.pathname.startsWith('/api/')) {
+		if (isAdminRoute) {
 			const allowedOrigin = "https://web.bytesfx.com";
 
 			// Strictly enforce Origin for Admin Dashboard, but allow local dev
@@ -398,6 +452,13 @@ Output EXACTLY in this JSON format:
 			}
 		} catch (e) {
 			console.error("KV Error:", e);
+		}
+
+		// Only sites on the client's Allowed Domains list may use their bot
+		if (!isOriginAllowed(origin, (clientConfig as any)?.allowedDomains)) {
+			return new Response(JSON.stringify({ error: 'This website is not allowed to use this chatbot.' }), {
+				status: 403, headers: { ...cors, 'Content-Type': 'application/json' }
+			});
 		}
 
 		const tier = clientConfig?.mode || 'free'; // 'free', 'standard', 'pro', 'elite'
@@ -829,35 +890,8 @@ Do not force it into every message, but use it naturally when discussing capabil
 		}
 	},
 
-	// CRON Trigger for Autoresponder Delivery
-	async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
-		const now = Date.now();
-
-		// Fetch all 'approved' sequences that are due and haven't been sent
-		const { results } = await env.DB.prepare(
-			"SELECT * FROM email_sequences WHERE status = 'approved' AND scheduled_for <= ?"
-		).bind(now).all();
-
-		if (!results || results.length === 0) return;
-
-		for (const sequence of results as any[]) {
-			try {
-				const lead = await env.DB.prepare("SELECT email FROM leads WHERE id = ?").bind(sequence.lead_id).first();
-				if (!lead) continue;
-
-				// TODO: Replace with actual Resend/SendGrid API fetch call once API key is provided
-				console.log(`[SIMULATED EMAIL] To: ${(lead as any).email} | Subject: ${sequence.subject}\nBody preview: ${sequence.body.substring(0, 50)}...`);
-
-				// Mark as sent
-				await env.DB.prepare(
-					// Live email_sequences has no sent_at column — setting it made this UPDATE throw every run
-					"UPDATE email_sequences SET status = 'sent' WHERE id = ?"
-				).bind(sequence.id).run();
-
-			} catch (e) {
-				console.error("Failed to process sequence ID", sequence.id, e);
-			}
-		}
-	}
+	// Drip emails are sent by crm-api's cron (it holds the mail settings). Kept as a no-op so this
+	// worker's cron trigger doesn't error, and so the two workers never both process a sequence.
+	async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {}
 };
 // Verification Push: CI/CD stabilized via GitHub Actions.
