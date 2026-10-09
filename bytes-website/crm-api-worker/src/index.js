@@ -1600,14 +1600,20 @@ async function generateAiSequence(env, leadId, shouldApprove = false) {
     const { results: existing } = await env.DB.prepare('SELECT count(*) as count FROM email_sequences WHERE lead_id = ?').bind(leadId).all();
     if (existing[0]?.count > 0) throw new Error('Sequence already exists');
 
+    // Only this lead's own conversation: the messages around the time they were captured.
+    // (Reading every chat on the client's site mixed other visitors' words into this lead's emails.)
     let chatContext = '';
     try {
-        const { results: logs } = await env.DB.prepare('SELECT user_message, bot_response FROM chat_logs WHERE client_id = ? ORDER BY timestamp ASC').bind(lead.client_id).all();
-        chatContext = logs.map(l => `User: ${escapeForPrompt(l.user_message)}\nBot: ${escapeForPrompt(l.bot_response)}`).join('\n\n');
+        const t = lead.timestamp || Date.now();
+        const { results: logs } = await env.DB.prepare('SELECT user_message, bot_response FROM chat_logs WHERE client_id = ? AND timestamp BETWEEN ? AND ? ORDER BY timestamp DESC LIMIT 60')
+            .bind(lead.client_id, t - 3 * 3600000, t + SESSION_GAP_MS).all();
+        chatContext = logs.reverse().map(l => `User: ${escapeForPrompt(l.user_message)}\nBot: ${escapeForPrompt(l.bot_response)}`).join('\n\n').slice(-12000);
     } catch {}
+    const company = (await companyNameFor(env, lead.client_id)) || 'this business';
 
-    const prompt = `You are an expert copywriter and sales closer.
-Write a highly engaging 5-email drip sequence to close a lead who recently chatted with our AI.
+    const prompt = `You are an expert copywriter and sales closer writing on behalf of ${escapeForPrompt(company)}.
+Write a highly engaging 5-email drip sequence to close a lead who recently chatted with ${escapeForPrompt(company)}'s website assistant.
+Sign off on behalf of ${escapeForPrompt(company)}. Never invent prices, discounts or guarantees that aren't in the chat.
 Lead Name: ${escapeForPrompt(lead.name)}
 Lead Email: ${escapeForPrompt(lead.email)}
 Interest/Service: ${escapeForPrompt(lead.service)}
@@ -1644,7 +1650,11 @@ Output EXACTLY in this JSON format:
 
     const responseText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
     const parsed = JSON.parse(responseText);
-    const emails = parsed.emails || [];
+    // At most 5 well-formed emails, numbered in order
+    const emails = (Array.isArray(parsed.emails) ? parsed.emails : [])
+        .filter(e => e && typeof e.subject === 'string' && typeof e.body === 'string' && e.subject.trim() && e.body.trim())
+        .slice(0, 5).map((e, i) => ({ email_number: i + 1, subject: e.subject.slice(0, 200), body: e.body.slice(0, 5000) }));
+    if (!emails.length) throw new Error('AI returned no emails');
     const nextAction = parsed.next_best_action || 'Reach out to verify requirement details.';
 
     const status = shouldApprove ? 'approved' : 'draft';
@@ -1667,10 +1677,23 @@ async function generateRuleSequence(env, leadId, shouldApprove = false) {
     const { results: existing } = await env.DB.prepare('SELECT count(*) as count FROM email_sequences WHERE lead_id = ?').bind(leadId).all();
     if (existing[0]?.count > 0) throw new Error('Sequence already exists');
 
-    const template = await env.DB.prepare("SELECT * FROM email_templates WHERE name = 'Standard Web Design Sequence'").first();
-    if (!template) throw new Error('Standard template not found');
-
-    const steps = JSON.parse(template.steps_json);
+    // The stored template is Bytes' own web-design sequence; every other client gets a neutral
+    // follow-up in their own name, so a clinic's leads never receive web-design emails.
+    let steps;
+    if ([HOUSE_CLIENT_ID, 'agency_demo'].includes(lead.client_id)) {
+        const template = await env.DB.prepare("SELECT * FROM email_templates WHERE name = 'Standard Web Design Sequence'").first();
+        if (!template) throw new Error('Standard template not found');
+        steps = JSON.parse(template.steps_json);
+    } else {
+        const company = await companyNameFor(env, lead.client_id);
+        const team = company ? `The ${company} team` : 'The team';
+        const about = lead.service ? ` about ${lead.service}` : '';
+        steps = [
+            { email_number: 1, subject: `Thanks for your enquiry${about}`, body: `Hi {name},\n\nThanks for chatting with us${about}. We'd love to learn a little more about what you need. Just reply to this email with a good time for a quick call.\n\nBest,\n${team}` },
+            { email_number: 2, subject: 'Any questions we can answer?', body: `Hi {name},\n\nFollowing up in case you had any questions${about}. Hit reply and we'll get back to you personally.\n\nBest,\n${team}` },
+            { email_number: 3, subject: 'Checking in', body: `Hi {name},\n\nJust bringing this back to the top of your inbox. Are you still looking for help${about}? We're happy to help whenever you're ready.\n\nBest,\n${team}` },
+        ];
+    }
     const status = shouldApprove ? 'approved' : 'draft';
     const pipelineStage = shouldApprove ? 'active' : 'campaign';
     const safeName = escapeHtml(lead.name);
@@ -1678,14 +1701,23 @@ async function generateRuleSequence(env, leadId, shouldApprove = false) {
     const stmts = steps.map((step, i) =>
         env.DB.prepare('INSERT INTO email_sequences (lead_id, client_id, email_number, subject, body, status, scheduled_for) VALUES (?, ?, ?, ?, ?, ?, ?)')
             .bind(leadId, lead.client_id, step.email_number,
-                step.subject.replace('{name}', safeName),
-                step.body.replace('{name}', safeName),
+                step.subject.replaceAll('{name}', safeName),
+                step.body.replaceAll('{name}', safeName),
                 status, Date.now() + (i + 1) * 24 * 60 * 60 * 1000)
     );
     stmts.push(env.DB.prepare('UPDATE leads SET pipeline_stage = ?, next_best_action = ? WHERE id = ?').bind(pipelineStage, 'Standard sequence applied and approved.', leadId));
     await env.DB.batch(stmts);
 
     return { success: true, count: steps.length };
+}
+
+// The client's company name for emails (falls back to a neutral phrase)
+async function companyNameFor(env, clientId) {
+    try {
+        const cfg = JSON.parse(await env.CLIENT_SETTINGS.get(`client:${clientId}`) || '{}');
+        if (typeof cfg.companyName === 'string' && cfg.companyName.trim()) return cfg.companyName.trim().slice(0, 80);
+    } catch (_) {}
+    return clientId === HOUSE_CLIENT_ID || clientId === 'agency_demo' ? 'BytesAI' : '';
 }
 
 // Admins reach every lead; a client only its own. Returns the lead row or null.
@@ -1806,7 +1838,9 @@ app.get('/api/verify-email', async (c) => {
 
         const settings = await c.env.DB.prepare('SELECT * FROM crm_settings WHERE client_id = ?').bind(lead.client_id).first();
         if (settings?.auto_approve_campaigns === 1) {
-            const mode = settings.default_campaign_mode || 'ai';
+            let mode = settings.default_campaign_mode || 'ai';
+            // AI isn't included on the post-trial Free plan: use the simple follow-up instead
+            if (mode === 'ai') { const ps = await getPlanStatus(c.env, lead.client_id); if (!ps.inTrial && ps.plan === 'free') mode = 'rule'; }
             if (mode === 'ai') generateAiSequence(c.env, lead.id, true).catch(e => console.error('[Auto-AI]', e));
             else if (mode === 'rule') generateRuleSequence(c.env, lead.id, true).catch(e => console.error('[Auto-Rule]', e));
         }

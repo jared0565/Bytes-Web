@@ -1587,6 +1587,19 @@ const PLAN_INSTALL_LIMITS = {
 
 let installationData = { clientId: '', allowedDomains: [], maxInstalls: 1, maxDomains: 1, plan: 'free', inTrial: true };
 
+// Admins: this page is the agency's own demo bot and the shared email sender — say where the rest lives
+function cbAdminNote() {
+    let el = document.getElementById('cb-admin-note');
+    if (userRole !== 'admin') { el?.remove(); return; }
+    if (el) return;
+    el = document.createElement('div');
+    el.id = 'cb-admin-note';
+    el.className = 'cb-admin-note';
+    el.innerHTML = 'You\'re editing the <strong>agency demo bot</strong> and the <strong>email sender used for any client without their own</strong>. The Bytes website chatbot is in <a href="#" data-go="site-settings">Settings</a>; each client\'s bot is in <a href="#" data-go="clients">Manage Clients</a>.';
+    el.addEventListener('click', (e) => { const a = e.target.closest('[data-go]'); if (a) { e.preventDefault(); switchView(a.dataset.go); } });
+    document.getElementById('cb-status').before(el);
+}
+
 async function loadChatbotView() {
     loadModelCatalog();
     // Load installations first so we have clientId
@@ -1596,6 +1609,7 @@ async function loadChatbotView() {
     } catch { /* use cached */ }
     renderChatbotView();
     loadChatbotStatus();
+    cbAdminNote();
 
     const cid = installationData.clientId;
     if (!cid) return;
@@ -1754,9 +1768,9 @@ function populateCampaignSettings(data) {
 
 function updateCampaignModeUI(mode) {
     const descriptions = {
-        ai:     'Gemini AI writes a personalised 5-email sequence based on each lead\'s chat history.',
-        rule:   'A pre-configured template sequence is applied to each verified lead automatically.',
-        manual: 'No sequence is generated — you write each campaign step manually.',
+        ai:     'AI writes up to 5 personalised follow-up emails from each lead\'s own conversation, signed with your company name. On the Free plan this falls back to the simple sequence.',
+        rule:   'A simple 3-email follow-up (thanks, any questions, checking in) using your company name and the service the lead asked about.',
+        manual: 'Nothing is generated automatically. Write each follow-up yourself from the lead\'s Campaign button on the Leads page.',
     };
     ['ai', 'rule', 'manual'].forEach(m => {
         document.getElementById(`settings-toggle-${m}`)?.classList.toggle('active', m === mode);
@@ -1824,7 +1838,7 @@ function renderChatbotView() {
 
     // Plan badge
     const planBadge = document.getElementById('dash-install-plan-badge');
-    if (planBadge) planBadge.textContent = inTrial ? `Trial · ${planStatus.trialDaysLeft || 0}d left` : (plan.charAt(0).toUpperCase() + plan.slice(1));
+    if (planBadge) planBadge.textContent = userRole === 'admin' ? 'Agency' : inTrial ? `Trial · ${planStatus.trialDaysLeft || 0}d left` : (plan.charAt(0).toUpperCase() + plan.slice(1));
 
     // Limits
     const maxInstallsEl = document.getElementById('dash-max-installs');
@@ -1845,7 +1859,7 @@ function renderChatbotView() {
     // Upgrade button
     const upgBtn = document.getElementById('dash-upgrade-install-btn');
     if (upgBtn) {
-        upgBtn.style.display = (maxDomains === -1) ? 'none' : 'block';
+        upgBtn.style.display = (maxDomains === -1 || userRole === 'admin') ? 'none' : 'block';
         upgBtn.onclick = () => showUpgradeModal('more_domains');
     }
 
@@ -2039,7 +2053,8 @@ document.getElementById('settings-save-campaign-btn').addEventListener('click', 
             statusEl.textContent = '✓ Saved!'; statusEl.style.color = 'var(--success)';
             setTimeout(() => { if (statusEl.textContent.startsWith('✓')) statusEl.textContent = ''; }, 3000);
         } else {
-            statusEl.textContent = 'Save failed.'; statusEl.style.color = 'var(--error)';
+            const err = await res.json().catch(() => ({}));
+            statusEl.textContent = err.error || 'Save failed.'; statusEl.style.color = 'var(--error)';
         }
     } catch { statusEl.textContent = 'Network error.'; statusEl.style.color = 'var(--error)'; }
 });

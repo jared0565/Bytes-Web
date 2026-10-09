@@ -1696,3 +1696,10 @@ body.light-mode #site-settings-view { --cb-1: #2a78d6; --cb-ok: #0a7d0a; --cb-wa
 body.light-mode .ld-error { color: #b91c1c; }
 .ld-new { display: inline-block; margin-right: 0.4rem; padding: 0.05rem 0.4rem; border-radius: 999px; background: #3987e5; color: #fff; font-size: 0.62rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; vertical-align: 0.12em; }
 @media (max-width: 700px) { .ld-stats > :last-child:nth-child(odd) { grid-column: 1 / -1; } }
+
+/* Chatbot page: admin context note */
+.cb-admin-note { padding: 0.8rem 1rem; border-radius: 12px; border: 1px solid color-mix(in srgb, #3987e5 40%, transparent); background: color-mix(in srgb, #3987e5 9%, transparent); font-size: 0.84rem; line-height: 1.55; color: var(--text-primary); }
+.cb-admin-note a { color: #6da7ec; font-weight: 600; }
+.cb-admin-note a:hover { text-decoration: underline; }
+.cb-admin-note a:focus-visible { outline: 2px solid #3987e5; outline-offset: 2px; border-radius: 3px; }
+body.light-mode .cb-admin-note a { color: #2a78d6; }
