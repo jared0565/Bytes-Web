@@ -1352,3 +1352,8 @@ body.light-mode #analytics-view {
 .site-settings-kicker code { text-transform: none; letter-spacing: 0; }
 .site-hint { font-size: 0.75rem; font-weight: 400; color: var(--text-secondary); }
 .site-cost { font-size: 0.78rem; color: var(--text-secondary); margin: 0.45rem 0 0; line-height: 1.5; }
+.site-socials { border: 1px solid var(--glass-border); border-radius: 12px; padding: 1.1rem 1.25rem 0.25rem; margin: 0.5rem 0 0; }
+.site-socials legend { padding: 0 0.4rem; font-weight: 600; font-size: 0.9rem; color: var(--text-primary); }
+.site-socials-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
+.site-socials input[aria-invalid="true"] { border-color: var(--error); }
+@media (max-width: 700px) { .site-socials-grid { grid-template-columns: 1fr; } }

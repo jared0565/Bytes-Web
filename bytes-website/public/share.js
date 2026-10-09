@@ -6,7 +6,9 @@
 (function () {
   'use strict';
 
-  // Company profiles shown in the footer. Leave a URL empty to hide that icon.
+  // Footer profiles. These are fallbacks: the live links come from the dashboard
+  // (Settings → Social Media Links) via the public endpoint below. Empty URLs are hidden.
+  var SOCIALS_API = 'https://crm-api.bmorris0565.workers.dev/api/public/site-socials';
   var SOCIALS = [
     { id: 'linkedin', label: 'LinkedIn', url: 'https://www.linkedin.com/in/fbmacagba/' },
     { id: 'facebook', label: 'Facebook', url: '' },
@@ -206,9 +208,33 @@
     track('open');
   }
 
+  function esc(v) { return String(v).replace(/[&<>"']/g, function (ch) { return '&#' + ch.charCodeAt(0) + ';'; }); }
+
+  function applySocials(saved) {
+    if (!saved || typeof saved !== 'object') return false;
+    SOCIALS.forEach(function (s) {
+      var url = typeof saved[s.id] === 'string' ? saved[s.id] : '';
+      s.url = /^https:\/\//.test(url) ? url : '';
+    });
+    return true;
+  }
+
+  // Saved links from the dashboard, cached for 5 minutes per tab
+  function loadSocials() {
+    try {
+      var cached = JSON.parse(sessionStorage.getItem('bfx_socials') || 'null');
+      if (cached && Date.now() - cached.at < 300000) { if (applySocials(cached.socials)) renderSocials(); return; }
+    } catch (e) {}
+    fetch(SOCIALS_API).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      if (!d) return;
+      try { sessionStorage.setItem('bfx_socials', JSON.stringify({ at: Date.now(), socials: d.socials })); } catch (e) {}
+      if (applySocials(d.socials)) renderSocials();
+    }).catch(function () { /* keep the fallback links */ });
+  }
+
   function renderSocials() {
     var html = SOCIALS.filter(function (s) { return s.url; }).map(function (s) {
-      return '<a href="' + s.url + '" target="_blank" rel="noopener me" aria-label="' + SITE_NAME + ' on ' + s.label + '" title="' + s.label + '">' + icon(s.id) + '</a>';
+      return '<a href="' + esc(s.url) + '" target="_blank" rel="noopener me" aria-label="' + SITE_NAME + ' on ' + s.label + '" title="' + s.label + '">' + icon(s.id) + '</a>';
     }).join('') + '<button type="button" data-share aria-label="Share this page" title="Share">' + icon('share') + '</button>';
     document.querySelectorAll('[data-social-links]').forEach(function (el) { el.classList.add('bs-socials'); el.innerHTML = html; });
   }
@@ -222,6 +248,7 @@
       if (!el.querySelector('svg')) el.insertAdjacentHTML('afterbegin', icon('share'));
     });
     renderSocials();
+    if (document.querySelector('[data-social-links]')) loadSocials();
     document.addEventListener('click', function (e) {
       var t = e.target.closest && e.target.closest('[data-share]');
       if (t) { e.preventDefault(); open(); }
