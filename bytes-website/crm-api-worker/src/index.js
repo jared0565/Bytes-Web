@@ -2221,20 +2221,28 @@ async function handleVerificationCron(env) {
 
 // Mail settings are saved per dashboard account (all admins use agency_demo), so a client
 // without its own sender falls back to the agency's.
-async function getMailSettings(env, clientId) {
-    const raw = (clientId && await env.OAUTH_TOKENS.get(`mail:${clientId}`)) || await env.OAUTH_TOKENS.get('mail:agency_demo');
-    const saved = raw ? JSON.parse(raw) : null;
-    // The Bytes website can send through a Resend key stored as a Worker secret
-    // (wrangler secret put RESEND_API_KEY / WEBSITE_MAIL_FROM), like the AI provider keys
+// Which sender an account's emails go out through, in order:
+//   1. its own saved sender (dashboard Email sender / Settings → Website email sender)
+//   2. for the Bytes website only: a Resend key saved as a Worker secret (RESEND_API_KEY, WEBSITE_MAIL_FROM)
+//   3. the agency's saved sender
+async function mailSettingsWithSource(env, clientId) {
+    const own = clientId ? JSON.parse(await env.OAUTH_TOKENS.get(`mail:${clientId}`) || 'null') : null;
+    if (own?.provider) return { settings: own, source: 'saved' };
     if (clientId === HOUSE_CLIENT_ID && env.RESEND_API_KEY) {
-        return {
-            provider: 'resend',
-            apiKey: env.RESEND_API_KEY,
-            fromEmail: env.WEBSITE_MAIL_FROM || saved?.fromEmail || '',
-            fromName: env.WEBSITE_MAIL_NAME || saved?.fromName || 'BytesFX',
-        };
+        return { source: 'secret', settings: { provider: 'resend', apiKey: env.RESEND_API_KEY, fromEmail: env.WEBSITE_MAIL_FROM || own?.fromEmail || '', fromName: env.WEBSITE_MAIL_NAME || own?.fromName || 'BytesFX' } };
     }
-    return saved;
+    const agency = JSON.parse(await env.OAUTH_TOKENS.get('mail:agency_demo') || 'null');
+    return agency?.provider ? { settings: agency, source: clientId === 'agency_demo' ? 'saved' : 'agency' } : { settings: own || agency, source: 'none' };
+}
+async function getMailSettings(env, clientId) {
+    return (await mailSettingsWithSource(env, clientId)).settings;
+}
+
+// Mail settings target: your own account, or (admins, ?site=1) the Bytes website
+function mailTarget(c) {
+    const user = c.get('user') || {};
+    if (c.req.query('site') === '1') return user.role === 'admin' ? { clientId: HOUSE_CLIENT_ID } : { error: c.json({ error: 'Admins only' }, 403) };
+    return user.clientId ? { clientId: user.clientId } : { error: c.json({ error: 'No client is linked to this account' }, 403) };
 }
 
 // Sends one email through the saved provider. Returns { ok: true } or { ok: false, error }.
@@ -2329,19 +2337,25 @@ async function handleDripCron(env) {
 
 // GET /api/mail-settings — returns stored config with secrets masked
 app.get('/api/mail-settings', requireAuth, async (c) => {
-    const user = c.get('user');
-    const raw = await c.env.OAUTH_TOKENS.get(`mail:${user.clientId}`);
-    if (!raw) return c.json({});
-    const data = JSON.parse(raw);
+    const t = mailTarget(c); if (t.error) return t.error;
+    const raw = await c.env.OAUTH_TOKENS.get(`mail:${t.clientId}`);
+    const data = raw ? JSON.parse(raw) : {};
     // Mask secrets for display
     if (data.apiKey)   data.apiKey   = '••••' + data.apiKey.slice(-4);
     if (data.smtpPass) data.smtpPass = '••••••••';
+    if (t.clientId === HOUSE_CLIENT_ID) {
+        // Tell the Website settings which sender is actually in use right now
+        const { source, settings } = await mailSettingsWithSource(c.env, HOUSE_CLIENT_ID);
+        data._source = source;
+        data._secretKey = !!c.env.RESEND_API_KEY;
+        data._activeFrom = settings?.fromEmail || '';
+    }
     return c.json(data);
 });
 
 // POST /api/mail-settings — saves config, preserving masked/omitted secrets
 app.post('/api/mail-settings', requireAuth, async (c) => {
-    const user = c.get('user');
+    const t = mailTarget(c); if (t.error) return t.error;
     let body;
     try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
 
@@ -2350,8 +2364,12 @@ app.post('/api/mail-settings', requireAuth, async (c) => {
     if (fromEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fromEmail)) {
         return c.json({ error: 'Invalid from email address' }, 400);
     }
+    if (provider !== undefined && !['', 'resend', 'sendgrid', 'mailgun', 'smtp'].includes(provider)) return c.json({ error: 'Unknown email provider' }, 400);
+    for (const [k, v] of Object.entries({ fromName, fromEmail, apiKey, mailgunDomain })) {
+        if (v !== undefined && (typeof v !== 'string' || v.length > 300)) return c.json({ error: `${k} is too long` }, 400);
+    }
 
-    const existing = await c.env.OAUTH_TOKENS.get(`mail:${user.clientId}`);
+    const existing = await c.env.OAUTH_TOKENS.get(`mail:${t.clientId}`);
     const prev = existing ? JSON.parse(existing) : {};
 
     const settings = {
@@ -2367,17 +2385,19 @@ app.post('/api/mail-settings', requireAuth, async (c) => {
         smtpPass:     (smtpPass && smtpPass !== '••••••••') ? smtpPass : (prev.smtpPass ?? ''),
     };
 
-    await c.env.OAUTH_TOKENS.put(`mail:${user.clientId}`, JSON.stringify(settings));
+    await c.env.OAUTH_TOKENS.put(`mail:${t.clientId}`, JSON.stringify(settings));
     return c.json({ success: true });
 });
 
 // POST /api/mail-settings/test — sends a test email via configured provider
 app.post('/api/mail-settings/test', requireAuth, async (c) => {
     const user = c.get('user');
-    const raw = await c.env.OAUTH_TOKENS.get(`mail:${user.clientId}`);
-    if (!raw) return c.json({ error: 'No mail settings saved. Configure and save your settings first.' }, 400);
-
-    const s = JSON.parse(raw);
+    const t = mailTarget(c); if (t.error) return t.error;
+    // The website test uses whatever it really sends with (saved sender, secret or agency fallback)
+    let s;
+    if (t.clientId === HOUSE_CLIENT_ID) s = await getMailSettings(c.env, HOUSE_CLIENT_ID);
+    else { const raw = await c.env.OAUTH_TOKENS.get(`mail:${t.clientId}`); s = raw ? JSON.parse(raw) : null; }
+    if (!s?.provider) return c.json({ error: 'No mail settings saved. Configure and save your settings first.' }, 400);
 
     // Send to the authenticated user's registered email
     const userRow = await c.env.DB.prepare('SELECT email FROM users WHERE id = ?').bind(user.userId).first().catch(() => null);

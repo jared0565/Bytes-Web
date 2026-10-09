@@ -886,6 +886,53 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Website email sender: lead verification + follow-up emails for the Bytes website -->
+                <div class="glass-panel site-settings-card site-mail-card" id="site-mail-card">
+                    <p class="site-settings-kicker">Bytes website · emails to website leads</p>
+                    <h3 style="margin:0 0 0.2rem;">Website email sender</h3>
+                    <p style="color:var(--text-secondary);font-size:0.82rem;margin:0 0 1rem;">Sends the email-verification message and follow-up emails to people who enquire through the website or its chatbot. Clients' emails use their own sender and aren't affected.</p>
+                    <div class="site-mail-source" id="site-mail-source" role="status"></div>
+
+                    <div class="form-group">
+                        <label for="site-mail-provider">Email provider</label>
+                        <select id="site-mail-provider">
+                            <option value="">— Not set (use the fallback above) —</option>
+                            <option value="resend">Resend (recommended)</option>
+                            <option value="sendgrid">SendGrid</option>
+                            <option value="mailgun">Mailgun</option>
+                        </select>
+                    </div>
+                    <div class="site-mail-fields" id="site-mail-fields">
+                        <div class="site-socials-grid">
+                            <div class="form-group">
+                                <label for="site-mail-from-name">From name</label>
+                                <input type="text" id="site-mail-from-name" maxlength="80" placeholder="BytesFX" autocomplete="off">
+                            </div>
+                            <div class="form-group">
+                                <label for="site-mail-from-email">From email <span class="site-hint">— on a domain verified with the provider</span></label>
+                                <input type="email" id="site-mail-from-email" maxlength="200" placeholder="hello@bytesfx.com" autocomplete="off">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="site-mail-api-key" id="site-mail-api-key-label">API key</label>
+                            <input type="password" id="site-mail-api-key" maxlength="300" placeholder="Paste the API key" autocomplete="new-password" aria-describedby="site-mail-key-hint">
+                            <p class="cb-hint" id="site-mail-key-hint"></p>
+                        </div>
+                        <div class="form-group" id="site-mail-mailgun-group" hidden>
+                            <label for="site-mail-mailgun-domain">Mailgun sending domain</label>
+                            <input type="text" id="site-mail-mailgun-domain" maxlength="200" placeholder="mg.bytesfx.com" autocomplete="off">
+                        </div>
+                    </div>
+
+                    <div class="site-savebar">
+                        <p id="site-mail-status" role="status" style="font-size:0.82rem;margin:0;min-height:1em;"></p>
+                        <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;">
+                            <button type="button" class="cl-btn" id="site-mail-test">Send test email</button>
+                            <button type="button" id="site-mail-save" class="btn btn-primary">Save Email Sender</button>
+                        </div>
+                    </div>
+                </div>
             </section>
 
             <section id="analytics-view" class="view hidden">
