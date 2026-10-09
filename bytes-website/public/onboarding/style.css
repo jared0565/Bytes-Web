@@ -262,7 +262,8 @@ select {
 }
 
 select option {
-    color: #111;
+    background-color: #121821;
+    color: #f2f4f7;
 }
 
 .tone-picker {

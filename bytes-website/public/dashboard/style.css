@@ -1723,3 +1723,17 @@ body.light-mode .viz-mode { background: rgba(0, 0, 0, 0.03); }
 .viz-retry { margin-top: 0.6rem; align-self: flex-start; }
 @media (max-width: 1100px) { .vw-row-3 { grid-template-columns: 1fr 1fr; } .vw-row-3 > :first-child { grid-column: 1 / -1; } }
 @media (max-width: 900px) { .vw-row-3, .vw-row-2 { grid-template-columns: 1fr; } .viz-mode { display: flex; } .viz-mode-btn { flex: 1; } }
+
+/* Dropdown menus: every native <select> list gets solid, high-contrast options.
+   Without this, options inherit the select's light text and some browsers (Chrome/Edge on
+   Windows) draw them on a white list, which made them nearly unreadable. */
+:root { color-scheme: dark; }
+body.light-mode { color-scheme: light; }
+select option, select optgroup { background-color: #1b1b29; color: #f0f0f5; font-weight: 500; }
+select optgroup { color: #9ec5f4; font-weight: 700; font-style: normal; }
+select option:disabled { color: #8b8ba3; }
+select option:checked { background-color: #3987e5; color: #fff; }
+body.light-mode select option, body.light-mode select optgroup { background-color: #ffffff; color: #0f172a; }
+body.light-mode select optgroup { color: #2a78d6; }
+body.light-mode select option:disabled { color: #64748b; }
+body.light-mode select option:checked { background-color: #2a78d6; color: #fff; }
