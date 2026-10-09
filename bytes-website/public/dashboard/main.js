@@ -1882,263 +1882,284 @@ document.getElementById('settings-test-mail-btn').addEventListener('click', asyn
 });
 
 // ─── Analytics & Reports ──────────────────────────────────────────────────────
+// Server computes the numbers (/api/analytics); this file only draws them.
+// Palette: one validated blue (sequential/ordinal) + fixed status colours for deltas, each with an arrow + text.
 
-let analyticsDays = 7;
+let analyticsDays = 30;
+let analyticsMetric = 'leads';
+let analyticsData = null;
 let analyticsListenersAttached = false;
 
-async function loadAnalytics(force = false) {
-    if (force || !window.allLeads || window.allLeads.length === 0) {
-        await loadLeads();
-    }
-    renderAnalytics(window.allLeads || []);
+const HEAT_DARK = ['#184f95', '#1c5cab', '#256abf', '#3987e5', '#6da7ec', '#9ec5f4'];
+const HEAT_LIGHT = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95'];
+const MIN_SAMPLE = 30; // below this a rate is shown with a low-sample note
 
+async function loadAnalytics(force = false) {
     if (!analyticsListenersAttached) {
         analyticsListenersAttached = true;
         document.querySelectorAll('.time-btn').forEach(btn => {
+            btn.classList.toggle('active', parseInt(btn.dataset.days, 10) === analyticsDays);
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 analyticsDays = parseInt(btn.dataset.days, 10);
-                renderAnalytics(window.allLeads || []);
+                loadAnalytics(true);
             });
         });
-    }
-}
-
-function renderAnalytics(leads) {
-    const now = Date.now();
-    const cutoff = analyticsDays > 0 ? now - analyticsDays * 86400000 : 0;
-    const filtered = analyticsDays > 0
-        ? leads.filter(l => new Date(l.timestamp).getTime() > cutoff)
-        : leads;
-
-    const total = filtered.length;
-    const todayCount = leads.filter(l => new Date(l.timestamp).getTime() > now - 86400000).length;
-
-    const totalLeadsEl = document.getElementById('kpi-total-leads');
-    const leadsDeltaEl = document.getElementById('kpi-leads-delta');
-    if (totalLeadsEl) totalLeadsEl.textContent = total;
-    if (leadsDeltaEl) {
-        leadsDeltaEl.textContent = `+${todayCount} today`;
-        leadsDeltaEl.style.color = todayCount > 0 ? '#34d399' : 'var(--text-secondary)';
-    }
-
-    // Pipeline value
-    let totalValue = 0, hasValue = false;
-    filtered.forEach(l => {
-        const n = parseBudgetValue(l.budget);
-        if (n > 0) { totalValue += n; hasValue = true; }
-    });
-    const pipelineEl = document.getElementById('kpi-pipeline-value');
-    const valueNoteEl = document.getElementById('kpi-value-note');
-    if (pipelineEl) pipelineEl.textContent = hasValue ? formatCurrencyShort(totalValue) : 'N/A';
-    if (valueNoteEl) valueNoteEl.textContent = hasValue ? `across ${total} lead${total !== 1 ? 's' : ''}` : 'no budget data';
-
-    // Conversion rate: leads that reached opportunity or further
-    const converted = filtered.filter(l =>
-        ['opportunity', 'priority', 'campaign', 'active', 'drafting', 'sequence_generated'].includes(l.pipeline_stage)
-    ).length;
-    const rate = total > 0 ? Math.round((converted / total) * 100) : 0;
-    const convEl = document.getElementById('kpi-conversion-rate');
-    if (convEl) convEl.textContent = `${rate}%`;
-
-    // Active campaigns
-    const activeCampaigns = filtered.filter(l => l.pipeline_stage === 'active').length;
-    const activeCampEl = document.getElementById('kpi-active-campaigns');
-    if (activeCampEl) activeCampEl.textContent = activeCampaigns;
-
-    // Charts
-    renderLeadVolumeChart(leads, analyticsDays);
-    renderFunnelChart(filtered);
-    renderStageDonut(filtered);
-    renderActivityFeed(leads);
-}
-
-function parseBudgetValue(str) {
-    if (!str) return 0;
-    const s = String(str).replace(/[£€$,\s]/g, '').toLowerCase();
-    const m = s.match(/([\d.]+)([km]?)/);
-    if (!m) return 0;
-    let n = parseFloat(m[1]);
-    if (m[2] === 'k') n *= 1000;
-    if (m[2] === 'm') n *= 1000000;
-    return Math.round(n);
-}
-
-function formatCurrencyShort(n) {
-    if (n >= 1000000) return `$${(n / 1000000).toFixed(1)}M`;
-    if (n >= 1000) return `$${(n / 1000).toFixed(1)}K`;
-    return `$${n}`;
-}
-
-function renderLeadVolumeChart(allLeadsData, days) {
-    const chartEl = document.getElementById('lead-volume-chart');
-    const labelsEl = document.getElementById('lead-volume-labels');
-    const periodLabel = document.getElementById('volume-period-label');
-    if (!chartEl || !labelsEl) return;
-
-    if (periodLabel) {
-        // Chart shows at most 30 daily bars (14 for all time) — label what is actually drawn
-        periodLabel.textContent = `Last ${days === 0 ? 14 : Math.min(days, 30)} days`;
-    }
-
-    const effectiveDays = days === 0 ? 14 : Math.min(days, 30);
-    const buckets = [];
-    const now = new Date();
-    for (let i = effectiveDays - 1; i >= 0; i--) {
-        const d = new Date(now);
-        d.setDate(d.getDate() - i);
-        d.setHours(0, 0, 0, 0);
-        buckets.push({ date: d, count: 0 });
-    }
-
-    (days === 0 ? allLeadsData : allLeadsData.filter(l => new Date(l.timestamp).getTime() > Date.now() - effectiveDays * 86400000))
-        .forEach(l => {
-            const ts = new Date(l.timestamp);
-            ts.setHours(0, 0, 0, 0);
-            const bucket = buckets.find(b => b.date.getTime() === ts.getTime());
-            if (bucket) bucket.count++;
+        document.querySelectorAll('.viz-seg-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                analyticsMetric = btn.dataset.metric;
+                document.querySelectorAll('.viz-seg-btn').forEach(b => {
+                    b.classList.toggle('active', b === btn);
+                    b.setAttribute('aria-selected', b === btn ? 'true' : 'false');
+                });
+                if (analyticsData) renderTrend(analyticsData);
+            });
         });
-
-    const maxCount = Math.max(...buckets.map(b => b.count), 1);
-
-    chartEl.innerHTML = buckets.map(b => {
-        const pct = Math.max((b.count / maxCount) * 100, 2);
-        return `<div class="bar-col">
-            <div class="bar-fill" style="height:${pct}%;" title="${b.count} lead${b.count !== 1 ? 's' : ''}">
-                ${b.count > 0 ? `<span class="bar-val">${b.count}</span>` : ''}
-            </div>
-        </div>`;
-    }).join('');
-
-    const step = effectiveDays > 14 ? 7 : effectiveDays > 7 ? 2 : 1;
-    labelsEl.innerHTML = buckets.map((b, i) => {
-        const show = (i % step === 0) || i === buckets.length - 1;
-        return `<span class="bar-label" style="visibility:${show ? 'visible' : 'hidden'}">${b.date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })}</span>`;
-    }).join('');
-}
-
-function renderFunnelChart(leads) {
-    const el = document.getElementById('pipeline-funnel-chart');
-    if (!el) return;
-
-    const stageGroups = [
-        { label: 'Inbox',       keys: ['lead'],                                color: '#6366f1' },
-        { label: 'Priority',    keys: ['priority'],                            color: '#f59e0b' },
-        { label: 'Opportunity', keys: ['opportunity'],                         color: '#60a5fa' },
-        { label: 'Campaign',    keys: ['drafting', 'sequence_generated', 'active', 'campaign'], color: '#34d399' },
-    ];
-
-    const counts = stageGroups.map(s => ({
-        ...s,
-        count: leads.filter(l => s.keys.includes(l.pipeline_stage)).length,
-    }));
-
-    const maxCount = Math.max(...counts.map(c => c.count), 1);
-
-    el.innerHTML = counts.map((s, i) => {
-        const pct = Math.max((s.count / maxCount) * 100, 3);
-        const prev = counts[i - 1];
-        const dropPct = prev && prev.count > 0
-            ? Math.round((s.count / prev.count) * 100)
-            : null;
-        return `<div class="funnel-row">
-            <span class="funnel-label">${escapeHtml(s.label)}</span>
-            <div class="funnel-bar-wrap">
-                <div class="funnel-bar" style="width:${pct}%;background:${s.color};"></div>
-                <span class="funnel-count">${s.count}</span>
-            </div>
-            <span class="funnel-conv">${dropPct !== null ? `↓ ${dropPct}%` : ''}</span>
-        </div>`;
-    }).join('');
-}
-
-function renderStageDonut(leads) {
-    const el = document.getElementById('stage-distribution-chart');
-    if (!el) return;
-
-    const stageConfig = [
-        { key: 'lead',               label: 'Inbox',         color: '#6366f1' },
-        { key: 'priority',           label: 'Priority',      color: '#f59e0b' },
-        { key: 'opportunity',        label: 'Opportunity',   color: '#60a5fa' },
-        { key: 'campaign',           label: 'Campaign',      color: '#2dd4bf' },
-        { key: 'drafting',           label: 'Drafting',      color: '#a78bfa' },
-        { key: 'sequence_generated', label: 'Seq. Ready',    color: '#818cf8' },
-        { key: 'active',             label: 'Active',        color: '#34d399' },
-    ];
-
-    const total = leads.length;
-    if (total === 0) {
-        el.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;padding:1.5rem 0;text-align:center;">No data for period.</p>';
-        return;
+        window.addEventListener('resize', () => { if (analyticsData && !document.getElementById('analytics-view').classList.contains('hidden')) renderTrend(analyticsData); });
     }
+    if (analyticsData && !force) { renderAnalytics(analyticsData); return; }
 
-    const slices = stageConfig
-        .map(s => ({ ...s, count: leads.filter(l => l.pipeline_stage === s.key).length }))
-        .filter(s => s.count > 0);
+    const kpis = document.getElementById('viz-kpis');
+    if (kpis && !analyticsData) kpis.innerHTML = '<div class="viz-kpi"><span class="viz-kpi-label">Loading…</span></div>';
+    try {
+        const res = await apiFetch(`${API_BASE}/api/analytics?days=${analyticsDays}&tz=${new Date().getTimezoneOffset()}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        analyticsData = await res.json();
+        renderAnalytics(analyticsData);
+    } catch (err) {
+        console.error('[Analytics]', err);
+        if (kpis) kpis.innerHTML = '<div class="viz-kpi"><span class="viz-kpi-label">Could not load analytics</span><span class="viz-kpi-help">Check your connection and try again.</span></div>';
+    }
+}
 
-    const r = 54, cx = 68, cy = 68, sw = 22;
-    const circ = 2 * Math.PI * r;
-    let offset = 0;
-    const circles = slices.map(s => {
-        const dash = (s.count / total) * circ;
-        const c = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="${sw}" stroke-dasharray="${dash.toFixed(2)} ${(circ - dash).toFixed(2)}" stroke-dashoffset="${(-offset).toFixed(2)}" />`;
-        offset += dash;
-        return c;
-    }).join('');
+const fmtInt = (n) => (n ?? 0).toLocaleString('en-GB');
+const fmtPct = (r) => (r == null ? '—' : `${(r * 100).toFixed(r < 0.1 && r > 0 ? 1 : 0)}%`);
+function fmtMoney(n) {
+    if (!n) return '£0';
+    if (n >= 1e6) return `£${(n / 1e6).toFixed(1)}M`;
+    if (n >= 1e4) return `£${Math.round(n / 1e3)}K`;
+    return `£${n.toLocaleString('en-GB')}`;
+}
+function periodName(days) { return days ? `prev ${days}d` : ''; }
 
-    const legend = slices.map(s => `
-        <div class="legend-row">
-            <span class="legend-dot" style="background:${s.color}"></span>
-            <span class="legend-label">${escapeHtml(s.label)}</span>
-            <span class="legend-count">${s.count}</span>
-            <span class="legend-pct">${Math.round((s.count / total) * 100)}%</span>
+function deltaHtml(cur, prev, { isRate = false, days }) {
+    if (!days) return '<span>All time</span>';
+    if (cur == null || prev == null) return `<span>no ${periodName(days)} data</span>`;
+    if (isRate) {
+        const pts = (cur - prev) * 100;
+        if (Math.abs(pts) < 0.05) return `<span>no change vs ${periodName(days)}</span>`;
+        const cls = pts > 0 ? 'up' : 'down';
+        return `<span class="${cls}">${pts > 0 ? '▲' : '▼'} ${Math.abs(pts).toFixed(1)} pts</span> vs ${periodName(days)}`;
+    }
+    if (prev === 0) return cur === 0 ? `<span>no change vs ${periodName(days)}</span>` : `<span class="up">▲ new</span> vs ${periodName(days)} (0)`;
+    const pct = ((cur - prev) / prev) * 100;
+    if (Math.abs(pct) < 0.5) return `<span>no change vs ${periodName(days)}</span>`;
+    const cls = pct > 0 ? 'up' : 'down';
+    return `<span class="${cls}">${pct > 0 ? '▲' : '▼'} ${Math.abs(pct).toFixed(0)}%</span> vs ${periodName(days)}`;
+}
+
+function renderAnalytics(d) {
+    const c = d.current, p = d.previous || {};
+    const scope = document.getElementById('viz-scope');
+    if (scope) scope.textContent = d.days
+        ? `Last ${d.days} days, compared with the ${d.days} days before. Conversations are estimated (a new one starts after 30 min of inactivity).`
+        : 'All time. Conversations are estimated (a new one starts after 30 min of inactivity).';
+
+    const low = (n) => n > 0 && n < MIN_SAMPLE ? `<span class="viz-kpi-warn">n=${n}: too few for a reliable rate</span>` : '';
+    const tiles = [
+        { label: 'Conversations', value: fmtInt(c.conversations), delta: deltaHtml(c.conversations, p.conversations, d), help: 'Chats started on your sites' },
+        { label: 'Leads', value: fmtInt(c.leads), delta: deltaHtml(c.leads, p.leads, d), help: 'Contacts captured by the bot' },
+        { label: 'Chat → lead', value: fmtPct(c.chatToLead), delta: deltaHtml(c.chatToLead, p.chatToLead, { ...d, isRate: true }), help: 'Leads ÷ conversations', extra: low(c.conversations) },
+        { label: 'Verified email', value: fmtPct(c.verifiedRate), delta: deltaHtml(c.verifiedRate, p.verifiedRate, { ...d, isRate: true }), help: 'Leads who confirmed their email', extra: low(c.leads) },
+        { label: 'Lead → opportunity', value: fmtPct(c.qualifiedRate), delta: deltaHtml(c.qualifiedRate, p.qualifiedRate, { ...d, isRate: true }), help: 'Moved to Opportunity or later', extra: low(c.leads) },
+        { label: 'Pipeline value', value: fmtMoney(c.pipelineValue), delta: deltaHtml(c.pipelineValue, p.pipelineValue, d), help: `Stated budgets, ${c.withBudget} of ${c.leads} leads` },
+    ];
+    document.getElementById('viz-kpis').innerHTML = tiles.map(t => `
+        <div class="viz-kpi">
+            <span class="viz-kpi-label">${t.label}</span>
+            <span class="viz-kpi-num">${t.value}</span>
+            <span class="viz-kpi-delta">${t.delta}</span>
+            <span class="viz-kpi-help">${t.help}</span>
+            ${t.extra || ''}
         </div>`).join('');
 
-    el.innerHTML = `<div class="donut-layout">
-        <svg width="136" height="136" viewBox="0 0 136 136" style="transform:rotate(-90deg);flex-shrink:0;">
-            <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="${sw}"/>
-            ${circles}
-        </svg>
-        <div class="donut-legend">${legend}</div>
-    </div>`;
+    renderTrend(d);
+    renderFunnel(d);
+    renderHeatmap(d);
+    renderServices(d);
+    renderWaiting(d);
 }
 
-function renderActivityFeed(leads) {
-    const el = document.getElementById('activity-feed');
+// ── Tooltip helpers
+function showTip(html, x, y) {
+    const tip = document.getElementById('viz-tooltip');
+    if (!tip) return;
+    tip.innerHTML = html;
+    tip.hidden = false;
+    const r = tip.getBoundingClientRect();
+    tip.style.left = `${Math.min(window.innerWidth - r.width - 8, x + 12)}px`;
+    tip.style.top = `${Math.max(8, y - r.height - 12)}px`;
+}
+function hideTip() { const tip = document.getElementById('viz-tooltip'); if (tip) tip.hidden = true; }
+
+function bucketLabel(t, bucket, long = false) {
+    const d = new Date(t);
+    const s = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    return bucket === 'week' && long ? `Week of ${s}` : s;
+}
+
+// ── Trend: single-series area chart with crosshair tooltip
+function renderTrend(d) {
+    const el = document.getElementById('viz-trend');
+    const tableEl = document.getElementById('viz-trend-table');
+    const title = document.getElementById('viz-trend-title');
     if (!el) return;
+    const m = analyticsMetric;
+    const names = { leads: 'Leads', conversations: 'Conversations', rate: 'Chat → lead rate' };
+    if (title) title.textContent = `${names[m]} per ${d.bucket}`;
+    const pts = d.series.map(s => ({ t: s.t, v: m === 'rate' ? (s.conversations ? s.leads / s.conversations : null) : s[m], s }));
+    const fmtV = (v) => v == null ? '—' : m === 'rate' ? fmtPct(v) : fmtInt(v);
 
-    const sorted = [...leads]
-        .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-        .slice(0, 15);
+    if (tableEl) tableEl.innerHTML = `<div class="viz-table-scroll"><table><thead><tr><th>${d.bucket === 'week' ? 'Week of' : 'Day'}</th><th>Conversations</th><th>Leads</th><th>Chat → lead</th></tr></thead><tbody>${
+        d.series.map(s => `<tr><td>${bucketLabel(s.t, d.bucket)}</td><td>${s.conversations}</td><td>${s.leads}</td><td>${fmtPct(s.conversations ? s.leads / s.conversations : null)}</td></tr>`).join('')
+    }</tbody></table></div>`;
 
-    if (sorted.length === 0) {
-        el.innerHTML = '<p style="color:var(--text-secondary);font-size:0.85rem;padding:0.5rem 0;">No activity yet.</p>';
-        return;
-    }
+    if (!pts.some(p => p.v)) { el.innerHTML = `<div class="viz-empty">No ${names[m].toLowerCase()} in this period yet.</div>`; return; }
 
-    const stageIcon  = { lead: '👤', priority: '🔥', opportunity: '💡', drafting: '✍️', sequence_generated: '✨', active: '🚀', campaign: '✉️' };
-    const stageEvent = { lead: 'Lead captured', priority: 'Marked priority', opportunity: 'Moved to opportunity', drafting: 'Campaign drafting', sequence_generated: 'AI sequence ready', active: 'Campaign activated', campaign: 'In campaign' };
+    const W = el.clientWidth || 600, H = el.clientHeight || 220;
+    const pad = { l: 34, r: 8, t: 12, b: 22 };
+    const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+    const rawMax = Math.max(...pts.map(p => p.v || 0));
+    const max = m === 'rate' ? Math.min(1, Math.max(0.05, Math.ceil(rawMax * 10) / 10)) : Math.max(1, niceMax(rawMax));
+    const x = (i) => pad.l + (pts.length === 1 ? iw / 2 : (i / (pts.length - 1)) * iw);
+    const y = (v) => pad.t + ih - (v / max) * ih;
+    const ticks = [0, max / 2, max];
 
-    el.innerHTML = sorted.map(l => {
-        const stage = l.pipeline_stage || 'lead';
-        const icon  = stageIcon[stage]  || '📋';
-        const event = stageEvent[stage] || stage;
+    let line = '', area = '', started = false;
+    pts.forEach((p, i) => {
+        if (p.v == null) { started = false; return; }
+        line += `${started ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.v).toFixed(1)}`;
+        started = true;
+    });
+    const valid = pts.map((p, i) => ({ ...p, i })).filter(p => p.v != null);
+    if (valid.length) area = `M${x(valid[0].i)},${y(0)} ` + valid.map(p => `L${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ') + ` L${x(valid[valid.length - 1].i)},${y(0)} Z`;
 
-        const age = Date.now() - new Date(l.timestamp).getTime();
-        const rel = age < 60000       ? 'just now'
-                  : age < 3600000     ? `${Math.floor(age / 60000)}m ago`
-                  : age < 86400000    ? `${Math.floor(age / 3600000)}h ago`
-                  : age < 604800000   ? `${Math.floor(age / 86400000)}d ago`
-                  : new Date(l.timestamp).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    const step = Math.max(1, Math.ceil(pts.length / Math.max(2, Math.floor(iw / 70))));
+    const xlabels = pts.map((p, i) => (i % step === 0 || i === pts.length - 1) && !(i !== pts.length - 1 && pts.length - 1 - i < step / 2)
+        ? `<text x="${x(i)}" y="${H - 6}" text-anchor="middle">${bucketLabel(p.t, d.bucket)}</text>` : '').join('');
+    const peak = valid.reduce((a, b) => (b.v > a.v ? b : a), valid[0]);
 
-        return `<div class="activity-item">
-            <span class="activity-icon">${icon}</span>
-            <div class="activity-body">
-                <span class="activity-name">${escapeHtml(l.name || 'Unknown')}</span>
-                <span class="activity-event">${escapeHtml(event)}</span>
-            </div>
-            <span class="activity-time">${rel}</span>
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${names[m]} per ${d.bucket}, peak ${fmtV(peak.v)} on ${bucketLabel(peak.t, d.bucket)}">
+        <defs><linearGradient id="viz-area" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--viz-1)" stop-opacity="0.28"/><stop offset="1" stop-color="var(--viz-1)" stop-opacity="0"/></linearGradient></defs>
+        <g class="viz-axis">${ticks.map(t => `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y(t)}" y2="${y(t)}"/><text x="${pad.l - 6}" y="${y(t) + 3}" text-anchor="end">${m === 'rate' ? fmtPct(t) : fmtInt(Math.round(t))}</text>`).join('')}${xlabels}</g>
+        <path d="${area}" fill="url(#viz-area)"/>
+        <path d="${line}" fill="none" stroke="var(--viz-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        <circle cx="${x(peak.i)}" cy="${y(peak.v)}" r="4" fill="var(--viz-1)" stroke="var(--bg-secondary)" stroke-width="2"/>
+        <text x="${Math.min(W - pad.r - 4, Math.max(pad.l + 4, x(peak.i)))}" y="${Math.max(10, y(peak.v) - 9)}" text-anchor="middle" font-size="10" fill="var(--text-primary)">${fmtV(peak.v)}</text>
+        <line id="viz-cross" y1="${pad.t}" y2="${pad.t + ih}" stroke="var(--text-secondary)" stroke-dasharray="3 3" visibility="hidden"/>
+        <circle id="viz-dot" r="5" fill="var(--viz-1)" stroke="var(--bg-secondary)" stroke-width="2" visibility="hidden"/>
+        <rect x="${pad.l}" y="0" width="${iw}" height="${H}" fill="transparent" id="viz-hit"/>
+    </svg>`;
+
+    const hit = el.querySelector('#viz-hit'), cross = el.querySelector('#viz-cross'), dot = el.querySelector('#viz-dot');
+    const svg = el.querySelector('svg');
+    hit.addEventListener('pointermove', (e) => {
+        const box = svg.getBoundingClientRect();
+        const px = (e.clientX - box.left) * (W / box.width);
+        const i = Math.max(0, Math.min(pts.length - 1, Math.round(pts.length === 1 ? 0 : ((px - pad.l) / iw) * (pts.length - 1))));
+        const p = pts[i];
+        cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.setAttribute('visibility', 'visible');
+        if (p.v != null) { dot.setAttribute('cx', x(i)); dot.setAttribute('cy', y(p.v)); dot.setAttribute('visibility', 'visible'); } else dot.setAttribute('visibility', 'hidden');
+        showTip(`<b>${bucketLabel(p.t, d.bucket, true)}</b><br>${names[m]}: <b>${fmtV(p.v)}</b><br><span style="color:var(--text-secondary)">${p.s.conversations} conversations · ${p.s.leads} leads</span>`, e.clientX, e.clientY);
+    });
+    hit.addEventListener('pointerleave', () => { cross.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); hideTip(); });
+}
+
+function niceMax(v) {
+    if (v <= 5) return Math.max(2, Math.ceil(v));
+    const mag = Math.pow(10, Math.floor(Math.log10(v)));
+    return Math.ceil(v / (mag / 2)) * (mag / 2);
+}
+
+// ── Funnel: nested stages only (each is a subset of the one above), one hue, step conversion beneath each bar.
+// Email verification is not a prerequisite for Opportunity, so it stays a KPI rather than a funnel step.
+function renderFunnel(d) {
+    const el = document.getElementById('viz-funnel');
+    if (!el) return;
+    const c = d.current;
+    const steps = [
+        { label: 'Conversations', n: c.conversations },
+        { label: 'Leads captured', n: c.leads },
+        { label: 'Opportunity', n: c.qualified },
+        { label: 'In campaign', n: c.campaigns },
+    ];
+    const top = Math.max(1, ...steps.map(s => s.n));
+    el.innerHTML = steps.map((s, i) => {
+        const prev = steps[i - 1];
+        const conv = prev ? (prev.n ? `${fmtPct(s.n / prev.n)} of ${prev.label.toLowerCase()}` : '—') : 'Start of funnel';
+        return `<div>
+            <div class="viz-fstep-top"><span>${s.label}</span><b>${fmtInt(s.n)}</b></div>
+            <div class="viz-ftrack" role="img" aria-label="${s.label}: ${s.n}"><div class="viz-fbar" style="width:${s.n ? Math.max(2, (s.n / top) * 100) : 0}%;animation-delay:${i * 60}ms"></div></div>
+            <div class="viz-fconv">${conv}</div>
         </div>`;
     }).join('');
+}
+
+// ── Heatmap: weekday × hour, sequential blue
+function renderHeatmap(d) {
+    const el = document.getElementById('viz-heatmap');
+    if (!el) return;
+    const max = Math.max(0, ...d.heatmap.flat());
+    if (!max) { el.style.display = 'block'; el.innerHTML = '<div class="viz-empty">No conversations in this period yet.</div>'; return; }
+    el.style.display = '';
+    const ramp = document.body.classList.contains('light-mode') ? HEAT_LIGHT : HEAT_DARK;
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const colour = (v) => v ? ramp[Math.min(ramp.length - 1, Math.floor((v / max) * (ramp.length - 1e-9)))] : '';
+    let html = '<span></span>' + Array.from({ length: 24 }, (_, h) => `<span class="viz-hhour">${h % 6 === 0 ? h : ''}</span>`).join('');
+    d.heatmap.forEach((row, di) => {
+        html += `<span class="viz-hlabel">${days[di]}</span>` + row.map((v, h) =>
+            `<span class="viz-hcell" ${v ? `data-v="${v}" style="background:${colour(v)}"` : ''} data-d="${days[di]}" data-h="${h}"></span>`).join('');
+    });
+    // Busiest slot as a direct label for screen readers + summary
+    let best = { v: 0 };
+    d.heatmap.forEach((row, di) => row.forEach((v, h) => { if (v > best.v) best = { v, di, h }; }));
+    el.innerHTML = html;
+    el.setAttribute('role', 'img');
+    el.setAttribute('aria-label', `Busiest: ${days[best.di]} ${String(best.h).padStart(2, '0')}:00 with ${best.v} conversations`);
+    let legend = el.nextElementSibling;
+    if (!legend || !legend.classList.contains('viz-hlegend')) { legend = document.createElement('div'); legend.className = 'viz-hlegend'; el.after(legend); }
+    legend.innerHTML = `Fewer ${ramp.map(c => `<i style="background:${c}"></i>`).join('')} More · busiest ${days[best.di]} ${String(best.h).padStart(2, '0')}:00`;
+    el.onpointerover = (e) => {
+        const cell = e.target.closest('.viz-hcell');
+        if (!cell) return hideTip();
+        const h = +cell.dataset.h;
+        showTip(`<b>${cell.dataset.d} ${String(h).padStart(2, '0')}:00–${String(h + 1).padStart(2, '0')}:00</b><br>${cell.dataset.v || 0} conversations`, e.clientX, e.clientY);
+    };
+    el.onpointerleave = hideTip;
+}
+
+// ── Leads by service: horizontal bars, sorted, one hue, direct labels
+function renderServices(d) {
+    const el = document.getElementById('viz-services');
+    if (!el) return;
+    if (!d.services.length) { el.innerHTML = '<div class="viz-empty">No leads in this period yet.</div>'; return; }
+    const top = d.services[0].count, total = d.services.reduce((s, x) => s + x.count, 0);
+    el.innerHTML = d.services.map((s, i) => `<div>
+        <div class="viz-hbar-top"><span title="${escapeHtml(s.name)}">${escapeHtml(s.name)}</span><span>${s.count} · ${fmtPct(s.count / total)}</span></div>
+        <div class="viz-ftrack"><div class="viz-fbar" style="width:${(s.count / top) * 100}%;animation-delay:${i * 50}ms"></div></div>
+    </div>`).join('');
+}
+
+// ── Speed-to-lead: open leads waiting more than a day
+function renderWaiting(d) {
+    const el = document.getElementById('viz-waiting');
+    if (!el) return;
+    const w = d.waiting;
+    if (!w.count) { el.innerHTML = '<div class="viz-wait-head"><b>0</b><span>leads waiting. Nice work.</span></div><p class="viz-wait-note">Replying within an hour makes a lead far more likely to convert than replying the next day.</p>'; return; }
+    const age = (ts) => { const h = Math.floor((Date.now() - ts) / 3600000); return h < 48 ? `${h}h` : `${Math.floor(h / 24)}d`; };
+    el.innerHTML = `<div class="viz-wait-head"><b>${w.count}</b><span>lead${w.count === 1 ? '' : 's'} still in Inbox/Priority after 24h</span></div>` +
+        w.oldest.map(l => `<button type="button" class="viz-wait-item" data-goto-leads><span>${escapeHtml(l.name || 'Unknown')}${l.service ? ` · <span style="color:var(--text-secondary)">${escapeHtml(l.service)}</span>` : ''}</span><span>${age(l.timestamp)} waiting</span></button>`).join('') +
+        '<p class="viz-wait-note">Replying within an hour makes a lead far more likely to convert than replying the next day.</p>';
+    el.querySelectorAll('[data-goto-leads]').forEach(b => b.addEventListener('click', () => switchView('leads')));
 }

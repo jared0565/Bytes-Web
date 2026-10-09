@@ -652,79 +652,56 @@
                     <button class="time-btn" data-days="0">All Time</button>
                 </div>
 
-                <!-- KPI Cards -->
-                <div class="kpi-grid">
-                    <div class="kpi-card kpi-leads">
-                        <div class="kpi-icon-wrap">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                <p class="viz-scope" id="viz-scope">Compared with the previous period of the same length.</p>
+
+                <!-- KPI tiles: filled by renderAnalytics() -->
+                <div class="viz-kpis" id="viz-kpis" aria-live="polite"></div>
+
+                <div class="viz-row viz-row-main">
+                    <div class="chart-card glass-panel viz-card">
+                        <div class="chart-header">
+                            <h3 id="viz-trend-title">Leads over time</h3>
+                            <div class="viz-seg" role="tablist" aria-label="Trend metric">
+                                <button class="viz-seg-btn active" data-metric="leads" role="tab" aria-selected="true">Leads</button>
+                                <button class="viz-seg-btn" data-metric="conversations" role="tab" aria-selected="false">Conversations</button>
+                                <button class="viz-seg-btn" data-metric="rate" role="tab" aria-selected="false">Chat → lead %</button>
+                            </div>
                         </div>
-                        <div class="kpi-label">Total Leads</div>
-                        <div class="kpi-num" id="kpi-total-leads">—</div>
-                        <div class="kpi-delta" id="kpi-leads-delta">loading…</div>
+                        <div id="viz-trend" class="viz-trend"></div>
+                        <details class="viz-table"><summary>View as table</summary><div id="viz-trend-table"></div></details>
                     </div>
-                    <div class="kpi-card kpi-pipeline">
-                        <div class="kpi-icon-wrap">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>
+                    <div class="chart-card glass-panel viz-card">
+                        <div class="chart-header">
+                            <h3>Conversion funnel</h3>
+                            <span class="chart-period">step-to-step rate</span>
                         </div>
-                        <div class="kpi-label">Pipeline Value</div>
-                        <div class="kpi-num" id="kpi-pipeline-value">—</div>
-                        <div class="kpi-delta" id="kpi-value-note">from budget data</div>
-                    </div>
-                    <div class="kpi-card kpi-conversion">
-                        <div class="kpi-icon-wrap">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
-                        </div>
-                        <div class="kpi-label">Conversion Rate</div>
-                        <div class="kpi-num" id="kpi-conversion-rate">—</div>
-                        <div class="kpi-delta">Inbox → Opportunity+</div>
-                    </div>
-                    <div class="kpi-card kpi-campaigns">
-                        <div class="kpi-icon-wrap">
-                            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
-                        </div>
-                        <div class="kpi-label">Active Campaigns</div>
-                        <div class="kpi-num" id="kpi-active-campaigns">—</div>
-                        <div class="kpi-delta">email sequences live</div>
+                        <div id="viz-funnel" class="viz-funnel"></div>
                     </div>
                 </div>
 
-                <!-- Charts Row -->
-                <div class="charts-row">
-                    <div class="chart-card glass-panel">
+                <div class="viz-row viz-row-bottom">
+                    <div class="chart-card glass-panel viz-card">
                         <div class="chart-header">
-                            <h3>Lead Volume</h3>
-                            <span class="chart-period" id="volume-period-label">Last 7 days</span>
+                            <h3>When visitors chat</h3>
+                            <span class="chart-period">conversations by weekday &amp; hour (your time)</span>
                         </div>
-                        <div class="bar-chart-wrap">
-                            <div id="lead-volume-chart" class="bar-chart"></div>
-                            <div id="lead-volume-labels" class="bar-chart-labels"></div>
-                        </div>
+                        <div id="viz-heatmap" class="viz-heatmap"></div>
                     </div>
-                    <div class="chart-card glass-panel">
+                    <div class="chart-card glass-panel viz-card">
                         <div class="chart-header">
-                            <h3>Pipeline Funnel</h3>
-                            <span class="chart-period">by stage</span>
+                            <h3>Leads by service</h3>
                         </div>
-                        <div id="pipeline-funnel-chart" class="funnel-chart"></div>
+                        <div id="viz-services" class="viz-hbars"></div>
                     </div>
-                </div>
-
-                <!-- Bottom Row: Distribution + Activity Feed -->
-                <div class="analytics-bottom-row">
-                    <div class="chart-card glass-panel">
+                    <div class="chart-card glass-panel viz-card">
                         <div class="chart-header">
-                            <h3>Stage Distribution</h3>
+                            <h3>Needs follow-up</h3>
+                            <span class="chart-period">open 24h+</span>
                         </div>
-                        <div id="stage-distribution-chart" class="donut-chart-wrap"></div>
-                    </div>
-                    <div class="chart-card glass-panel">
-                        <div class="chart-header">
-                            <h3>Recent Activity</h3>
-                            <span class="chart-period">latest events</span>
-                        </div>
-                        <div id="activity-feed" class="activity-feed"></div>
+                        <div id="viz-waiting"></div>
                     </div>
                 </div>
+                <div id="viz-tooltip" class="viz-tooltip" role="status" hidden></div>
 
             </section>
         </main>
