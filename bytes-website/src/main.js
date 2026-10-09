@@ -47,8 +47,6 @@ function init() {
   // Initialize chatbot
   initChatbot();
 
-  // Initialize cookie consent
-  initCookieConsent();
 
   // Initialize modal
   initModal();
@@ -424,66 +422,6 @@ function getFallbackResponse(userMessage) {
   ];
 
   return defaultResponses[Math.floor(Math.random() * defaultResponses.length)];
-}
-
-// ============================================================================
-// COOKIE CONSENT FUNCTIONALITY
-// ============================================================================
-
-function initCookieConsent() {
-  const banner = document.getElementById('cookieConsentBanner');
-  const btnAccept = document.getElementById('btnAcceptCookies');
-  const btnDecline = document.getElementById('btnDeclineCookies');
-
-  if (!banner) return;
-
-  // Check if already consented
-  const consent = localStorage.getItem('cookieConsent');
-  if (consent) {
-    banner.classList.add('hidden');
-    if (consent === 'accepted') {
-      enableCookies();
-    }
-    return;
-  }
-
-  // Show banner with delay
-  setTimeout(() => {
-    banner.classList.add('visible');
-  }, 1500);
-
-  // Accept cookies
-  btnAccept?.addEventListener('click', () => {
-    localStorage.setItem('cookieConsent', 'accepted');
-    banner.classList.remove('visible');
-    setTimeout(() => banner.classList.add('hidden'), 300);
-    enableCookies();
-    // gtag is only defined when Google Analytics is loaded
-    if (typeof gtag === 'function') {
-      gtag('consent', 'update', {
-        'analytics_storage': 'granted',
-        'ad_storage': 'granted'
-      });
-    }
-  });
-
-  // Decline cookies
-  btnDecline?.addEventListener('click', () => {
-    localStorage.setItem('cookieConsent', 'declined');
-    banner.classList.remove('visible');
-    setTimeout(() => banner.classList.add('hidden'), 300);
-    disableCookies();
-  });
-}
-
-function enableCookies() {
-  // Enable analytics and tracking
-  console.log('Cookies enabled');
-}
-
-function disableCookies() {
-  // Disable analytics and tracking
-  console.log('Cookies disabled');
 }
 
 // ============================================================================
