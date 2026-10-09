@@ -190,78 +190,84 @@
             </header>
 
             <section id="leads-view" class="view">
-
-                <!-- Gamification: Visual Pipeline -->
-                <div class="pipeline-container glass-panel"
-                    style="margin-bottom: 2rem; padding: 1.5rem; display: flex; justify-content: space-between; align-items: center; text-align: center;">
-                    <div style="flex: 1;">
-                        <div
-                            style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px;">
-                            Captured Leads</div>
-                        <div id="metric-captured" style="font-size: 2rem; font-weight: 700; color: white;">0</div>
-                    </div>
-                    <div style="color: var(--text-secondary);">➔</div>
-                    <div style="flex: 1;">
-                        <div
-                            style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px;">
-                            AI Sequences Drafted</div>
-                        <div id="metric-drafted" style="font-size: 2rem; font-weight: 700; color: #60a5fa;">0</div>
-                    </div>
-                    <div style="color: var(--text-secondary);">➔</div>
-                    <div style="flex: 1;">
-                        <div
-                            style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px;">
-                            Active Campaigns</div>
-                        <div id="metric-active" style="font-size: 2rem; font-weight: 700; color: var(--success);">0
-                        </div>
+                <div class="ld-toolbar" role="search">
+                    <label class="cl-search ld-search">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                        <input type="search" id="ld-q" placeholder="Search name, email, service, notes…" aria-label="Search leads">
+                    </label>
+                    <select id="ld-date" aria-label="Captured">
+                        <option value="0">Any date</option>
+                        <option value="1">Today</option>
+                        <option value="7">Last 7 days</option>
+                        <option value="30">Last 30 days</option>
+                        <option value="90">Last 90 days</option>
+                    </select>
+                    <select id="ld-verified" aria-label="Email status">
+                        <option value="">Any email status</option>
+                        <option value="1">Verified email</option>
+                        <option value="0">Unverified email</option>
+                    </select>
+                    <select id="ld-client" aria-label="Client" hidden><option value="">All clients</option></select>
+                    <select id="ld-sort" aria-label="Sort">
+                        <option value="new">Newest first</option>
+                        <option value="old">Oldest first</option>
+                        <option value="budget">Highest budget</option>
+                    </select>
+                    <div class="cl-toolbar-end">
+                        <button type="button" class="cl-btn" id="ld-clear" hidden>Clear filters</button>
+                        <button type="button" class="cl-btn" id="ld-export">Export CSV</button>
                     </div>
                 </div>
 
-                <!-- Kanban Board view -->
+                <div class="ld-stats" id="ld-stats" aria-live="polite"></div>
+
                 <div class="kanban-board" id="leads-kanban">
-                    
-                    <div class="kanban-column">
+                    <div class="kanban-column" data-col="lead">
                         <div class="kanban-column-header">
-                            <h3>Inbox (Leads)</h3>
+                            <h3><span class="ld-stage-dot ld-stage-lead" aria-hidden="true"></span>Inbox</h3>
                             <span class="badge" id="count-lead">0</span>
                         </div>
-                        <div class="kanban-column-body" id="col-lead" data-stage="lead">
-                            <!-- Cards injected by JS -->
-                        </div>
+                        <p class="ld-col-meta" id="value-lead">New leads land here</p>
+                        <div class="kanban-column-body" id="col-lead" data-stage="lead"></div>
                     </div>
-
-                    <div class="kanban-column">
+                    <div class="kanban-column" data-col="priority">
                         <div class="kanban-column-header">
-                            <h3 style="color: #fbbf24;">Priority 🔥</h3>
+                            <h3><span class="ld-stage-dot ld-stage-priority" aria-hidden="true"></span>Priority</h3>
                             <span class="badge" id="count-priority">0</span>
                         </div>
-                        <div class="kanban-column-body" id="col-priority" data-stage="priority">
-                            <!-- Cards injected by JS -->
-                        </div>
+                        <p class="ld-col-meta" id="value-priority">High-budget leads</p>
+                        <div class="kanban-column-body" id="col-priority" data-stage="priority"></div>
                     </div>
-
-                    <div class="kanban-column">
+                    <div class="kanban-column" data-col="opportunity">
                         <div class="kanban-column-header">
-                            <h3 style="color: #60a5fa;">Opportunity</h3>
+                            <h3><span class="ld-stage-dot ld-stage-opportunity" aria-hidden="true"></span>Opportunity</h3>
                             <span class="badge" id="count-opportunity">0</span>
                         </div>
-                        <div class="kanban-column-body" id="col-opportunity" data-stage="opportunity">
-                            <!-- Cards injected by JS -->
-                        </div>
+                        <p class="ld-col-meta" id="value-opportunity">Qualified and in talks</p>
+                        <div class="kanban-column-body" id="col-opportunity" data-stage="opportunity"></div>
                     </div>
-
-                    <div class="kanban-column">
+                    <div class="kanban-column" data-col="campaign">
                         <div class="kanban-column-header">
-                            <h3 style="color: var(--success);">Campaigns ✉️</h3>
+                            <h3><span class="ld-stage-dot ld-stage-campaign" aria-hidden="true"></span>Campaigns</h3>
                             <span class="badge" id="count-campaign">0</span>
                         </div>
-                        <div class="kanban-column-body" id="col-campaign" data-stage="campaign">
-                            <!-- Cards injected by JS -->
-                            <!-- Groups drafting, sequence_generated, active -->
-                        </div>
+                        <p class="ld-col-meta" id="value-campaign">Email sequences</p>
+                        <div class="kanban-column-body" id="col-campaign" data-stage="campaign"></div>
                     </div>
-
                 </div>
+
+                <!-- Lead detail drawer -->
+                <div class="ld-drawer-backdrop" id="ld-backdrop" hidden></div>
+                <aside class="ld-drawer" id="ld-drawer" role="dialog" aria-modal="true" aria-labelledby="ld-d-name" hidden>
+                    <div class="ld-drawer-head">
+                        <div>
+                            <h3 id="ld-d-name">Lead</h3>
+                            <p id="ld-d-sub"></p>
+                        </div>
+                        <button type="button" class="cl-btn" id="ld-d-close" aria-label="Close">✕</button>
+                    </div>
+                    <div class="ld-drawer-body" id="ld-d-body"></div>
+                </aside>
             </section><!-- close leads-view -->
 
             <section id="logs-view" class="view hidden">
