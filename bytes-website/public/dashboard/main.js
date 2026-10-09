@@ -1518,6 +1518,7 @@ async function loadChatbotView() {
         if (res.ok) installationData = await res.json();
     } catch { /* use cached */ }
     renderChatbotView();
+    loadChatbotStatus();
 
     const cid = installationData.clientId;
     if (!cid) return;
@@ -1622,6 +1623,7 @@ function populateChatbotSettings(data) {
     if (promptEl) promptEl.value = data.systemPrompt || '';
 
     savedLlmModel = data.llmModel || '';
+    cbApplyModeLocks();
     const llmSelect = document.getElementById('settings-llm-model');
     if (llmSelect && llmSelect.dataset.filled) { llmSelect.value = savedLlmModel; if (llmSelect.value !== savedLlmModel) llmSelect.value = ''; renderModelCost(); }
     const effortEl = document.getElementById('settings-llm-effort');
@@ -1740,7 +1742,7 @@ function renderChatbotView() {
     // Embed code
     const embedEl = document.getElementById('dash-embed-code');
     if (embedEl && clientId) {
-        embedEl.textContent = `<!-- BytesAI Chatbot Widget Start -->\n<script src="https://web.bytesfx.com/widget.js"\n  data-client-id="${escapeHtml(clientId)}"></` + `script>\n<!-- BytesAI Chatbot Widget End -->`;
+        embedEl.textContent = `<!-- BytesAI Chatbot Widget Start -->\n<script src="https://web.bytesfx.com/widget.js"\n  data-client-id="${clientId.replace(/"/g, '')}"></` + `script>\n<!-- BytesAI Chatbot Widget End -->`;
     }
 
     // Plan badge
@@ -1798,16 +1800,19 @@ function renderDomainList(domains, maxDomains) {
     list.querySelectorAll('.domain-remove-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const idx = parseInt(btn.dataset.index, 10);
-            installationData.allowedDomains.splice(idx, 1);
+            const removed = installationData.allowedDomains.splice(idx, 1)[0];
             renderDomainList(installationData.allowedDomains, installationData.maxDomains);
+            saveDomains(`Removed ${removed}.`);
         });
     });
 }
 
 document.getElementById('dash-add-domain-btn').addEventListener('click', () => {
     const input = document.getElementById('dash-new-domain');
-    const val = input.value.trim().toLowerCase();
+    let val = input.value.trim().toLowerCase();
     if (!val) return;
+    // Accept pasted URLs: https://www.site.com/page → www.site.com
+    val = val.replace(/^[a-z]+:\/\//, '').split(/[/?#]/)[0].replace(/:\d+$/, '').replace(/\.$/, '');
     const domainRe = /^(\*\.)?[a-zA-Z0-9][a-zA-Z0-9\-\.]{0,252}[a-zA-Z0-9]$/;
     if (!domainRe.test(val)) {
         document.getElementById('dash-domains-status').textContent = 'Invalid domain format.';
@@ -1826,52 +1831,50 @@ document.getElementById('dash-add-domain-btn').addEventListener('click', () => {
     }
     installationData.allowedDomains.push(val);
     input.value = '';
-    document.getElementById('dash-domains-status').textContent = '';
     renderDomainList(installationData.allowedDomains, installationData.maxDomains);
+    saveDomains(`Added ${val}.`);
 });
 
 document.getElementById('dash-new-domain').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); document.getElementById('dash-add-domain-btn').click(); }
 });
 
-document.getElementById('dash-save-domains-btn').addEventListener('click', async () => {
-    const btn = document.getElementById('dash-save-domains-btn');
+// Domains save as soon as they're added or removed
+async function saveDomains(doneMsg) {
     const status = document.getElementById('dash-domains-status');
-    btn.textContent = 'Saving…';
-    btn.disabled = true;
+    status.textContent = 'Saving…';
+    status.style.color = 'var(--text-secondary)';
     try {
         const res = await apiFetch(`${API_BASE}/api/installations`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ allowedDomains: installationData.allowedDomains }),
         });
-        const data = await res.json();
-        if (res.ok) {
-            installationData.allowedDomains = data.allowedDomains;
-            status.textContent = '✓ Domains saved!';
-            status.style.color = '#34d399';
-            renderDomainList(installationData.allowedDomains, installationData.maxDomains);
-        } else {
-            status.textContent = data.error || 'Save failed.';
-            status.style.color = '#f87171';
-        }
-    } catch {
-        status.textContent = 'Network error.';
-        status.style.color = '#f87171';
-    } finally {
-        btn.textContent = 'Save Domains';
-        btn.disabled = false;
-        setTimeout(() => { if (status.textContent.startsWith('✓')) status.textContent = ''; }, 3000);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        installationData.allowedDomains = data.allowedDomains;
+        renderDomainList(installationData.allowedDomains, installationData.maxDomains);
+        status.textContent = `✓ ${doneMsg} Saved.`;
+        status.style.color = 'var(--success)';
+        loadChatbotStatus();
+    } catch (err) {
+        status.textContent = `${err.message || 'Network error.'} Not saved; showing your saved list.`;
+        status.style.color = 'var(--error)';
+        try { const r = await apiFetch(`${API_BASE}/api/installations`); if (r.ok) { installationData = await r.json(); renderDomainList(installationData.allowedDomains, installationData.maxDomains); } } catch (_) {}
     }
-});
+}
 
 document.getElementById('dash-copy-embed-btn').addEventListener('click', () => {
     const code = document.getElementById('dash-embed-code')?.textContent;
     if (!code) return;
-    navigator.clipboard.writeText(code);
     const btn = document.getElementById('dash-copy-embed-btn');
-    btn.textContent = 'Copied! ✅';
-    setTimeout(() => { btn.textContent = 'Copy Code'; }, 2000);
+    const done = (msg) => { btn.textContent = msg; setTimeout(() => { btn.textContent = 'Copy Code'; }, 2000); };
+    const fallback = () => {
+        const r = document.createRange(); r.selectNodeContents(document.getElementById('dash-embed-code'));
+        const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+        done('Selected, press Ctrl+C');
+    };
+    try { navigator.clipboard.writeText(code).then(() => done('Copied ✓'), fallback); } catch (_) { fallback(); }
 });
 
 // ─── Settings — Chatbot Behavior ─────────────────────────────────────────────
@@ -2683,4 +2686,127 @@ function startLogsBadge() {
         if (!document.getElementById('logs-view')?.classList.contains('hidden')) { CL.offset = 0; loadConversations(); }
         else { CL.data = null; refreshLogsBadge(); }
     }, 60000);
+}
+
+// ─── Chatbot page: health strip, mode guidance, prompt helper, unsaved-change guard ───
+const CB_MODE_NOTES = {
+    free: 'Scripted replies only, no AI. The AI model and effort below are not used.',
+    standard: 'Smarter scripted flows, no AI. The AI model and effort below are not used.',
+    ai: 'Replies are written by the AI model you choose below.',
+    pro: 'AI replies tuned for sales conversations, using the model below.',
+    elite: 'Advanced AI with higher limits, using the model below.',
+};
+
+function cbAgo(ts) {
+    const m = Math.round((Date.now() - ts) / 60000);
+    if (m < 60) return `${Math.max(1, m)} min ago`;
+    if (m < 2880) return `${Math.round(m / 60)} h ago`;
+    return `${Math.round(m / 1440)} days ago`;
+}
+
+async function loadChatbotStatus() {
+    const el = document.getElementById('cb-status');
+    if (!el) return;
+    let d = null;
+    try { const res = await apiFetch(`${API_BASE}/api/chatbot/status`); if (res.ok) d = await res.json(); } catch (_) {}
+    if (!d) { el.innerHTML = ''; return; }
+    const fresh = d.lastChatAt && Date.now() - d.lastChatAt < 7 * 86400000;
+    const ai = ['ai', 'pro', 'elite'].includes(d.mode);
+    const item = (state, title, text, href) => `<a class="cb-stat cb-${state}" href="${href}"><span class="cb-stat-dot" aria-hidden="true"></span><span class="cb-stat-text"><strong>${title}</strong><span>${text}</span></span></a>`;
+    el.innerHTML = [
+        d.lastChatAt
+            ? item(fresh ? 'ok' : 'warn', fresh ? 'Widget live' : 'Widget quiet', `Last conversation ${cbAgo(d.lastChatAt)} · ${d.messages7d} message${d.messages7d === 1 ? '' : 's'} this week`, '#cb-install')
+            : item('warn', 'Not detected yet', 'No conversations yet. Install the snippet and send a test message.', '#cb-install'),
+        item(ai ? 'ok' : 'info', ai ? 'AI replies on' : 'Scripted replies', ai ? `Mode: ${escapeHtml(d.mode)} · ${d.llmModel ? escapeHtml(d.llmModel.replace(/^openrouter:/, '')) : 'default model'}` : `Mode: ${escapeHtml(d.mode)}. Switch to AI for smarter answers.`, '#chatbot-settings-card'),
+        item(d.mailReady ? 'ok' : 'bad', d.mailReady ? 'Email sending ready' : 'Emails not sending', d.mailReady ? `${d.leads7d} lead${d.leads7d === 1 ? '' : 's'} this week` : `${escapeHtml(d.mailIssue)}. Verification and campaign emails are waiting.`, '#cb-email'),
+    ].join('');
+}
+
+function cbApplyModeLocks() {
+    const sel = document.getElementById('settings-mode');
+    if (!sel) return;
+    const locked = typeof isFreeLocked === 'function' && isFreeLocked();
+    [...sel.options].forEach(o => {
+        const base = o.dataset.label || (o.dataset.label = o.textContent);
+        o.disabled = locked && o.value !== 'free';
+        o.textContent = o.disabled ? `${base} (upgrade)` : base;
+    });
+    cbModeChanged();
+}
+
+function cbModeChanged() {
+    const sel = document.getElementById('settings-mode');
+    if (!sel) return;
+    const note = document.getElementById('settings-mode-note');
+    if (note) note.textContent = CB_MODE_NOTES[sel.value] || '';
+    const scripted = ['free', 'standard'].includes(sel.value);
+    document.querySelectorAll('#chatbot-settings-card .cb-ai-only').forEach(g => {
+        g.classList.toggle('cb-muted', scripted);
+        g.querySelectorAll('select').forEach(x => { x.disabled = scripted; });
+    });
+}
+document.getElementById('settings-mode')?.addEventListener('change', cbModeChanged);
+
+// Prompt helper
+function cbPromptCount() {
+    const ta = document.getElementById('settings-prompt'), out = document.getElementById('settings-prompt-count');
+    if (ta && out) out.textContent = `${ta.value.length.toLocaleString('en-GB')} / 20,000 characters${ta.value.length ? '' : ' · empty uses the built-in sales prompt'}`;
+}
+document.getElementById('settings-prompt')?.addEventListener('input', cbPromptCount);
+document.getElementById('settings-prompt-template')?.addEventListener('click', () => {
+    const ta = document.getElementById('settings-prompt');
+    const company = document.getElementById('settings-company-name')?.value.trim() || '[Company]';
+    const tpl = `You are the friendly assistant for ${company}.\n\nWhat we do: [one or two sentences about your services].\nWho we help: [your ideal customers].\nPrices: [starting prices, or "we quote after a short call"].\nOpening hours / location: [details].\n\nGoals, in order:\n1. Answer questions clearly in 2–3 short sentences.\n2. Ask for the visitor's name and email when they show interest.\n3. Offer a free consultation and confirm we'll be in touch.\n\nRules: only discuss ${company} and its services; never invent prices or promises; if unsure, offer to have a team member follow up.`;
+    if (ta.value.trim() && !confirm('Replace your current prompt with the starter prompt?')) return;
+    ta.value = tpl;
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    document.getElementById('chatbot-settings-card')?.classList.add('cb-dirty');
+    ta.focus();
+});
+
+// Unsaved-change guard: a card is "dirty" after an edit until its status line reports a save (✓)
+const CB_CARDS = [
+    { card: 'chatbot-settings-card', status: 'settings-chatbot-status' },
+    { card: 'cb-campaigns', status: 'settings-campaign-status' },
+    { card: 'cb-email', status: 'settings-mail-status' },
+];
+CB_CARDS.forEach(({ card, status }) => {
+    const c = document.getElementById(card), st = document.getElementById(status);
+    if (!c || !st) return;
+    const mark = (e) => { if (e.isTrusted && !e.target.closest('.btn-primary')) c.classList.add('cb-dirty'); };
+    c.addEventListener('input', mark);
+    c.addEventListener('change', mark);
+    c.addEventListener('click', (e) => { if (e.isTrusted && e.target.closest('.sett-mode-btn')) c.classList.add('cb-dirty'); });
+    new MutationObserver(() => {
+        if (st.textContent.trim().startsWith('✓') || /saved/i.test(st.textContent) && !/not saved|failed/i.test(st.textContent)) c.classList.remove('cb-dirty');
+    }).observe(st, { childList: true, characterData: true, subtree: true });
+});
+window.addEventListener('beforeunload', (e) => {
+    if (document.querySelector('#chatbot-view .cb-dirty')) { e.preventDefault(); e.returnValue = ''; }
+});
+// Saved values (re)loaded into a form → it's clean again
+const _cbPopulate = { populateChatbotSettings, populateCampaignSettings, populateMailSettings };
+populateChatbotSettings = function (d) { _cbPopulate.populateChatbotSettings(d); document.getElementById('chatbot-settings-card')?.classList.remove('cb-dirty'); cbPromptCount(); };
+populateCampaignSettings = function (d) { _cbPopulate.populateCampaignSettings(d); document.getElementById('cb-campaigns')?.classList.remove('cb-dirty'); };
+populateMailSettings = function (d) { _cbPopulate.populateMailSettings(d); document.getElementById('cb-email')?.classList.remove('cb-dirty'); };
+
+// Section nav + status links: smooth scroll, and mark the section in view
+['.cb-nav', '#cb-status'].forEach(sel => document.querySelector(sel)?.addEventListener('click', (e) => {
+    const a = e.target.closest('a[href^="#"]');
+    if (!a) return;
+    e.preventDefault();
+    const href = a.getAttribute('href');
+    document.querySelector(href)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // The last section can't reach the top, so pin the highlight to what was clicked while scrolling
+    cbNavPinnedUntil = Date.now() + 1200;
+    document.querySelectorAll('.cb-nav a').forEach(l => l.classList.toggle('active', l.getAttribute('href') === href));
+}));
+let cbNavPinnedUntil = 0;
+if ('IntersectionObserver' in window) {
+    const links = [...document.querySelectorAll('.cb-nav a')];
+    const io = new IntersectionObserver((entries) => {
+        if (Date.now() < cbNavPinnedUntil) return;
+        entries.filter(en => en.isIntersecting).forEach(en => links.forEach(l => l.classList.toggle('active', l.getAttribute('href') === `#${en.target.id}`)));
+    }, { rootMargin: '-20% 0px -70% 0px' });
+    links.forEach(l => { const t = document.querySelector(l.getAttribute('href')); if (t) io.observe(t); });
 }

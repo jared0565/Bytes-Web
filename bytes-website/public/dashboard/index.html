@@ -439,17 +439,39 @@
             <section id="chatbot-view" class="view hidden">
                 <div class="settings-layout">
 
+                    <!-- Health at a glance -->
+                    <div class="cb-status" id="cb-status" aria-live="polite"></div>
+                    <nav class="cb-nav" aria-label="Chatbot sections">
+                        <a href="#cb-install">Install</a>
+                        <a href="#chatbot-settings-card">Behaviour</a>
+                        <a href="#cb-campaigns">Campaigns</a>
+                        <a href="#cb-email">Email sender</a>
+                    </nav>
+
                     <!-- ── 1. Install Your Chatbot ── -->
-                    <div class="glass-panel" style="padding:1.75rem;">
+                    <div class="glass-panel cb-card" id="cb-install" style="padding:1.75rem;">
                         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1.25rem;">
                             <div>
                                 <h3 style="margin:0 0 0.2rem;">Install Your Chatbot</h3>
                                 <p style="color:var(--text-secondary);font-size:0.82rem;margin:0;">Paste this snippet before <code style="background:rgba(255,255,255,0.08);padding:0.1rem 0.35rem;border-radius:4px;">&lt;/body&gt;</code> on every page you want the widget to appear.</p>
                             </div>
-                            <span id="dash-install-plan-badge" style="font-size:0.7rem;padding:0.25rem 0.65rem;background:rgba(99,102,241,0.18);border:1px solid rgba(99,102,241,0.35);border-radius:999px;color:#a5b4fc;font-weight:600;white-space:nowrap;flex-shrink:0;">Trial</span>
+                            <span id="dash-install-plan-badge" class="cb-pill">Trial</span>
                         </div>
-                        <pre id="dash-embed-code" style="background:rgba(0,0,0,0.45);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:1rem 1.25rem;font-size:0.78rem;color:#a5b4fc;overflow-x:auto;white-space:pre-wrap;word-break:break-all;margin:0 0 0.75rem;">Loading…</pre>
+                        <pre id="dash-embed-code" class="cb-code">Loading…</pre>
                         <button id="dash-copy-embed-btn" class="btn btn-outline" style="font-size:0.82rem;padding:0.4rem 1rem;">Copy Code</button>
+
+                        <details class="cb-guides">
+                            <summary>Step-by-step for WordPress, Shopify, Wix, Squarespace, Webflow or Google Tag Manager</summary>
+                            <dl>
+                                <dt>WordPress</dt><dd>Install the free <em>WPCode</em> plugin → Code Snippets → Header &amp; Footer → paste into <strong>Footer</strong> → Save.</dd>
+                                <dt>Shopify</dt><dd>Online Store → Themes → ⋯ → Edit code → <code>layout/theme.liquid</code> → paste just above <code>&lt;/body&gt;</code> → Save.</dd>
+                                <dt>Wix</dt><dd>Settings → Custom code → Add custom code → paste → Place code in <strong>Body – end</strong> → All pages → Apply.</dd>
+                                <dt>Squarespace</dt><dd>Settings → Advanced → Code Injection → paste into <strong>Footer</strong> → Save (needs a Business plan or higher).</dd>
+                                <dt>Webflow</dt><dd>Site settings → Custom code → paste into <strong>Footer code</strong> → Save → Publish.</dd>
+                                <dt>Google Tag Manager</dt><dd>New tag → Custom HTML → paste → trigger <strong>All Pages</strong> → Submit and publish.</dd>
+                            </dl>
+                            <p>Then add the site's domain below and open your site: the status bar at the top turns green after the first conversation.</p>
+                        </details>
 
                         <hr style="border:none;border-top:1px solid rgba(255,255,255,0.07);margin:1.5rem 0;">
 
@@ -458,16 +480,13 @@
                             <h4 style="margin:0;flex:1;font-size:0.95rem;font-weight:600;">Allowed Domains</h4>
                             <span style="font-size:0.75rem;color:var(--text-secondary);"><span id="dash-domain-count">0</span> / <span id="dash-domain-limit">1</span> used</span>
                         </div>
-                        <p style="color:var(--text-secondary);font-size:0.8rem;margin:0 0 1rem;line-height:1.5;">Add the domains and subdomains where your chatbot is installed. Wildcards like <code style="background:rgba(255,255,255,0.08);padding:0.1rem 0.35rem;border-radius:4px;">*.example.com</code> are supported.</p>
+                        <p style="color:var(--text-secondary);font-size:0.8rem;margin:0 0 1rem;line-height:1.5;">Only these sites can use your chatbot (leave empty to allow any). Changes save automatically; you can paste a full URL. Wildcards like <code style="background:rgba(255,255,255,0.08);padding:0.1rem 0.35rem;border-radius:4px;">*.example.com</code> are supported.</p>
                         <div id="dash-domain-list" style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;"></div>
                         <div style="display:flex;gap:0.75rem;align-items:center;">
                             <input type="text" id="dash-new-domain" placeholder="e.g. yoursite.com or *.yoursite.com" style="flex:1;background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.1);border-radius:10px;padding:0.65rem 1rem;color:white;font-size:0.85rem;outline:none;">
                             <button id="dash-add-domain-btn" class="btn btn-outline" style="padding:0.65rem 1.25rem;font-size:0.85rem;">Add</button>
                         </div>
-                        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:0.85rem;">
-                            <p id="dash-domains-status" style="font-size:0.82rem;color:#34d399;min-height:1.2em;margin:0;"></p>
-                            <button id="dash-save-domains-btn" class="btn btn-primary" style="font-size:0.85rem;">Save Domains</button>
-                        </div>
+                        <p id="dash-domains-status" role="status" style="font-size:0.82rem;min-height:1.2em;margin:0.85rem 0 0;"></p>
 
                         <!-- Install limits row -->
                         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-top:1.5rem;">
@@ -485,32 +504,33 @@
                     </div>
 
                     <!-- ── 2. Chatbot Behavior ── -->
-                    <div id="chatbot-settings-card" class="glass-panel" style="padding:1.75rem;">
+                    <div id="chatbot-settings-card" class="glass-panel cb-card" style="padding:1.75rem;">
                         <h3 style="margin:0 0 0.2rem;">Chatbot Behavior</h3>
                         <p style="color:var(--text-secondary);font-size:0.82rem;margin:0 0 1.5rem;">Customise your widget's identity, operating mode, and AI instructions.</p>
 
                         <div class="form-group">
-                            <label>Company Name</label>
+                            <label for="settings-company-name">Company Name</label>
                             <input type="text" id="settings-company-name" placeholder="Your Company Name">
                         </div>
                         <div class="form-group">
-                            <label>Bot Mode</label>
-                            <select id="settings-mode">
+                            <label for="settings-mode">Bot Mode</label>
+                            <select id="settings-mode" aria-describedby="settings-mode-note">
                                 <option value="free">Free — Basic Scripted</option>
                                 <option value="standard">Standard — Advanced Scripted</option>
                                 <option value="ai">AI — uses the AI Model below</option>
                                 <option value="pro">Pro AI — Gemini Strategy</option>
                                 <option value="elite">Elite — Advanced AI + High Limits</option>
                             </select>
+                            <p id="settings-mode-note" class="cb-hint"></p>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group cb-ai-only">
                             <label for="settings-llm-model">AI Model <span style="font-size:0.75rem;font-weight:400;color:var(--text-secondary);">— used in AI, Pro and Elite modes</span></label>
                             <select id="settings-llm-model">
                                 <option value="">Loading models…</option>
                             </select>
                             <p id="settings-llm-cost" style="font-size:0.78rem;color:var(--text-secondary);margin:0.45rem 0 0;line-height:1.5;"></p>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group cb-ai-only">
                             <label for="settings-llm-effort">Effort <span style="font-size:0.75rem;font-weight:400;color:var(--text-secondary);">— how hard the model thinks before replying</span></label>
                             <select id="settings-llm-effort">
                                 <option value="low">Low — fastest, cheapest replies</option>
@@ -519,8 +539,12 @@
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>System Prompt <span style="font-size:0.75rem;font-weight:400;color:var(--text-secondary);">— what your chatbot knows about your business</span></label>
-                            <textarea id="settings-prompt" rows="5" placeholder="You are a helpful assistant for [Company]. You specialise in [services]. Only discuss topics relevant to our business..."></textarea>
+                            <label for="settings-prompt">System Prompt <span style="font-size:0.75rem;font-weight:400;color:var(--text-secondary);">— what your chatbot knows about your business</span></label>
+                            <textarea id="settings-prompt" rows="7" maxlength="20000" aria-describedby="settings-prompt-meta" placeholder="You are a helpful assistant for [Company]. You specialise in [services]. Only discuss topics relevant to our business..."></textarea>
+                            <div class="cb-prompt-meta" id="settings-prompt-meta">
+                                <span id="settings-prompt-count">0 characters</span>
+                                <button type="button" class="cl-btn" id="settings-prompt-template">Insert a starter prompt</button>
+                            </div>
                         </div>
 
                         <!-- Toggle rows -->
@@ -564,7 +588,7 @@
                     </div>
 
                     <!-- ── 3. Campaign Automation ── -->
-                    <div class="glass-panel" style="padding:1.75rem;">
+                    <div class="glass-panel cb-card" id="cb-campaigns" style="padding:1.75rem;">
                         <h3 style="margin:0 0 0.2rem;">Campaign Automation</h3>
                         <p style="color:var(--text-secondary);font-size:0.82rem;margin:0 0 1.5rem;">Control how email sequences are generated and deployed when a lead verifies their email.</p>
 
@@ -599,7 +623,7 @@
                     </div>
 
                     <!-- ── 4. Email Sender ── -->
-                    <div class="glass-panel" style="padding:1.75rem;">
+                    <div class="glass-panel cb-card" id="cb-email" style="padding:1.75rem;">
                         <h3 style="margin:0 0 0.2rem;">Email Sender</h3>
                         <p style="color:var(--text-secondary);font-size:0.82rem;margin:0 0 1.5rem;">Configure the provider that sends verification emails and drip campaigns to your leads.</p>
 
@@ -610,7 +634,7 @@
                                 <option value="resend">Resend (recommended)</option>
                                 <option value="sendgrid">SendGrid</option>
                                 <option value="mailgun">Mailgun</option>
-                                <option value="smtp">Custom SMTP</option>
+                                <option value="smtp" disabled>Custom SMTP (coming soon)</option>
                             </select>
                         </div>
 
@@ -667,7 +691,7 @@
                                     <input type="password" id="settings-mail-smtp-pass" placeholder="••••••••" autocomplete="off">
                                 </div>
                             </div>
-                            <p style="font-size:0.75rem;color:#f59e0b;margin:0.75rem 0 0;background:rgba(245,158,11,0.08);padding:0.5rem 0.75rem;border-radius:8px;border:1px solid rgba(245,158,11,0.2);line-height:1.5;">⚠️ SMTP credentials are saved encrypted. Direct SMTP delivery from Cloudflare Workers uses the TCP Sockets API — enable it in your Cloudflare dashboard.</p>
+                            <p class="cb-warn">Custom SMTP isn't supported yet, so nothing will be sent. Switch to Resend, SendGrid or Mailgun.</p>
                         </div>
 
                         <div style="display:flex;align-items:center;gap:0.75rem;margin-top:1.25rem;flex-wrap:wrap;">
