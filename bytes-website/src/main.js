@@ -1,4 +1,5 @@
 import './style.css';
+import './home.css';
 
 // Global state
 let lastHash = '#home';
@@ -97,6 +98,58 @@ function initInteractions() {
 
   // 6. Counter animations
   initCounters();
+
+  // 7. Hero conversion console + process timeline
+  initHeroConsole();
+  initStepsLine();
+}
+
+const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Plays the hero chat one step at a time, then lands the lead card; loops while on screen
+function initHeroConsole() {
+  const consoleEl = document.querySelector('.hx-console');
+  if (!consoleEl) return;
+  const steps = [...consoleEl.querySelectorAll('[data-step]')];
+  const last = Math.max(...steps.map(el => +el.dataset.step));
+  const show = (n) => steps.forEach(el => {
+    const k = +el.dataset.step;
+    // The typing dots only show while it is "their" step
+    el.classList.toggle('is-on', el.classList.contains('hx-typing') ? k === n : k <= n);
+  });
+
+  if (prefersReducedMotion()) { show(last); return; }
+
+  const delays = [700, 1300, 1100, 1300, 1100, 900, 4200]; // pause after each step
+  let step = -1, timer = null, visible = false;
+  const tick = () => {
+    step = step >= last ? -1 : step + 1;
+    show(step);
+    timer = setTimeout(tick, step === -1 ? 600 : delays[step] ?? 1000);
+  };
+  new IntersectionObserver(([entry]) => {
+    visible = entry.isIntersecting;
+    if (visible && !timer) tick();
+    if (!visible && timer) { clearTimeout(timer); timer = null; }
+  }, { threshold: 0.25 }).observe(consoleEl);
+}
+
+// Fills the line between the process steps as the section scrolls through the viewport
+function initStepsLine() {
+  const steps = document.getElementById('hxSteps');
+  const fill = steps?.querySelector('.hx-steps-line span');
+  if (!fill) return;
+  if (prefersReducedMotion()) { fill.style.transform = 'scaleX(1)'; return; }
+  let ticking = false;
+  const update = () => {
+    const r = steps.getBoundingClientRect();
+    const vh = window.innerHeight;
+    const progress = Math.min(1, Math.max(0, (vh * 0.85 - r.top) / (r.height + vh * 0.35)));
+    fill.style.transform = `scaleX(${progress})`;
+    ticking = false;
+  };
+  window.addEventListener('scroll', () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } }, { passive: true });
+  update();
 }
 
 function initHeroBackground() {
@@ -144,6 +197,8 @@ function initCounters() {
       if (entry.isIntersecting) {
         const counter = entry.target;
         const target = parseInt(counter.dataset.target);
+        const suffix = counter.dataset.suffix ?? '+';
+        if (prefersReducedMotion()) { counter.textContent = target + suffix; observer.unobserve(counter); return; }
         const duration = 2000;
         const increment = target / (duration / 16);
 
@@ -151,10 +206,10 @@ function initCounters() {
         const updateCounter = () => {
           current += increment;
           if (current < target) {
-            counter.textContent = Math.floor(current) + '+';
+            counter.textContent = Math.floor(current) + suffix;
             requestAnimationFrame(updateCounter);
           } else {
-            counter.textContent = target + '+';
+            counter.textContent = target + suffix;
           }
         };
 
@@ -446,255 +501,245 @@ function initLeadCapture() {
 
 function renderHomePage() {
   return `
-    <!-- Hero Section -->
-    <section id="home" class="hero-section">
-      <div class="hero-bg">
-        <div class="hero-orb orb-1"></div>
-        <div class="hero-orb orb-2"></div>
-        <div class="hero-orb orb-3"></div>
+    <!-- Hero -->
+    <section id="home" class="hx-hero">
+      <div class="hx-hero-bg" aria-hidden="true">
+        <div class="hx-glow hx-glow-a"></div>
+        <div class="hx-glow hx-glow-b"></div>
+        <div class="hx-grid"></div>
+        <div class="hx-grain"></div>
       </div>
-      <div class="hero-content">
-        <div class="hero-badge reveal">
-          <span class="badge-icon">&#9733;</span>
-          Trusted by Growing Businesses
-        </div>
-        <h1 class="hero-title reveal">
-          Build High-Performance<br>
-          <span class="highlight-gradient">Web Experiences</span><br>
-          That Drive Real Results
-        </h1>
-        <p class="hero-subtitle reveal">
-          We design and develop conversion-optimized websites, custom applications, and AI chatbots
-          tailored to maximize your ROI and scale your business.
-        </p>
-        <div class="hero-cta reveal">
-          <a href="#contact" class="btn btn-primary btn-large">Get Free Consultation</a>
-          <a href="#services" class="btn btn-outline btn-large">View Our Services</a>
-        </div>
-        <div class="hero-stats reveal">
-          <div class="stat-item">
-            <span class="counter-value" data-target="150">0</span>
-            <span class="stat-label">Projects Delivered</span>
-          </div>
-          <div class="stat-item">
-            <span class="counter-value" data-target="98">0</span>
-            <span class="stat-label">% Client Satisfaction</span>
-          </div>
-          <div class="stat-item">
-            <span class="counter-value" data-target="50">0</span>
-            <span class="stat-label">ROI Increase Avg</span>
-          </div>
-        </div>
-      </div>
-    </section>
 
-    <!-- Services Section -->
-    <section id="services" class="services-section">
-      <div class="container">
-        <div class="section-header reveal">
-          <span class="section-label">Our Services</span>
-          <h2 class="section-title">Solutions Designed for <span class="highlight">Maximum ROI</span></h2>
-          <p class="section-subtitle">We don't just build websites — we build business growth engines.</p>
+      <div class="hx-container hx-hero-inner">
+        <div class="hx-hero-copy">
+          <p class="hx-eyebrow reveal" style="--d:0">
+            <span class="hx-pulse" aria-hidden="true"></span>
+            London studio · Websites, apps &amp; AI chatbots
+          </p>
+          <h1 class="hx-title reveal" style="--d:1">
+            Websites that turn <em>visitors</em> into <span class="hx-underline">customers</span>.
+          </h1>
+          <p class="hx-lede reveal" style="--d:2">
+            We design and build conversion-optimized websites, custom applications and AI chatbots
+            that qualify leads around the clock, so every visit has a path to revenue.
+          </p>
+          <div class="hx-cta-row reveal" style="--d:3">
+            <a href="#contact" class="hx-btn hx-btn-primary">
+              Get a free consultation
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h11m-4-4 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </a>
+            <a href="#services" class="hx-btn hx-btn-ghost">See what we build</a>
+          </div>
+          <dl class="hx-stats reveal" style="--d:4">
+            <div><dt>Projects delivered</dt><dd><span class="counter-value" data-target="150" data-suffix="+">0</span></dd></div>
+            <div><dt>Client satisfaction</dt><dd><span class="counter-value" data-target="98" data-suffix="%">0</span></dd></div>
+            <div><dt>Average ROI increase</dt><dd><span class="counter-value" data-target="50" data-suffix="%">0</span></dd></div>
+          </dl>
         </div>
 
-        <div class="services-grid">
-          <!-- Service 1: Website Development -->
-          <div class="service-card bento-card reveal">
-            <div class="service-icon">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
-                <path d="M2 17l10 5 10-5"></path>
-                <path d="M2 12l10 5 10-5"></path>
-              </svg>
+        <!-- Live conversion console: the chatbot qualifying a visitor, then the lead landing -->
+        <div class="hx-console reveal" style="--d:2" aria-label="Example: the BytesFX chatbot qualifying a website visitor">
+          <div class="hx-console-bar">
+            <span class="hx-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="hx-console-title">yourbrand.com · Assistant</span>
+            <span class="hx-live"><span class="hx-pulse" aria-hidden="true"></span>Live</span>
+          </div>
+          <ol class="hx-chat" id="hxChat">
+            <li class="hx-msg hx-user" data-step="0">Hi, do you build booking websites for clinics?</li>
+            <li class="hx-msg hx-bot" data-step="1">We do. Online booking, reminders and payments built in. What's your name?</li>
+            <li class="hx-msg hx-user" data-step="2">Priya, from Northside Physio.</li>
+            <li class="hx-msg hx-bot" data-step="3">Thanks Priya. What monthly budget did you have in mind?</li>
+            <li class="hx-msg hx-user" data-step="4">Around £2,000.</li>
+            <li class="hx-typing" data-step="5" aria-hidden="true"><i></i><i></i><i></i></li>
+          </ol>
+          <div class="hx-lead" data-step="6">
+            <div class="hx-lead-head">
+              <span class="hx-lead-tag">New qualified lead</span>
+              <span class="hx-lead-time">just now</span>
             </div>
-            <h3>Modern Website Development</h3>
-            <p>High-performance, conversion-optimized websites designed to engage visitors and drive results. Every pixel is purposeful.</p>
-            <ul class="service-features">
-              <li>Conversion-First Design</li>
-              <li>Mobile-Responsive Layouts</li>
-              <li>SEO Optimized</li>
-              <li>Fast Loading Speeds</li>
-            </ul>
-            <a href="#contact" class="btn btn-primary service-cta">Start Your Project</a>
-          </div>
-
-          <!-- Service 2: Application Development -->
-          <div class="service-card bento-card reveal">
-            <div class="service-icon">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-                <line x1="8" y1="21" x2="16" y2="21"></line>
-                <line x1="12" y1="17" x2="12" y2="21"></line>
-              </svg>
+            <div class="hx-lead-name">Priya · Northside Physio</div>
+            <div class="hx-lead-meta">
+              <span>Booking website</span><span>£2,000 / mo</span>
             </div>
-            <h3>Customized Application Development</h3>
-            <p>Tailor-made applications that streamline your operations and deliver exceptional user experiences.</p>
-            <ul class="service-features">
-              <li>Web Applications</li>
-              <li>Internal Tools</li>
-              <li>API Integrations</li>
-              <li>Scalable Architecture</li>
-            </ul>
-            <a href="#contact" class="btn btn-primary service-cta">Discuss Your Needs</a>
-          </div>
-
-          <!-- Service 3: Chatbot Solutions -->
-          <div class="service-card bento-card reveal">
-            <div class="service-icon">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-              </svg>
-            </div>
-            <h3>Consultant Chatbot Design</h3>
-            <p>Intelligent AI chatbots that qualify leads, answer questions, and convert visitors 24/7 while you sleep.</p>
-            <ul class="service-features">
-              <li>Lead Qualification</li>
-              <li>Sales Automation</li>
-              <li>24/7 Availability</li>
-              <li>Custom Training</li>
-            </ul>
-            <a href="#contact" class="btn btn-primary service-cta">Build Your Chatbot</a>
+            <div class="hx-score" aria-hidden="true"><span class="hx-score-fill"></span></div>
+            <div class="hx-lead-foot"><span>Lead score</span><strong>92</strong></div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Why Choose Us Section -->
-    <section class="why-us-section">
-      <div class="container">
-        <div class="section-header reveal">
-          <span class="section-label">Why BytesFX</span>
-          <h2 class="section-title">We Don't Just Build — <span class="highlight">We Convert</span></h2>
-          <p class="section-subtitle">Every project is driven by business outcomes, not just aesthetics.</p>
-        </div>
+    <!-- Capability ticker -->
+    <div class="hx-ticker" aria-hidden="true">
+      <div class="hx-ticker-track">
+        ${['Conversion-first design','AI lead qualification','Online booking','Custom web apps','API integrations','SEO foundations','Sub-second load times','Email follow-up sequences','CRM pipelines','24/7 chat assistants']
+          .concat(['Conversion-first design','AI lead qualification','Online booking','Custom web apps','API integrations','SEO foundations','Sub-second load times','Email follow-up sequences','CRM pipelines','24/7 chat assistants'])
+          .map(t => `<span>${t}</span>`).join('<b>✦</b>')}
+      </div>
+    </div>
 
-        <div class="benefits-grid">
-          <div class="benefit-card reveal">
-            <div class="benefit-number">01</div>
-            <h4>ROI-Focused Development</h4>
-            <p>We build with your business goals in mind. Every feature is designed to drive conversions and revenue.</p>
+    <!-- Services -->
+    <section id="services" class="hx-section">
+      <div class="hx-container">
+        <header class="hx-head reveal">
+          <p class="hx-kicker">What we build</p>
+          <h2>Three ways we grow <em>your revenue</em></h2>
+          <p>We don't just build websites. We build the systems that turn attention into enquiries and enquiries into sales.</p>
+        </header>
+
+        <div class="hx-bento">
+          <article class="hx-card hx-card-chat bento-card reveal" style="--d:0">
+            <div class="hx-card-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M21 11.5a8.4 8.4 0 0 1-12.2 7.5L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z"/></svg>
+            </div>
+            <h3>AI chatbots that qualify leads</h3>
+            <p>An assistant trained on your business that answers questions, captures name, email and budget, and hands you sales-ready leads while you sleep.</p>
+            <ul class="hx-tags"><li>Lead qualification</li><li>Sales automation</li><li>24/7 availability</li><li>Custom training</li></ul>
+            <div class="hx-mini-chat" aria-hidden="true">
+              <span class="hx-bubble">Can you add online booking?</span>
+              <span class="hx-bubble hx-bubble-bot">Yes, with reminders and payments. Want a quick estimate?</span>
+            </div>
+            <a href="#contact" class="hx-link">Build your chatbot <span aria-hidden="true">→</span></a>
+          </article>
+
+          <article class="hx-card bento-card reveal" style="--d:1">
+            <div class="hx-card-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="m2 17 10 5 10-5"/><path d="m2 12 10 5 10-5"/></svg>
+            </div>
+            <h3>Websites built to convert</h3>
+            <p>Fast, mobile-first sites where every section earns its place and every page leads somewhere.</p>
+            <ul class="hx-tags"><li>Conversion-first design</li><li>Mobile responsive</li><li>SEO optimized</li><li>Fast loading</li></ul>
+            <div class="hx-gauge" aria-hidden="true">
+              <svg viewBox="0 0 120 64"><path class="hx-gauge-track" d="M10 60a50 50 0 0 1 100 0"/><path class="hx-gauge-fill" d="M10 60a50 50 0 0 1 100 0"/></svg>
+              <span>Speed target <strong>95+</strong></span>
+            </div>
+            <a href="#contact" class="hx-link">Start your project <span aria-hidden="true">→</span></a>
+          </article>
+
+          <article class="hx-card bento-card reveal" style="--d:2">
+            <div class="hx-card-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            </div>
+            <h3>Custom applications</h3>
+            <p>Internal tools, client portals and integrations that remove busywork and scale with you.</p>
+            <ul class="hx-tags"><li>Web applications</li><li>Internal tools</li><li>API integrations</li><li>Scalable architecture</li></ul>
+            <div class="hx-nodes" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+            <a href="#contact" class="hx-link">Discuss your needs <span aria-hidden="true">→</span></a>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Why BytesFX -->
+    <section class="hx-section hx-why">
+      <div class="hx-container hx-why-inner">
+        <header class="hx-head hx-head-left reveal">
+          <p class="hx-kicker">Why BytesFX</p>
+          <h2>We don't just build. <em>We convert.</em></h2>
+          <p>Every project is measured by business outcomes, not just how it looks.</p>
+        </header>
+        <div class="hx-benefits">
+          <div class="hx-benefit reveal" style="--d:0">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>
+            <h4>ROI-focused development</h4>
+            <p>Built around your business goals. Every feature is there to drive conversions and revenue.</p>
           </div>
-          <div class="benefit-card reveal">
-            <div class="benefit-number">02</div>
-            <h4>Performance First</h4>
-            <p>Lightning-fast load times and smooth interactions that keep visitors engaged and reduce bounce rates.</p>
+          <div class="hx-benefit reveal" style="--d:1">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg>
+            <h4>Performance first</h4>
+            <p>Fast load times and smooth interactions that keep visitors engaged and cut bounce rates.</p>
           </div>
-          <div class="benefit-card reveal">
-            <div class="benefit-number">03</div>
-            <h4>Conversion Optimized</h4>
-            <p>Strategic CTAs, persuasive copywriting, and data-driven design that turns visitors into customers.</p>
+          <div class="hx-benefit reveal" style="--d:2">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>
+            <h4>Conversion optimized</h4>
+            <p>Strategic calls to action, persuasive copy and data-driven design that turn visitors into customers.</p>
           </div>
-          <div class="benefit-card reveal">
-            <div class="benefit-number">04</div>
-            <h4>End-to-End Support</h4>
-            <p>From strategy to launch and beyond — we're your partner in digital growth, not just a vendor.</p>
+          <div class="hx-benefit reveal" style="--d:3">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10z"/></svg>
+            <h4>End-to-end support</h4>
+            <p>From strategy to launch and beyond. A partner in your growth, not just a vendor.</p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Process Section -->
-    <section id="process" class="process-section">
-      <div class="container">
-        <div class="section-header reveal">
-          <span class="section-label">Our Process</span>
-          <h2 class="section-title">How We <span class="highlight">Deliver Results</span></h2>
-          <p class="section-subtitle">A proven 4-step process to transform your digital presence.</p>
-        </div>
+    <!-- Process -->
+    <section id="process" class="hx-section">
+      <div class="hx-container">
+        <header class="hx-head reveal">
+          <p class="hx-kicker">How it works</p>
+          <h2>From first call to <em>first customer</em></h2>
+          <p>A proven four-step process to transform your digital presence.</p>
+        </header>
+        <ol class="hx-steps" id="hxSteps">
+          <span class="hx-steps-line" aria-hidden="true"><span></span></span>
+          <li class="reveal" style="--d:0"><span class="hx-step-n">01</span><h4>Discovery &amp; strategy</h4><p>We learn your goals, audience and competition, then plan what will win.</p></li>
+          <li class="reveal" style="--d:1"><span class="hx-step-n">02</span><h4>Design &amp; development</h4><p>We build for conversion using modern technology and proven patterns.</p></li>
+          <li class="reveal" style="--d:2"><span class="hx-step-n">03</span><h4>Testing &amp; optimization</h4><p>We test everything and tune for speed, accessibility and conversions.</p></li>
+          <li class="reveal" style="--d:3"><span class="hx-step-n">04</span><h4>Launch &amp; growth</h4><p>We launch with confidence and keep improving with ongoing support.</p></li>
+        </ol>
+      </div>
+    </section>
 
-        <div class="process-steps">
-          <div class="process-step reveal">
-            <div class="step-number">1</div>
-            <div class="step-content">
-              <h4>Discovery & Strategy</h4>
-              <p>We dive deep into your business goals, target audience, and competitive landscape to create a winning strategy.</p>
-            </div>
-          </div>
-          <div class="process-step reveal">
-            <div class="step-number">2</div>
-            <div class="step-content">
-              <h4>Design & Development</h4>
-              <p>Our team builds with conversion in mind, using modern technologies and best practices for maximum performance.</p>
-            </div>
-          </div>
-          <div class="process-step reveal">
-            <div class="step-number">3</div>
-            <div class="step-content">
-              <h4>Testing & Optimization</h4>
-              <p>Rigorous testing ensures everything works perfectly. We optimize for speed, accessibility, and conversions.</p>
-            </div>
-          </div>
-          <div class="process-step reveal">
-            <div class="step-number">4</div>
-            <div class="step-content">
-              <h4>Launch & Growth</h4>
-              <p>We launch with confidence and provide ongoing support to ensure continued success and improvement.</p>
-            </div>
-          </div>
+    <!-- CTA -->
+    <section class="hx-section hx-cta-wrap">
+      <div class="hx-container">
+        <div class="hx-cta reveal">
+          <div class="hx-cta-glow" aria-hidden="true"></div>
+          <h2>Ready for a website that <em>pays for itself</em>?</h2>
+          <p>Tell us where you want to grow. We'll show you how we'd get you there, free.</p>
+          <a href="#contact" class="hx-btn hx-btn-primary">Book a free consultation</a>
         </div>
       </div>
     </section>
 
-    <!-- CTA Section -->
-    <section class="cta-section">
-      <div class="container">
-        <div class="cta-content reveal">
-          <h2>Ready to Transform Your Digital Presence?</h2>
-          <p>Let's discuss how we can help you achieve your business goals with high-performance digital solutions.</p>
-          <a href="#contact" class="btn btn-primary btn-large">Schedule Free Consultation</a>
-        </div>
-      </div>
-    </section>
-
-    <!-- Contact Section -->
-    <section id="contact" class="contact-section">
-      <div class="container">
-        <div class="section-header reveal">
-          <span class="section-label">Get In Touch</span>
-          <h2 class="section-title">Let's Build Something <span class="highlight">Great Together</span></h2>
-          <p class="section-subtitle">Fill out the form below and we'll get back to you within 24 hours.</p>
+    <!-- Contact -->
+    <section id="contact" class="hx-section hx-contact">
+      <div class="hx-container hx-contact-inner">
+        <div class="hx-contact-copy reveal">
+          <p class="hx-kicker">Get in touch</p>
+          <h2>Let's build something <em>great together</em></h2>
+          <p>Fill in the form and we'll reply within 24 hours with next steps.</p>
+          <ul class="hx-contact-list">
+            <li><span>Email</span><a href="mailto:contact@bytesfx.com">contact@bytesfx.com</a></li>
+            <li><span>Studio</span>London, UK</li>
+            <li><span>Response</span>Within 24 hours</li>
+          </ul>
         </div>
 
-        <div class="contact-form-wrapper reveal">
-          <form id="leadCaptureForm" class="lead-form">
-            <div class="form-group">
-              <label for="leadName">Full Name *</label>
-              <input type="text" id="leadName" name="name" required placeholder="John Smith">
+        <div class="hx-form-card reveal" style="--d:1">
+          <form id="leadCaptureForm" class="hx-form">
+            <div class="hx-field">
+              <label for="leadName">Full name *</label>
+              <input type="text" id="leadName" name="name" required placeholder="Jane Smith" autocomplete="name">
             </div>
-
-            <div class="form-group">
-              <label for="leadEmail">Email Address *</label>
-              <input type="email" id="leadEmail" name="email" required placeholder="john@company.com">
+            <div class="hx-field">
+              <label for="leadEmail">Email address *</label>
+              <input type="email" id="leadEmail" name="email" required placeholder="jane@company.com" autocomplete="email">
             </div>
-
-            <div class="form-group">
-              <label for="leadService">Service Interest *</label>
+            <div class="hx-field">
+              <label for="leadService">What do you need? *</label>
               <select id="leadService" name="service" required>
-                <option value="">Select a service...</option>
-                <option value="website">Website Development</option>
-                <option value="application">Application Development</option>
-                <option value="chatbot">Chatbot Solutions</option>
-                <option value="other">Other / Not Sure</option>
+                <option value="">Select a service…</option>
+                <option value="website">Website development</option>
+                <option value="application">Application development</option>
+                <option value="chatbot">Chatbot solutions</option>
+                <option value="other">Other / not sure</option>
               </select>
             </div>
-
-            <div class="form-group">
-              <label for="leadMessage">Project Details (Optional)</label>
-              <textarea id="leadMessage" name="message" rows="4" placeholder="Tell us about your project, timeline, and goals..."></textarea>
+            <div class="hx-field">
+              <label for="leadMessage">Project details (optional)</label>
+              <textarea id="leadMessage" name="message" rows="4" placeholder="Your project, timeline and goals…"></textarea>
             </div>
-
-            <button type="submit" class="btn btn-primary btn-large btn-full">
-              <span class="btn-text">Request Free Consultation</span>
-              <span class="btn-loading hidden">Sending...</span>
+            <button type="submit" class="hx-btn hx-btn-primary hx-btn-full">
+              <span class="btn-text">Request free consultation</span>
+              <span class="btn-loading hidden">Sending…</span>
             </button>
-
-            <p class="form-disclaimer">By submitting, you agree to our <a href="/privacy-policy.html">Privacy Policy</a>. We'll never share your information.</p>
+            <p class="hx-disclaimer">By submitting, you agree to our <a href="/privacy-policy.html">Privacy Policy</a>. We never share your information.</p>
           </form>
-
-          <div id="formSuccess" class="form-success hidden">
-            <div class="success-icon">&#10003;</div>
-            <h3>Thank You!</h3>
-            <p>We've received your inquiry and will be in touch within 24 hours.</p>
+          <div id="formSuccess" class="hx-success hidden">
+            <div class="hx-success-icon" aria-hidden="true">✓</div>
+            <h3>Thank you!</h3>
+            <p>We've received your enquiry and will be in touch within 24 hours.</p>
           </div>
         </div>
       </div>
