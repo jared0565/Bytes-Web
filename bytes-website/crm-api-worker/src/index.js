@@ -144,11 +144,12 @@ function escapeForPrompt(str) {
 // Returns plan status for a client. inTrial = within 7-day evaluation window.
 async function getPlanStatus(env, clientId) {
     const s = await env.DB.prepare('SELECT plan, trial_started_at, trial_ends_at FROM crm_settings WHERE client_id = ?').bind(clientId).first();
-    if (!s || !s.trial_ends_at) return { plan: 'free', inTrial: false, trialDaysLeft: 0, trialEndsAt: 0 };
+    if (!s) return { plan: 'free', inTrial: false, trialDaysLeft: 0, trialEndsAt: 0 };
     const now = Date.now();
-    const inTrial = now < s.trial_ends_at;
+    // A client set to a paid plan with no trial history is simply on that plan (not 'free')
+    const inTrial = !!s.trial_ends_at && now < s.trial_ends_at;
     const trialDaysLeft = inTrial ? Math.ceil((s.trial_ends_at - now) / 86400000) : 0;
-    return { plan: s.plan || 'free', inTrial, trialDaysLeft, trialEndsAt: s.trial_ends_at };
+    return { plan: s.plan || 'free', inTrial, trialDaysLeft, trialEndsAt: s.trial_ends_at || 0 };
 }
 
 // ─── Session helpers ─────────────────────────────────────────────────────────
@@ -397,6 +398,92 @@ app.get('/api/chatbot/status', requireAuth, async (c) => {
     } catch (err) {
         console.error('[Chatbot status] Error:', err);
         return c.json({ error: 'Failed to load status' }, 500);
+    }
+});
+
+// ─── Client directory (admin) ────────────────────────────────────────────────
+const PLANS = ['free', 'starter', 'pro', 'business', 'enterprise'];
+
+// GET /api/admin/clients — every known client with plan, trial, activity and owner email
+app.get('/api/admin/clients', requireAuth, async (c) => {
+    if ((c.get('user') || {}).role !== 'admin') return c.json({ error: 'Admins only' }, 403);
+    const now = Date.now(), d30 = now - 30 * DAY_MS;
+    try {
+        const [settings, leadStats, chatStats, kvList, ownerList] = await Promise.all([
+            c.env.DB.prepare('SELECT client_id, plan, trial_started_at, trial_ends_at, default_campaign_mode, auto_approve_campaigns FROM crm_settings').all(),
+            c.env.DB.prepare('SELECT client_id, COUNT(*) AS total, SUM(CASE WHEN timestamp >= ? THEN 1 ELSE 0 END) AS recent, MAX(timestamp) AS last FROM leads GROUP BY client_id').bind(d30).all(),
+            c.env.DB.prepare('SELECT client_id, COUNT(*) AS total, SUM(CASE WHEN timestamp >= ? THEN 1 ELSE 0 END) AS recent, MAX(timestamp) AS last FROM chat_logs GROUP BY client_id').bind(d30).all(),
+            c.env.CLIENT_SETTINGS.list({ prefix: 'client:', limit: 1000 }),
+            c.env.OAUTH_TOKENS.list({ prefix: 'email_client:', limit: 1000 }),
+        ]);
+        const map = new Map();
+        const get = (id) => { if (!map.has(id)) map.set(id, { clientId: id }); return map.get(id); };
+        for (const r of settings.results || []) Object.assign(get(r.client_id), { plan: r.plan || 'free', trialStartedAt: r.trial_started_at || 0, trialEndsAt: r.trial_ends_at || 0, campaignMode: r.default_campaign_mode, autoApprove: !!r.auto_approve_campaigns, registered: true });
+        for (const r of leadStats.results || []) Object.assign(get(r.client_id), { leadsTotal: r.total, leads30d: r.recent || 0, lastLeadAt: r.last });
+        for (const r of chatStats.results || []) Object.assign(get(r.client_id), { messagesTotal: r.total, messages30d: r.recent || 0, lastChatAt: r.last });
+        for (const k of kvList.keys || []) get(k.name.slice('client:'.length));
+        map.delete(HOUSE_CLIENT_ID); // the Bytes website has its own Settings page
+        map.delete('');
+
+        // Owner emails (email_client:<email> → clientId)
+        const owners = await Promise.all((ownerList.keys || []).slice(0, 300).map(async k => [await c.env.OAUTH_TOKENS.get(k.name), k.name.slice('email_client:'.length)]));
+        for (const [cid, email] of owners) if (cid && map.has(cid)) map.get(cid).ownerEmail = email;
+
+        // Chatbot config per client (company name, mode, model, domains)
+        const ids = [...map.keys()].slice(0, 300);
+        const cfgs = await Promise.all(ids.map(id => c.env.CLIENT_SETTINGS.get(`client:${id}`)));
+        ids.forEach((id, i) => {
+            const cfg = cfgs[i] ? JSON.parse(cfgs[i]) : null;
+            const e = map.get(id);
+            e.hasConfig = !!cfg;
+            if (cfg) Object.assign(e, { companyName: cfg.companyName || '', mode: cfg.mode || 'free', llmModel: cfg.llmModel || '', domains: (cfg.allowedDomains || []).length });
+        });
+
+        const clients = [...map.values()].map(e => {
+            const plan = e.plan || 'free';
+            const inTrial = !!e.trialEndsAt && now < e.trialEndsAt;
+            const lastActivity = Math.max(e.lastChatAt || 0, e.lastLeadAt || 0) || null;
+            return {
+                ...e, plan, inTrial,
+                trialDaysLeft: inTrial ? Math.ceil((e.trialEndsAt - now) / DAY_MS) : 0,
+                trialExpired: !!e.trialEndsAt && !inTrial && plan === 'free',
+                leadsTotal: e.leadsTotal || 0, leads30d: e.leads30d || 0, messagesTotal: e.messagesTotal || 0, messages30d: e.messages30d || 0,
+                lastActivity,
+            };
+        }).sort((a, b) => (b.lastActivity || 0) - (a.lastActivity || 0) || a.clientId.localeCompare(b.clientId));
+        return c.json({ clients });
+    } catch (err) {
+        console.error('[Admin clients] Error:', err);
+        return c.json({ error: 'Failed to load clients' }, 500);
+    }
+});
+
+// POST /api/admin/clients/:id/plan — { plan?, extendTrialDays?, endTrial? }
+app.post('/api/admin/clients/:id/plan', requireAuth, async (c) => {
+    if ((c.get('user') || {}).role !== 'admin') return c.json({ error: 'Admins only' }, 403);
+    const clientId = c.req.param('id');
+    if (!clientId || clientId === HOUSE_CLIENT_ID) return c.json({ error: 'Invalid client' }, 400);
+    let body;
+    try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+    if (body.plan !== undefined && !PLANS.includes(body.plan)) return c.json({ error: 'Invalid plan' }, 400);
+    const days = body.extendTrialDays !== undefined ? parseInt(body.extendTrialDays, 10) : null;
+    if (days !== null && !(days >= 1 && days <= 90)) return c.json({ error: 'Trial extension must be 1–90 days' }, 400);
+    const now = Date.now();
+    try {
+        const row = await c.env.DB.prepare('SELECT plan, trial_started_at, trial_ends_at FROM crm_settings WHERE client_id = ?').bind(clientId).first();
+        let plan = body.plan ?? row?.plan ?? 'free';
+        let started = row?.trial_started_at || 0, ends = row?.trial_ends_at || 0;
+        if (days !== null) { ends = Math.max(ends, now) + days * DAY_MS; if (!started) started = now; }
+        if (body.endTrial) ends = Math.min(ends || now, now - 1);
+        await c.env.DB.prepare(`INSERT INTO crm_settings (client_id, default_campaign_mode, auto_approve_campaigns, plan, trial_started_at, trial_ends_at)
+            VALUES (?, 'ai', 0, ?, ?, ?)
+            ON CONFLICT(client_id) DO UPDATE SET plan = excluded.plan, trial_started_at = excluded.trial_started_at, trial_ends_at = excluded.trial_ends_at`)
+            .bind(clientId, plan, started, ends).run();
+        const status = await getPlanStatus(c.env, clientId);
+        return c.json({ success: true, clientId, ...status });
+    } catch (err) {
+        console.error('[Admin plan] Error:', err);
+        return c.json({ error: 'Failed to update plan' }, 500);
     }
 });
 
@@ -1293,9 +1380,13 @@ app.post('/api/test-lead', requireAuth, async (c) => {
     try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
     const emailRegex = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
     if (!body.email || !emailRegex.test(body.email)) return c.json({ error: 'Invalid email address' }, 400);
+    // Admins may target any client; everyone else only their own
+    const user = c.get('user') || {};
+    const target = user.role === 'admin' ? (String(body.clientId || '').trim() || user.clientId || 'agency_demo') : user.clientId;
+    if (!target) return c.json({ error: 'No client is linked to this account' }, 403);
     try {
         await c.env.DB.prepare('INSERT INTO leads (client_id, name, email, service, budget, summary, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)')
-            .bind(body.clientId || 'agency_demo', body.name || 'Test User', body.email, 'Lead Simulator', 'Test Budget', 'Manually simulated lead for system verification.', Date.now()).run();
+            .bind(target, String(body.name || 'Test User').slice(0, 100), body.email, 'Lead Simulator', 'Test Budget', 'Manually simulated lead for system verification.', Date.now()).run();
         return c.json({ success: true });
     } catch (err) {
         console.error('[Test Lead] Error:', err);

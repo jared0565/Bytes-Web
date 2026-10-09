@@ -321,22 +321,82 @@
             </section>
 
             <section id="clients-view" class="view hidden">
-                <div class="config-grid">
-                    <div class="config-editor glass-panel">
-                        <h3>Update Client Settings</h3>
-                        <div class="form-group">
-                            <label>Client ID</label>
-                            <div style="display: flex; gap: 0.5rem;">
-                                <input type="text" id="config-client-id" placeholder="e.g. test_client_1"
-                                    style="flex: 1;">
-                                <button id="load-config-btn" class="btn btn-outline"
-                                    style="padding: 0.5rem 1rem;">Load</button>
+                <div class="ld-stats mc-stats" id="mc-stats" aria-live="polite"></div>
+
+                <div class="ld-toolbar" role="search">
+                    <label class="cl-search ld-search">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                        <input type="search" id="mc-q" placeholder="Search client ID, company or owner email…" aria-label="Search clients">
+                    </label>
+                    <select id="mc-filter" aria-label="Filter by plan">
+                        <option value="">All clients</option>
+                        <option value="trial">In trial</option>
+                        <option value="ending">Trial ends in 3 days</option>
+                        <option value="expired">Trial expired (free)</option>
+                        <option value="paying">Paying plans</option>
+                        <option value="inactive">No activity in 30 days</option>
+                    </select>
+                    <select id="mc-sort" aria-label="Sort">
+                        <option value="activity">Recent activity</option>
+                        <option value="leads">Most leads (30 days)</option>
+                        <option value="trial">Trial ending soonest</option>
+                        <option value="name">Name A–Z</option>
+                    </select>
+                    <div class="cl-toolbar-end">
+                        <button type="button" class="cl-btn" id="mc-new">Open client by ID</button>
+                        <button type="button" class="cl-btn" id="mc-export">Export CSV</button>
+                    </div>
+                </div>
+
+                <div class="glass-panel mc-table-wrap">
+                    <table class="mc-table" id="mc-table">
+                        <thead><tr>
+                            <th scope="col">Client</th><th scope="col">Plan</th><th scope="col">Bot</th>
+                            <th scope="col" class="num">Leads 30d</th><th scope="col" class="num">Chats 30d</th>
+                            <th scope="col">Last activity</th><th scope="col"><span class="sr-only">Actions</span></th>
+                        </tr></thead>
+                        <tbody id="mc-body"><tr><td colspan="7" class="mc-empty">Loading clients…</td></tr></tbody>
+                    </table>
+                </div>
+
+                <!-- Client editor drawer -->
+                <div class="ld-drawer-backdrop" id="mc-backdrop" hidden></div>
+                <aside class="ld-drawer mc-drawer" id="mc-drawer" role="dialog" aria-modal="true" aria-labelledby="mc-d-name" hidden>
+                    <div class="ld-drawer-head">
+                        <div><h3 id="mc-d-name">Client</h3><p id="mc-d-sub"></p></div>
+                        <button type="button" class="cl-btn" id="mc-d-close" aria-label="Close">✕</button>
+                    </div>
+                    <div class="ld-drawer-body">
+                        <div class="form-group" id="mc-id-group">
+                            <label for="config-client-id">Client ID</label>
+                            <div style="display:flex;gap:0.5rem;">
+                                <input type="text" id="config-client-id" list="mc-client-ids" placeholder="e.g. acme-ltd" style="flex:1;" autocomplete="off">
+                                <button id="load-config-btn" class="btn btn-outline" style="padding:0.5rem 1rem;">Load</button>
                             </div>
+                            <datalist id="mc-client-ids"></datalist>
+                            <p class="cb-hint" id="mc-id-hint"></p>
                         </div>
+
+                        <div class="mc-quick" id="mc-quick"></div>
+
+                        <h4>Plan &amp; trial</h4>
+                        <div class="mc-plan-box">
+                            <p id="mc-plan-status" class="cb-hint" style="margin:0 0 0.6rem;"></p>
+                            <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+                                <select id="mc-plan-select" aria-label="Plan">
+                                    <option value="free">Free</option><option value="starter">Starter</option><option value="pro">Pro</option><option value="business">Business</option><option value="enterprise">Enterprise</option>
+                                </select>
+                                <button type="button" class="cl-btn" id="mc-plan-save">Change plan</button>
+                                <button type="button" class="cl-btn" id="mc-trial-extend">Extend trial +7 days</button>
+                                <button type="button" class="cl-btn ld-danger" id="mc-trial-end">End trial</button>
+                            </div>
+                            <p id="mc-plan-msg" class="cb-hint" role="status"></p>
+                        </div>
+
+                        <h4>Chatbot settings</h4>
                         <div class="form-group">
                             <label>Bot Mode (Service Tier)</label>
-                            <select id="config-mode" class="chat-input"
-                                style="background: var(--bg-secondary); border: 1px solid var(--border-color); color: white;">
+                            <select id="config-mode" >
                                 <option value="free">Free (Basic Scripted)</option>
                                 <option value="standard">Standard (Advanced Scripted)</option>
                                 <option value="ai">AI (set the model on the Chatbot page)</option>
@@ -346,8 +406,7 @@
                         </div>
                         <div class="form-group">
                             <label>Default Campaign Mode</label>
-                            <select id="config-campaign-mode" class="chat-input"
-                                style="background: var(--bg-secondary); border: 1px solid var(--border-color); color: white;">
+                            <select id="config-campaign-mode" >
                                 <option value="ai">AI-Generated (Gemini)</option>
                                 <option value="rule">Rule-Based (Templates)</option>
                                 <option value="manual">Manual (Self-Write Only)</option>
@@ -363,8 +422,7 @@
                                 placeholder="Define the chatbot's personality and rules..."></textarea>
                         </div>
                         <div class="form-group">
-                            <label>Company/Brand Name <span class="badge"
-                                    style="background: var(--accent-color); font-size: 0.6rem;">PRO/ELITE</span></label>
+                            <label for="config-company-name">Company / brand name</label>
                             <input type="text" id="config-company-name" placeholder="e.g. Acme Corp">
                         </div>
                         <div class="form-group"
@@ -397,42 +455,20 @@
                             <label>Affiliate/Referral ID</label>
                             <input type="text" id="config-referral" placeholder="e.g. client_123_ref">
                         </div>
-                        <button id="save-config-btn" class="btn btn-primary" style="margin-top: 1rem;">Save
-                            Settings</button>
-                        <p id="config-status"></p>
-                    </div>
-                    <div class="config-help glass-panel">
-                        <h3>How it works</h3>
-                        <p>These settings are stored in Cloudflare Workers KV. When a chatbot loads with this Client ID,
-                            it will fetch these custom instructions immediately.</p>
-                        <p>Leaving the prompt empty will use the agency's default BytesAI persona.</p>
-                    </div>
+                        <button id="save-config-btn" class="btn btn-primary" style="margin-top: 1rem;">Save chatbot settings</button>
+                        <p id="config-status" role="status"></p>
 
-                    <!-- Lead Simulator Panel -->
-                    <div class="simulator-panel glass-panel" style="margin-top: 2rem;">
-                        <h3>Lead Simulator (Dev Tool)</h3>
-                        <p style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 1.5rem;">
-                            Instantly inject a lead to test validation and gating logic.
-                        </p>
-                        <div class="form-group">
-                            <label>Target Client ID</label>
-                            <input type="text" id="sim-client-id" placeholder="e.g. test_client_1">
-                        </div>
-                        <div class="form-group">
-                            <label>Lead Name</label>
-                            <input type="text" id="sim-name" placeholder="John Doe">
-                        </div>
-                        <div class="form-group">
-                            <label>Lead Email</label>
-                            <input type="email" id="sim-email" placeholder="john@example.com">
-                        </div>
-                        <button id="simulate-lead-btn" class="btn btn-outline"
-                            style="width: 100%; border-color: var(--accent-color); color: var(--accent-color);">
-                            Shoot Test Lead 🚀
-                        </button>
-                        <p id="sim-status" style="margin-top: 0.75rem; font-size: 0.8rem; font-weight: 500;"></p>
+                        <details class="mc-dev">
+                            <summary>Developer tools: send a test lead</summary>
+                            <p class="cb-hint">Adds a lead to this client so you can check the pipeline and emails.</p>
+                            <input type="hidden" id="sim-client-id">
+                            <div class="form-group"><label for="sim-name">Lead name</label><input type="text" id="sim-name" placeholder="John Doe"></div>
+                            <div class="form-group"><label for="sim-email">Lead email</label><input type="email" id="sim-email" placeholder="john@example.com"></div>
+                            <button id="simulate-lead-btn" class="btn btn-outline" style="width:100%;">Send test lead</button>
+                            <p id="sim-status" role="status" style="margin-top:0.75rem;font-size:0.8rem;font-weight:500;"></p>
+                        </details>
                     </div>
-                </div>
+                </aside>
             </section>
 
             <!-- Settings View -->
