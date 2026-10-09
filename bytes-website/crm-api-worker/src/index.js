@@ -363,6 +363,43 @@ app.post('/api/installations', requireAuth, async (c) => {
     return c.json({ success: true, allowedDomains: clean });
 });
 
+// GET /api/chatbot/status — health summary for the Chatbot page: is the widget live, is email sending set up
+app.get('/api/chatbot/status', requireAuth, async (c) => {
+    const user = c.get('user') || {};
+    const clientId = user.clientId;
+    if (!clientId) return c.json({ error: 'No client is linked to this account' }, 403);
+    const since = Date.now() - 7 * 86400000;
+    try {
+        const [last, msgs, leads, mailRaw, cfgRaw] = await Promise.all([
+            c.env.DB.prepare('SELECT MAX(timestamp) AS t FROM chat_logs WHERE client_id = ?').bind(clientId).first(),
+            c.env.DB.prepare('SELECT COUNT(*) AS n FROM chat_logs WHERE client_id = ? AND timestamp >= ?').bind(clientId, since).first(),
+            c.env.DB.prepare('SELECT COUNT(*) AS n FROM leads WHERE client_id = ? AND timestamp >= ?').bind(clientId, since).first(),
+            c.env.OAUTH_TOKENS.get(`mail:${clientId}`),
+            c.env.CLIENT_SETTINGS.get(`client:${clientId}`),
+        ]);
+        const mail = mailRaw ? JSON.parse(mailRaw) : null;
+        const mailIssue = !mail?.provider ? 'No email provider selected'
+            : mail.provider === 'smtp' ? 'Custom SMTP is not supported yet'
+            : !mail.fromEmail ? 'From Email is missing'
+            : !mail.apiKey ? 'API key is missing'
+            : (mail.provider === 'mailgun' && !mail.mailgunDomain) ? 'Mailgun domain is missing' : null;
+        const cfg = cfgRaw ? JSON.parse(cfgRaw) : {};
+        return c.json({
+            lastChatAt: last?.t || null,
+            messages7d: msgs?.n || 0,
+            leads7d: leads?.n || 0,
+            mailReady: !mailIssue,
+            mailIssue,
+            mode: cfg.mode || 'free',
+            llmModel: cfg.llmModel || '',
+            domains: (cfg.allowedDomains || []).length,
+        });
+    } catch (err) {
+        console.error('[Chatbot status] Error:', err);
+        return c.json({ error: 'Failed to load status' }, 500);
+    }
+});
+
 // TOTP setup — one-time page to generate + display QR code (protected by admin key)
 app.get('/api/auth/totp/setup', async (c) => {
     const key = c.req.query('key');
