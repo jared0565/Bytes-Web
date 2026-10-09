@@ -1701,8 +1701,10 @@ app.post('/api/generate-sequence', requireAuth, async (c) => {
     if (!leadId || typeof leadId !== 'number') return c.json({ error: 'leadId is required and must be a number' }, 400);
 
     const user = c.get('user');
-    if (!await accessibleLead(c, leadId)) return c.json({ error: 'Lead not found' }, 404);
-    const planStatus = await getPlanStatus(c.env, user?.clientId || 'agency_demo');
+    const lead = await accessibleLead(c, leadId);
+    if (!lead) return c.json({ error: 'Lead not found' }, 404);
+    // Plan limits apply to clients; agency admins aren't on a plan
+    const planStatus = user?.role === 'admin' ? { plan: 'agency', inTrial: false } : await getPlanStatus(c.env, user?.clientId);
     if (!planStatus.inTrial && planStatus.plan === 'free') {
         return c.json({ error: 'AI features are not available on the Free tier. Upgrade your plan to unlock AI campaign generation.', planLimited: true }, 403);
     }
