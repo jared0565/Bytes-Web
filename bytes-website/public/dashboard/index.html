@@ -743,7 +743,8 @@
             <!-- Analytics & Reports View -->
             <!-- Bytes Website Settings (admin only): the house chatbot on bytesfx.com, separate from every client -->
             <section id="site-settings-view" class="view hidden">
-                <div class="glass-panel site-settings-card">
+                <div class="cb-status site-health" id="site-health" aria-live="polite"></div>
+                <div class="glass-panel site-settings-card" id="site-card">
                     <p class="site-settings-kicker">Bytes website · client ID <code>default</code></p>
                     <h3 style="margin:0 0 0.2rem;">Website chatbot</h3>
                     <p style="color:var(--text-secondary);font-size:0.82rem;margin:0 0 1.5rem;">These settings apply only to the chatbot on web.bytesfx.com. Client chatbots are set in Manage Clients or by each client on their Chatbot page, and nothing here changes them.</p>
@@ -754,20 +755,21 @@
                     </div>
                     <div class="form-group">
                         <label for="site-mode">Bot Mode</label>
-                        <select id="site-mode">
+                        <select id="site-mode" aria-describedby="site-mode-note">
                             <option value="free">Free — Basic Scripted</option>
                             <option value="standard">Standard — Advanced Scripted</option>
                             <option value="ai">AI — uses the AI Model below</option>
                             <option value="pro">Pro AI — Gemini Strategy</option>
                             <option value="elite">Elite — Advanced AI + High Limits</option>
                         </select>
+                        <p id="site-mode-note" class="cb-hint"></p>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group site-ai-only">
                         <label for="site-llm-model">AI Model <span class="site-hint">— used in AI, Pro and Elite modes</span></label>
                         <select id="site-llm-model"><option value="">Loading models…</option></select>
                         <p id="site-llm-cost" class="site-cost"></p>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group site-ai-only">
                         <label for="site-llm-effort">Effort <span class="site-hint">— how hard the model thinks before replying</span></label>
                         <select id="site-llm-effort">
                             <option value="low">Low — fastest, cheapest replies</option>
@@ -776,12 +778,19 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="site-domains">Allowed Domains <span class="site-hint">— one per line; leave empty to allow any site</span></label>
-                        <textarea id="site-domains" rows="3" placeholder="web.bytesfx.com&#10;bytesfx.com"></textarea>
-                    </div>
-                    <div class="form-group">
                         <label for="site-prompt">System Prompt <span class="site-hint">— leave empty to use the built-in BytesFX sales prompt</span></label>
-                        <textarea id="site-prompt" rows="8" placeholder="You are the BytesFX assistant..."></textarea>
+                        <textarea id="site-prompt" rows="8" maxlength="20000" aria-describedby="site-prompt-meta" placeholder="You are the BytesFX assistant..."></textarea>
+                        <div class="cb-prompt-meta" id="site-prompt-meta">
+                            <span id="site-prompt-count">0 characters</span>
+                            <button type="button" class="cl-btn" id="site-prompt-template">Insert a starter prompt</button>
+                        </div>
+                    </div>
+
+                    <h4 class="site-section">Who can use it</h4>
+                    <div class="form-group">
+                        <label for="site-domains">Allowed Domains <span class="site-hint">— one per line; leave empty to allow any site. Full URLs are fine.</span></label>
+                        <textarea id="site-domains" rows="3" placeholder="web.bytesfx.com&#10;bytesfx.com" aria-describedby="site-domains-warn"></textarea>
+                        <p id="site-domains-warn" class="cb-warn" hidden></p>
                     </div>
 
                     <fieldset class="site-socials">
@@ -805,11 +814,15 @@
                                 <input type="url" id="site-social-pinterest" data-social="pinterest" placeholder="https://www.pinterest.com/bytesfx" autocomplete="off">
                             </div>
                         </div>
+                        <div class="site-social-preview" id="site-social-preview" aria-live="polite"></div>
                     </fieldset>
 
-                    <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-top:1.25rem;flex-wrap:wrap;">
+                    <div class="site-savebar">
                         <p id="site-status" role="status" style="font-size:0.82rem;margin:0;min-height:1em;"></p>
-                        <button id="site-save-btn" class="btn btn-primary">Save Website Settings</button>
+                        <div style="display:flex;gap:0.5rem;align-items:center;">
+                            <a class="cl-btn" href="https://web.bytesfx.com/" target="_blank" rel="noopener">Open website</a>
+                            <button id="site-save-btn" class="btn btn-primary">Save Website Settings</button>
+                        </div>
                     </div>
                 </div>
             </section>

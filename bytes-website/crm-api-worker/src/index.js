@@ -367,7 +367,8 @@ app.post('/api/installations', requireAuth, async (c) => {
 // GET /api/chatbot/status — health summary for the Chatbot page: is the widget live, is email sending set up
 app.get('/api/chatbot/status', requireAuth, async (c) => {
     const user = c.get('user') || {};
-    const clientId = user.clientId;
+    // Admins may check any client, including the Bytes website ('default'); everyone else their own
+    const clientId = user.role === 'admin' && c.req.query('clientId') ? c.req.query('clientId') : user.clientId;
     if (!clientId) return c.json({ error: 'No client is linked to this account' }, 403);
     const since = Date.now() - 7 * 86400000;
     try {
@@ -375,7 +376,8 @@ app.get('/api/chatbot/status', requireAuth, async (c) => {
             c.env.DB.prepare('SELECT MAX(timestamp) AS t FROM chat_logs WHERE client_id = ?').bind(clientId).first(),
             c.env.DB.prepare('SELECT COUNT(*) AS n FROM chat_logs WHERE client_id = ? AND timestamp >= ?').bind(clientId, since).first(),
             c.env.DB.prepare('SELECT COUNT(*) AS n FROM leads WHERE client_id = ? AND timestamp >= ?').bind(clientId, since).first(),
-            c.env.OAUTH_TOKENS.get(`mail:${clientId}`),
+            // Same fallback as getMailSettings: clients without their own sender use the agency's
+            c.env.OAUTH_TOKENS.get(`mail:${clientId}`).then(v => v || c.env.OAUTH_TOKENS.get('mail:agency_demo')),
             c.env.CLIENT_SETTINGS.get(`client:${clientId}`),
         ]);
         const mail = mailRaw ? JSON.parse(mailRaw) : null;
