@@ -59,7 +59,6 @@ const colPriority = document.getElementById('col-priority');
 const colOpportunity = document.getElementById('col-opportunity');
 const colCampaign = document.getElementById('col-campaign');
 
-const logsBody = document.getElementById('logs-body');
 
 const configClientId = document.getElementById('config-client-id');
 const configMode = document.getElementById('config-mode');
@@ -361,17 +360,16 @@ function showDashboard() {
 
     // RBAC: Hide admin tabs if not admin
     if (userRole !== 'admin') {
-        const logsNav = document.querySelector('.nav-item[data-view="logs"]');
         const clientsNav = document.querySelector('.nav-item[data-view="clients"]');
-        if (logsNav) logsNav.style.display = 'none';
         if (clientsNav) clientsNav.style.display = 'none';
-        document.getElementById('logs-view')?.remove();
         document.getElementById('clients-view')?.remove();
         document.getElementById('site-settings-view')?.remove();
         // Settings is reserved for the Bytes website; clients use Profile Settings / the Chatbot page
         const cog = document.getElementById('settings-cog-btn');
         if (cog) cog.style.display = 'none';
     }
+
+    startLogsBadge();
 
     // Load plan/trial status and render banner
     loadPlanStatus();
@@ -616,15 +614,7 @@ async function loadLeads() {
     }
 }
 
-async function loadLogs() {
-    try {
-        const res = await apiFetch(`${API_BASE}/api/logs`);
-        if (!res.ok) return;
-
-        const data = await res.json();
-        renderLogs(data);
-    } catch (e) { console.error(e); }
-}
+async function loadLogs() { return loadConversations(); }
 
 // --- Rendering ---
 window.allLeads = [];
@@ -761,17 +751,6 @@ function updateKanbanCounts() {
     document.getElementById('count-priority').innerText = colPriority.querySelectorAll('.lead-card').length;
     document.getElementById('count-opportunity').innerText = colOpportunity.querySelectorAll('.lead-card').length;
     document.getElementById('count-campaign').innerText = colCampaign.querySelectorAll('.lead-card').length;
-}
-
-function renderLogs(logs) {
-    logsBody.innerHTML = logs.map(l => `
-        <tr>
-            <td>${new Date(l.timestamp).toLocaleString()}</td>
-            <td><code>${escapeHtml(l.client_id)}</code></td>
-            <td style="max-width: 300px;">${escapeHtml(l.user_message)}</td>
-            <td style="max-width: 300px;">${escapeHtml(l.bot_response)}</td>
-        </tr>
-    `).join('');
 }
 
 // --- Client Management ---
@@ -2274,3 +2253,295 @@ document.getElementById('site-save-btn')?.addEventListener('click', async () => 
         btn.disabled = false;
     }
 });
+
+// ─── Chat Logs: conversations inbox ───────────────────────────────────────────
+// /api/conversations groups messages into conversations (30-min inactivity rule), links captured
+// leads and returns a daily series. "New" = last message after you last marked the inbox read,
+// and not opened since; tracked per browser in localStorage.
+
+const CL = { range: '7', from: null, to: null, data: null, offset: 0, selected: null, timer: null };
+const CL_SEEN_KEY = 'cl_seen_at';
+const CL_READ_KEY = 'cl_read_ids';
+
+function clSeenAt() {
+    let v = 0;
+    try { v = parseInt(localStorage.getItem(CL_SEEN_KEY) || '0', 10); } catch (_) {}
+    if (!v) { v = Date.now() - 86400000; try { localStorage.setItem(CL_SEEN_KEY, String(v)); } catch (_) {} } // first visit: last 24h count as new
+    return v;
+}
+function clReadIds() { try { return new Set(JSON.parse(localStorage.getItem(CL_READ_KEY) || '[]')); } catch (_) { return new Set(); } }
+function clMarkRead(id) {
+    const ids = clReadIds(); ids.add(id);
+    try { localStorage.setItem(CL_READ_KEY, JSON.stringify([...ids].slice(-500))); } catch (_) {}
+}
+function clIsNew(cv) { return cv.end > clSeenAt() && !clReadIds().has(cv.id); }
+
+function clRange() {
+    if (CL.range === 'custom') {
+        const f = document.getElementById('cl-from').value, t = document.getElementById('cl-to').value;
+        const from = f ? new Date(`${f}T00:00:00`).getTime() : Date.now() - 7 * 86400000;
+        const to = t ? new Date(`${t}T23:59:59.999`).getTime() : Date.now();
+        return { from: Math.min(from, to), to: Math.max(from, to) };
+    }
+    const days = parseInt(CL.range, 10);
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    return { from: start.getTime() - (days - 1) * 86400000, to: Date.now() };
+}
+
+function clQuery(extra = {}) {
+    const { from, to } = clRange();
+    const p = new URLSearchParams({ from, to, tz: new Date().getTimezoneOffset(), offset: CL.offset, ...extra });
+    const q = document.getElementById('cl-q').value.trim();
+    if (q) p.set('q', q);
+    const client = document.getElementById('cl-client').value;
+    if (client) p.set('clientId', client);
+    if (document.getElementById('cl-leads-only').checked) p.set('leadsOnly', '1');
+    return p;
+}
+
+let clListenersAttached = false;
+function clAttachListeners() {
+    if (clListenersAttached) return;
+    clListenersAttached = true;
+    const reload = () => { CL.offset = 0; CL.selected = null; loadConversations(); };
+    document.querySelectorAll('.cl-seg-btn').forEach(btn => btn.addEventListener('click', () => {
+        document.querySelectorAll('.cl-seg-btn').forEach(b => { b.classList.toggle('active', b === btn); b.setAttribute('aria-pressed', b === btn); });
+        CL.range = btn.dataset.range;
+        const custom = document.getElementById('cl-custom');
+        custom.hidden = CL.range !== 'custom';
+        if (CL.range === 'custom' && !document.getElementById('cl-from').value) {
+            const today = new Date(); const iso = (d) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+            document.getElementById('cl-to').value = iso(today);
+            document.getElementById('cl-from').value = iso(new Date(today.getTime() - 13 * 86400000));
+        }
+        reload();
+    }));
+    ['cl-from', 'cl-to', 'cl-client', 'cl-leads-only'].forEach(id => document.getElementById(id).addEventListener('change', reload));
+    let t; document.getElementById('cl-q').addEventListener('input', () => { clearTimeout(t); t = setTimeout(reload, 300); });
+    document.getElementById('cl-more').addEventListener('click', () => { CL.offset += CL.data.pageSize; loadConversations(true); });
+    document.getElementById('cl-mark-read').addEventListener('click', () => {
+        try { localStorage.setItem(CL_SEEN_KEY, String(Date.now())); localStorage.removeItem(CL_READ_KEY); } catch (_) {}
+        renderConvList(); refreshLogsBadge();
+    });
+    document.getElementById('cl-export').addEventListener('click', exportConversationsCsv);
+    document.getElementById('cl-list').addEventListener('click', (e) => {
+        const item = e.target.closest('[data-cid]');
+        if (item) openConversation(item.dataset.cid);
+    });
+    document.getElementById('cl-list').addEventListener('keydown', (e) => {
+        if (!['ArrowDown', 'ArrowUp'].includes(e.key)) return;
+        const items = [...document.querySelectorAll('#cl-list [data-cid]')];
+        const i = items.indexOf(document.activeElement);
+        const next = items[e.key === 'ArrowDown' ? Math.min(items.length - 1, i + 1) : Math.max(0, i - 1)];
+        if (next) { e.preventDefault(); next.focus(); openConversation(next.dataset.cid); }
+    });
+}
+
+async function loadConversations(append = false) {
+    clAttachListeners();
+    const countEl = document.getElementById('cl-count');
+    if (!append) countEl.textContent = 'Loading…';
+    try {
+        const res = await apiFetch(`${API_BASE}/api/conversations?${clQuery()}`);
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+        const data = await res.json();
+        if (append && CL.data) data.conversations = CL.data.conversations.concat(data.conversations);
+        CL.data = data;
+        const clientSel = document.getElementById('cl-client');
+        if (userRole === 'admin' && data.clients?.length) {
+            clientSel.hidden = false;
+            const cur = clientSel.value;
+            clientSel.innerHTML = '<option value="">All clients</option>' + data.clients.map(cid => `<option value="${escapeHtml(cid)}">${escapeHtml(cid === 'default' ? 'Bytes website (default)' : cid)}</option>`).join('');
+            clientSel.value = cur;
+        }
+        renderConvStats(data);
+        renderConvChart(data);
+        renderConvList();
+        if (!append) {
+            const first = data.conversations[0];
+            if (CL.selected && data.conversations.some(c => c.id === CL.selected)) openConversation(CL.selected, true);
+            else if (first && window.innerWidth > 900) openConversation(first.id, true);
+            else document.getElementById('cl-thread').innerHTML = `<div class="cl-empty">${data.total ? 'Select a conversation to read it.' : ''}</div>`;
+        }
+        refreshLogsBadge();
+    } catch (err) {
+        console.error('[Chat logs]', err);
+        countEl.textContent = 'Could not load conversations.';
+        document.getElementById('cl-list').innerHTML = '';
+    }
+}
+
+const clFmtPct = (r) => (r == null ? '—' : `${Math.round(r * 100)}%`);
+
+function renderConvStats(d) {
+    const s = d.stats;
+    const tiles = [
+        { label: 'Conversations', value: s.conversations.toLocaleString('en-GB'), help: 'in this period' },
+        { label: 'Messages', value: s.messages.toLocaleString('en-GB'), help: s.avgMessages == null ? 'from visitors' : `${s.avgMessages.toFixed(1)} per conversation` },
+        { label: 'Became leads', value: clFmtPct(s.leadRate), help: `${s.withLead} of ${s.conversations} conversations` },
+        { label: 'New', value: '0', help: 'unread since last visit', id: 'cl-new-count' },
+    ];
+    document.getElementById('cl-stats').innerHTML = tiles.map(t => `<div class="cl-stat"><span class="cl-stat-label">${t.label}</span><span class="cl-stat-num"${t.id ? ` id="${t.id}"` : ''}>${t.value}</span><span class="cl-stat-help">${t.help}</span></div>`).join('');
+
+    const alert = document.getElementById('cl-alert');
+    if (s.repeated > 0) {
+        alert.hidden = false;
+        alert.innerHTML = `<strong>${s.repeated} conversation${s.repeated === 1 ? '' : 's'} got the same bot reply to every message.</strong> The chatbot is likely in a scripted mode or its AI model is failing. ${userRole === 'admin' ? 'Check the bot mode in Settings (website) or Manage Clients.' : 'Check the bot mode on your Chatbot page.'}`;
+    } else alert.hidden = true;
+}
+
+// Single-series bar chart (blue), leads shown in the tooltip — one axis, no legend needed
+function renderConvChart(d) {
+    const el = document.getElementById('cl-chart');
+    const note = document.getElementById('cl-chart-note');
+    const pts = d.daily;
+    const max = Math.max(1, ...pts.map(p => p.conversations));
+    if (note) note.textContent = `peak ${max === 1 && !pts.some(p => p.conversations) ? 0 : max}/day`;
+    if (!pts.some(p => p.conversations)) { el.innerHTML = '<div class="cl-chart-empty">No conversations in this period.</div>'; return; }
+    const W = el.clientWidth || 600, H = el.clientHeight || 96, padB = 16, ih = H - padB - 4;
+    const gap = pts.length > 60 ? 1 : 2, bw = Math.max(1, (W - gap * (pts.length - 1)) / pts.length);
+    const label = (t) => new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    const bars = pts.map((p, i) => {
+        const h = p.conversations ? Math.max(3, (p.conversations / max) * ih) : 0;
+        const x = i * (bw + gap);
+        return `<rect class="cl-bar" x="${x.toFixed(1)}" y="${(4 + ih - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="${Math.min(4, bw / 2).toFixed(1)}" data-i="${i}"/>`
+            + `<rect x="${x.toFixed(1)}" y="0" width="${(bw + gap).toFixed(1)}" height="${H}" fill="transparent" data-i="${i}"/>`;
+    }).join('');
+    const ticks = [0, Math.floor((pts.length - 1) / 2), pts.length - 1].filter((v, i, a) => a.indexOf(v) === i)
+        .map((i, k, a) => `<text x="${(i * (bw + gap) + bw / 2).toFixed(1)}" y="${H - 3}" text-anchor="${k === 0 && a.length > 1 ? 'start' : k === a.length - 1 && a.length > 1 ? 'end' : 'middle'}">${label(pts[i].t)}</text>`).join('');
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Conversations per day, peak ${max}">${bars}<g class="cl-axis">${ticks}</g></svg>`;
+    el.onpointermove = (e) => {
+        const i = e.target.getAttribute && e.target.getAttribute('data-i');
+        const tip = document.getElementById('cl-tip');
+        if (i == null) { tip.hidden = true; return; }
+        const p = pts[+i];
+        tip.innerHTML = `<b>${new Date(p.t).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}</b><br>${p.conversations} conversation${p.conversations === 1 ? '' : 's'} · ${p.leads} lead${p.leads === 1 ? '' : 's'}`;
+        tip.hidden = false;
+        const r = tip.getBoundingClientRect();
+        tip.style.left = `${Math.min(window.innerWidth - r.width - 8, e.clientX + 12)}px`;
+        tip.style.top = `${Math.max(8, e.clientY - r.height - 12)}px`;
+        el.querySelectorAll('.cl-bar').forEach(b => b.classList.toggle('hover', b.getAttribute('data-i') === i));
+    };
+    el.onpointerleave = () => { document.getElementById('cl-tip').hidden = true; el.querySelectorAll('.cl-bar.hover').forEach(b => b.classList.remove('hover')); };
+}
+
+function clRelTime(ts) {
+    const age = Date.now() - ts;
+    if (age < 60000) return 'just now';
+    if (age < 3600000) return `${Math.floor(age / 60000)}m ago`;
+    if (age < 86400000) return `${Math.floor(age / 3600000)}h ago`;
+    if (age < 7 * 86400000) return `${Math.floor(age / 86400000)}d ago`;
+    return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+function clHighlight(text) {
+    const q = document.getElementById('cl-q').value.trim();
+    const safe = escapeHtml(text);
+    if (!q) return safe;
+    const re = new RegExp(escapeHtml(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    return safe.replace(re, m => `<mark>${m}</mark>`);
+}
+
+function renderConvList() {
+    const d = CL.data; if (!d) return;
+    const list = document.getElementById('cl-list');
+    document.getElementById('cl-count').textContent = d.total ? `${d.total} conversation${d.total === 1 ? '' : 's'}` : 'No conversations match these filters.';
+    list.innerHTML = d.conversations.map(cv => {
+        const isNew = clIsNew(cv);
+        return `<li><button type="button" class="cl-item${cv.id === CL.selected ? ' selected' : ''}${isNew ? ' is-new' : ''}" data-cid="${escapeHtml(cv.id)}" aria-current="${cv.id === CL.selected}">
+            <span class="cl-item-top">
+                <span class="cl-item-who">${isNew ? '<span class="cl-dot" aria-label="New"></span>' : ''}${escapeHtml(cv.lead?.name || 'Visitor')}</span>
+                <span class="cl-item-time" title="${new Date(cv.end).toLocaleString('en-GB')}">${clRelTime(cv.end)}</span>
+            </span>
+            <span class="cl-item-preview">${clHighlight(cv.preview || '(no visitor message)')}</span>
+            <span class="cl-item-meta">
+                <span>${cv.messageCount} msg${cv.messageCount === 1 ? '' : 's'}</span>
+                ${userRole === 'admin' ? `<span class="cl-chip">${escapeHtml(cv.clientId === 'default' ? 'Bytes website' : cv.clientId)}</span>` : ''}
+                ${cv.lead ? '<span class="cl-chip cl-chip-lead">Lead</span>' : ''}
+                ${cv.repeatedReply ? '<span class="cl-chip cl-chip-warn" title="The bot gave the same reply to every message">Same reply</span>' : ''}
+            </span>
+        </button></li>`;
+    }).join('');
+    document.getElementById('cl-more').hidden = d.conversations.length >= d.total;
+    const newEl = document.getElementById('cl-new-count');
+    if (newEl) newEl.textContent = d.conversations.filter(clIsNew).length.toLocaleString('en-GB');
+}
+
+function openConversation(id, silent = false) {
+    const cv = CL.data?.conversations.find(c => c.id === id);
+    if (!cv) return;
+    CL.selected = id;
+    clMarkRead(id);
+    document.getElementById('cl-inbox').classList.add('has-thread');
+    const fmt = (t) => new Date(t).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+    const dur = Math.max(1, Math.round((cv.end - cv.start) / 60000));
+    const lead = cv.lead ? `<div class="cl-lead-card">
+            <div><span class="cl-chip cl-chip-lead">Lead captured</span> <strong>${escapeHtml(cv.lead.name || 'Unnamed')}</strong></div>
+            <div class="cl-lead-meta">${[cv.lead.email, cv.lead.service, cv.lead.budget].filter(Boolean).map(escapeHtml).join(' · ')}</div>
+            <button type="button" class="cl-btn" data-goto-leads>Open in Leads</button>
+        </div>` : '';
+    document.getElementById('cl-thread').innerHTML = `
+        <div class="cl-thread-head">
+            <button type="button" class="cl-btn cl-back" data-back aria-label="Back to conversations">← Back</button>
+            <div>
+                <h3>${escapeHtml(cv.lead?.name || 'Visitor')}</h3>
+                <p>${new Date(cv.start).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })} · ${fmt(cv.start)}–${fmt(cv.end)} · ${dur} min · ${cv.messageCount} message${cv.messageCount === 1 ? '' : 's'}${userRole === 'admin' ? ` · <code>${escapeHtml(cv.clientId)}</code>` : ''}</p>
+            </div>
+            <button type="button" class="cl-btn" data-copy-thread>Copy transcript</button>
+        </div>
+        ${lead}
+        <ol class="cl-msgs">${cv.messages.map(m => `
+            ${m.user ? `<li class="cl-msg cl-msg-user"><span class="cl-bubble">${clHighlight(m.user)}</span><time>${fmt(m.t)}</time></li>` : ''}
+            ${m.bot ? `<li class="cl-msg cl-msg-bot"><span class="cl-bubble">${clHighlight(m.bot)}</span><time>Bot · ${fmt(m.t)}</time></li>` : ''}`).join('')}
+        </ol>`;
+    const thread = document.getElementById('cl-thread');
+    thread.querySelector('[data-back]').onclick = () => { document.getElementById('cl-inbox').classList.remove('has-thread'); document.querySelector(`[data-cid="${CSS.escape(id)}"]`)?.focus(); };
+    thread.querySelector('[data-goto-leads]')?.addEventListener('click', () => switchView('leads'));
+    thread.querySelector('[data-copy-thread]').onclick = (e) => {
+        const text = cv.messages.map(m => `[${fmt(m.t)}] Visitor: ${m.user}\n[${fmt(m.t)}] Bot: ${m.bot}`).join('\n');
+        navigator.clipboard?.writeText(text).then(() => { e.target.textContent = 'Copied'; setTimeout(() => (e.target.textContent = 'Copy transcript'), 1500); });
+    };
+    if (!silent) thread.scrollTop = 0;
+    renderConvList();
+    refreshLogsBadge();
+}
+
+function exportConversationsCsv() {
+    const d = CL.data; if (!d) return;
+    const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const rows = [['conversation_id', 'client_id', 'time', 'visitor_message', 'bot_reply', 'lead_name', 'lead_email']];
+    d.conversations.forEach(cv => cv.messages.forEach(m => rows.push([cv.id, cv.clientId, new Date(m.t).toISOString(), m.user, m.bot, cv.lead?.name, cv.lead?.email])));
+    const blob = new Blob(['﻿' + rows.map(r => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `chat-logs-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// Sidebar badge: conversations with activity since you last marked the inbox read (polled each minute)
+async function refreshLogsBadge() {
+    const badge = document.getElementById('logs-badge');
+    if (!badge) return;
+    let n = 0;
+    if (CL.data) n = CL.data.conversations.filter(clIsNew).length; // exact when the inbox is loaded
+    else {
+        try {
+            const p = new URLSearchParams({ countOnly: '1', since: clSeenAt(), from: clSeenAt(), to: Date.now() });
+            const res = await apiFetch(`${API_BASE}/api/conversations?${p}`);
+            if (res.ok) n = (await res.json()).newCount || 0;
+        } catch (_) {}
+    }
+    badge.hidden = !n;
+    badge.textContent = n > 99 ? '99+' : String(n);
+    badge.setAttribute('aria-label', `${n} new conversation${n === 1 ? '' : 's'}`);
+}
+
+function startLogsBadge() {
+    refreshLogsBadge();
+    clearInterval(CL.timer);
+    CL.timer = setInterval(() => {
+        if (document.hidden) return;
+        if (!document.getElementById('logs-view')?.classList.contains('hidden')) { CL.offset = 0; loadConversations(); }
+        else { CL.data = null; refreshLogsBadge(); }
+    }, 60000);
+}
