@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 // Models offered in the dashboard's model picker. Prices are USD per 1M tokens (standard tier,
 // short prompts) as published by each provider in October 2026 — update here when they change;
 // the dashboard reads this list from GET /public/models.
-export type Provider = 'anthropic' | 'openai' | 'google';
+export type Provider = 'anthropic' | 'openai' | 'google' | 'openrouter';
 export type Effort = 'low' | 'medium' | 'high';
 
 export interface ModelInfo {
@@ -18,6 +18,7 @@ export const PROVIDER_NAMES: Record<Provider, string> = {
 	anthropic: 'Anthropic',
 	openai: 'OpenAI',
 	google: 'Google',
+	openrouter: 'OpenRouter',
 };
 
 export const MODEL_CATALOG: ModelInfo[] = [
@@ -40,11 +41,13 @@ export interface LlmEnv {
 	GEMINI_API_KEY?: string;
 	ANTHROPIC_API_KEY?: string;
 	OPENAI_API_KEY?: string;
+	OPENROUTER_API_KEY?: string;
 }
 
 export function providerAvailable(env: LlmEnv, provider: Provider): boolean {
 	if (provider === 'anthropic') return !!env.ANTHROPIC_API_KEY;
 	if (provider === 'openai') return !!env.OPENAI_API_KEY;
+	if (provider === 'openrouter') return !!env.OPENROUTER_API_KEY;
 	return !!env.GEMINI_API_KEY;
 }
 
@@ -134,12 +137,93 @@ export async function callGemini(env: LlmEnv, model: string, effort: Effort | nu
 	return text;
 }
 
+// ─── OpenRouter ──────────────────────────────────────────────────────────────
+// Model ids and prices change too often to hardcode, so they come live from OpenRouter's public
+// /models endpoint (no key needed), cached per isolate for an hour. The picker shows the newest
+// text model from each vendor below; ids are stored as "openrouter:<vendor>/<model>".
+export const OPENROUTER_PREFIX = 'openrouter:';
+const OPENROUTER_VENDORS = ['anthropic', 'openai', 'google', 'x-ai', 'deepseek', 'meta-llama', 'mistralai', 'qwen', 'moonshotai', 'z-ai'];
+const OPENROUTER_SKIP = /(embed|image|audio|tts|guard|moderation|search|realtime|transcribe)/i;
+const OPENROUTER_TTL_MS = 60 * 60 * 1000;
+
+export interface OpenRouterModel extends ModelInfo {
+	reasoning: boolean;
+}
+
+let orCache: { at: number; models: OpenRouterModel[] } | null = null;
+
+export async function openRouterModels(): Promise<OpenRouterModel[]> {
+	if (orCache && Date.now() - orCache.at < OPENROUTER_TTL_MS) return orCache.models;
+	try {
+		const res = await fetch('https://openrouter.ai/api/v1/models', { headers: { Accept: 'application/json' } });
+		if (!res.ok) throw new Error(`HTTP ${res.status}`);
+		const data = ((await res.json()) as any)?.data || [];
+		const newest = new Map<string, any>();
+		for (const m of data) {
+			const id: string = m?.id || '';
+			const vendor = id.split('/')[0];
+			const prompt = Number(m?.pricing?.prompt), completion = Number(m?.pricing?.completion);
+			const textOut = (m?.architecture?.output_modalities || ['text']).join() === 'text';
+			if (!OPENROUTER_VENDORS.includes(vendor) || id.includes(':') || OPENROUTER_SKIP.test(id) || !textOut) continue;
+			if (!(prompt > 0) || !(completion > 0)) continue; // skip free/variable-price routes
+			if (!newest.has(vendor) || (m.created || 0) > (newest.get(vendor).created || 0)) newest.set(vendor, m);
+		}
+		const models = OPENROUTER_VENDORS.filter((v) => newest.has(v)).map((v) => {
+			const m = newest.get(v);
+			return {
+				id: OPENROUTER_PREFIX + m.id,
+				provider: 'openrouter' as const,
+				name: String(m.name || m.id),
+				inputPrice: Math.round(Number(m.pricing.prompt) * 1e6 * 1000) / 1000,
+				outputPrice: Math.round(Number(m.pricing.completion) * 1e6 * 1000) / 1000,
+				reasoning: (m.supported_parameters || []).includes('reasoning'),
+			};
+		});
+		orCache = { at: Date.now(), models };
+		return models;
+	} catch (err: any) {
+		console.error('[LLM] OpenRouter model list failed:', err?.message || err);
+		return orCache?.models || [];
+	}
+}
+
+async function callOpenRouter(env: LlmEnv, slug: string, effort: Effort, system: string, contents: Turn[]): Promise<string> {
+	const info = (await openRouterModels()).find((m) => m.id === OPENROUTER_PREFIX + slug);
+	const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+		method: 'POST',
+		headers: {
+			Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
+			'Content-Type': 'application/json',
+			'HTTP-Referer': 'https://web.bytesfx.com', // OpenRouter app attribution
+			'X-Title': 'BytesFX Chatbot',
+		},
+		body: JSON.stringify({
+			model: slug,
+			messages: [{ role: 'system', content: system }, ...toChatTurns(contents)],
+			max_tokens: MAX_OUTPUT_TOKENS,
+			// Effort only for models that reason; exclude keeps the reasoning text out of the reply
+			...(info?.reasoning ? { reasoning: { effort, exclude: true } } : {}),
+		}),
+	});
+	const data = (await res.json().catch(() => ({}))) as any;
+	if (!res.ok) throw new Error(`OpenRouter ${res.status}: ${data?.error?.message || 'request failed'}`);
+	const text = data?.choices?.[0]?.message?.content?.trim();
+	if (!text) throw new Error('OpenRouter returned no text');
+	return text;
+}
+
 // Runs the client's chosen model. Throws when it isn't usable so the caller can fall back.
 export async function callChosenModel(env: LlmEnv, modelId: unknown, effortIn: unknown, system: string, contents: Turn[]): Promise<{ text: string; model: string }> {
+	const effort: Effort = EFFORTS.includes(effortIn as Effort) ? (effortIn as Effort) : 'medium';
+	if (typeof modelId === 'string' && modelId.startsWith(OPENROUTER_PREFIX)) {
+		const slug = modelId.slice(OPENROUTER_PREFIX.length);
+		if (!/^[\w.-]+\/[\w.:-]+$/.test(slug)) throw new Error(`Invalid OpenRouter model: ${slug}`);
+		if (!env.OPENROUTER_API_KEY) throw new Error('No API key configured for OpenRouter');
+		return { text: await callOpenRouter(env, slug, effort, system, contents), model: modelId };
+	}
 	const info = findModel(modelId);
 	if (!info) throw new Error(`Unknown model: ${String(modelId)}`);
 	if (!providerAvailable(env, info.provider)) throw new Error(`No API key configured for ${PROVIDER_NAMES[info.provider]}`);
-	const effort: Effort = EFFORTS.includes(effortIn as Effort) ? (effortIn as Effort) : 'medium';
 
 	if (info.provider === 'anthropic') return { text: await callAnthropic(env, info.id, effort, system, contents), model: info.id };
 	if (info.provider === 'openai') return { text: await callOpenAI(env, info.id, effort, system, contents), model: info.id };
@@ -147,10 +231,11 @@ export async function callChosenModel(env: LlmEnv, modelId: unknown, effortIn: u
 }
 
 // Catalog for the dashboard picker, with whether each provider has a key on this worker
-export function publicCatalog(env: LlmEnv) {
+export async function publicCatalog(env: LlmEnv) {
+	const models: ModelInfo[] = [...MODEL_CATALOG, ...(await openRouterModels())];
 	return {
 		defaultModel: DEFAULT_MODEL,
 		efforts: EFFORTS,
-		models: MODEL_CATALOG.map((m) => ({ ...m, providerName: PROVIDER_NAMES[m.provider], available: providerAvailable(env, m.provider) })),
+		models: models.map((m) => ({ ...m, providerName: PROVIDER_NAMES[m.provider], available: providerAvailable(env, m.provider) })),
 	};
 }

@@ -4,6 +4,7 @@ export interface Env {
 	GEMINI_API_KEY: string;
 	ANTHROPIC_API_KEY?: string;
 	OPENAI_API_KEY?: string;
+	OPENROUTER_API_KEY?: string;
 	ADMIN_API_KEY: string;
 	DB: D1Database;
 	CLIENT_SETTINGS: KVNamespace;
@@ -104,7 +105,7 @@ export default {
 
 		// --- Public model catalog for the dashboard's model picker (prices + which providers have keys) ---
 		if (url.pathname === '/public/models' && request.method === 'GET') {
-			return new Response(JSON.stringify(publicCatalog(env)), {
+			return new Response(JSON.stringify(await publicCatalog(env)), {
 				headers: { ...cors, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' }
 			});
 		}
