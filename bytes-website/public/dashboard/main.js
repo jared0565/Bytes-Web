@@ -639,6 +639,12 @@ async function fetchLeads() {
         const data = await res.json();
         ldMarkNew(data);
         renderLeads(data);
+        // Arrived from Chat Logs "Open in Leads": show that lead's details
+        if (window.ldOpenAfterLoad) {
+            const id = window.ldOpenAfterLoad; window.ldOpenAfterLoad = null;
+            const card = document.querySelector(`.lead-card[data-id="${CSS.escape(String(id))}"]`);
+            if (window.allLeads.some(l => String(l.id) === String(id))) { if (card) ldLastFocus = card; openLeadDrawer(id, true); document.getElementById('ld-d-close').focus(); }
+        }
         return { success: true };
     } catch (e) {
         console.error(e);
@@ -2602,8 +2608,9 @@ function clAttachListeners() {
     if (clListenersAttached) return;
     clListenersAttached = true;
     const reload = () => { CL.offset = 0; CL.selected = null; loadConversations(); };
-    document.querySelectorAll('.cl-seg-btn').forEach(btn => btn.addEventListener('click', () => {
-        document.querySelectorAll('.cl-seg-btn').forEach(b => { b.classList.toggle('active', b === btn); b.setAttribute('aria-pressed', b === btn); });
+    const rangeBtns = document.querySelectorAll('#logs-view .cl-seg-btn[data-range]');
+    rangeBtns.forEach(btn => btn.addEventListener('click', () => {
+        rangeBtns.forEach(b => { b.classList.toggle('active', b === btn); b.setAttribute('aria-pressed', b === btn); });
         CL.range = btn.dataset.range;
         const custom = document.getElementById('cl-custom');
         custom.hidden = CL.range !== 'custom';
@@ -2635,14 +2642,18 @@ function clAttachListeners() {
     });
 }
 
-async function loadConversations(append = false) {
+const clSig = (d) => `${d.total}|${d.conversations.map(c => `${c.id}:${c.messageCount}`).join(',')}`;
+
+// auto = the minute refresh: leaves the screen alone unless new messages arrived
+async function loadConversations(append = false, auto = false) {
     clAttachListeners();
     const countEl = document.getElementById('cl-count');
-    if (!append) countEl.textContent = 'Loading…';
+    if (!append && !auto) countEl.textContent = 'Loading…';
     try {
         const res = await apiFetch(`${API_BASE}/api/conversations?${clQuery()}`);
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
         const data = await res.json();
+        if (auto && CL.data && clSig(data) === clSig({ ...CL.data, conversations: CL.data.conversations.slice(0, data.pageSize) })) { refreshLogsBadge(); return; }
         if (append && CL.data) data.conversations = CL.data.conversations.concat(data.conversations);
         CL.data = data;
         const clientSel = document.getElementById('cl-client');
@@ -2664,8 +2675,10 @@ async function loadConversations(append = false) {
         refreshLogsBadge();
     } catch (err) {
         console.error('[Chat logs]', err);
-        countEl.textContent = 'Could not load conversations.';
-        document.getElementById('cl-list').innerHTML = '';
+        if (auto) return; // keep what's on screen; the next refresh will try again
+        countEl.innerHTML = `Could not load conversations. <button type="button" class="cl-btn cl-retry">Retry</button>`;
+        countEl.querySelector('.cl-retry').onclick = () => loadConversations(append);
+        if (!append) document.getElementById('cl-list').innerHTML = '';
     }
 }
 
@@ -2733,10 +2746,9 @@ function clRelTime(ts) {
 }
 function clHighlight(text) {
     const q = document.getElementById('cl-q').value.trim();
-    const safe = escapeHtml(text);
-    if (!q) return safe;
-    const re = new RegExp(escapeHtml(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-    return safe.replace(re, m => `<mark>${m}</mark>`);
+    if (!q) return escapeHtml(text);
+    const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    return String(text ?? '').split(re).map((part, i) => (i % 2 ? `<mark>${escapeHtml(part)}</mark>` : escapeHtml(part))).join('');
 }
 
 function renderConvList() {
@@ -2793,9 +2805,10 @@ function openConversation(id, silent = false) {
         </ol>`;
     const thread = document.getElementById('cl-thread');
     thread.querySelector('[data-back]').onclick = () => { document.getElementById('cl-inbox').classList.remove('has-thread'); document.querySelector(`[data-cid="${CSS.escape(id)}"]`)?.focus(); };
-    thread.querySelector('[data-goto-leads]')?.addEventListener('click', () => switchView('leads'));
+    thread.querySelector('[data-goto-leads]')?.addEventListener('click', () => { window.ldOpenAfterLoad = cv.lead.id; switchView('leads'); });
     thread.querySelector('[data-copy-thread]').onclick = (e) => {
-        const text = cv.messages.map(m => `[${fmt(m.t)}] Visitor: ${m.user}\n[${fmt(m.t)}] Bot: ${m.bot}`).join('\n');
+        const head = `${cv.lead?.name || 'Visitor'} · ${new Date(cv.start).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+        const text = [head, ...cv.messages.flatMap(m => [m.user && `[${fmt(m.t)}] Visitor: ${m.user}`, m.bot && `[${fmt(m.t)}] Bot: ${m.bot}`].filter(Boolean))].join('\n');
         navigator.clipboard?.writeText(text).then(() => { e.target.textContent = 'Copied'; setTimeout(() => (e.target.textContent = 'Copy transcript'), 1500); });
     };
     if (!silent) thread.scrollTop = 0;
@@ -2803,11 +2816,25 @@ function openConversation(id, silent = false) {
     refreshLogsBadge();
 }
 
-function exportConversationsCsv() {
+async function exportConversationsCsv() {
     const d = CL.data; if (!d) return;
+    const btn = document.getElementById('cl-export');
+    // Fetch the remaining pages so the file has every conversation matching the filters
+    let all = d.conversations.slice();
+    if (all.length < d.total) {
+        btn.disabled = true; btn.textContent = 'Preparing…';
+        try {
+            for (let off = all.length; off < d.total && off < 5000; off += d.pageSize) {
+                const res = await apiFetch(`${API_BASE}/api/conversations?${clQuery({ offset: off })}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                all = all.concat((await res.json()).conversations);
+            }
+        } catch (err) { alert(`Export failed: ${err.message}`); return; }
+        finally { btn.disabled = false; btn.textContent = 'Export CSV'; }
+    }
     const cell = csvCell;
     const rows = [['conversation_id', 'client_id', 'time', 'visitor_message', 'bot_reply', 'lead_name', 'lead_email']];
-    d.conversations.forEach(cv => cv.messages.forEach(m => rows.push([cv.id, cv.clientId, new Date(m.t).toISOString(), m.user, m.bot, cv.lead?.name, cv.lead?.email])));
+    all.forEach(cv => cv.messages.forEach(m => rows.push([cv.id, cv.clientId, new Date(m.t).toISOString(), m.user, m.bot, cv.lead?.name, cv.lead?.email])));
     const blob = new Blob(['﻿' + rows.map(r => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -2844,7 +2871,11 @@ function startLogsBadge() {
     clearInterval(CL.timer);
     CL.timer = setInterval(() => {
         if (document.hidden) return;
-        if (!document.getElementById('logs-view')?.classList.contains('hidden')) { CL.offset = 0; loadConversations(); }
+        if (!document.getElementById('logs-view')?.classList.contains('hidden')) {
+            const sel = window.getSelection();
+            const reading = sel && !sel.isCollapsed && document.getElementById('cl-thread').contains(sel.anchorNode);
+            if (CL.offset === 0 && !reading) loadConversations(false, true);
+        }
         else { CL.data = null; refreshLogsBadge(); }
     }, 60000);
 }
