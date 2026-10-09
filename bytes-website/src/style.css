@@ -855,8 +855,8 @@ section {
   margin-top: var(--spacing-md);
 }
 
-.footer-links-group h4,
-.footer-contact h4 {
+.footer-links-group h3, .footer-links-group h4,
+.footer-contact h3, .footer-contact h4 {
   font-size: 1rem;
   margin-bottom: var(--spacing-md);
   color: var(--text-primary);

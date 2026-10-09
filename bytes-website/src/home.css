@@ -78,7 +78,7 @@ body {
 .nav-links li:has(.hx-nav-cta) { display: flex; align-items: center; }
 .nav-links a:focus-visible, .site-footer a:focus-visible { outline: 2px solid var(--amber); outline-offset: 4px; border-radius: 4px; }
 .site-footer { background: var(--ink-0); border-top: 1px solid var(--line); }
-.site-footer h4 { font-family: var(--font-display); letter-spacing: -0.01em; }
+.site-footer h3, .site-footer h4 { font-family: var(--font-display); letter-spacing: -0.01em; }
 .site-footer a:hover { color: var(--amber); }
 .chatbot-launcher { background: linear-gradient(135deg, var(--amber), var(--coral)); color: #1a0f02; box-shadow: var(--shadow-amber); }
 
@@ -299,7 +299,7 @@ body {
 .hx-benefit { padding: var(--s-5) var(--s-4); border-radius: 20px; border: 1px solid var(--line); background: rgba(16, 36, 41, 0.5); transition: border-color 0.3s ease, transform 0.5s var(--ease-spring); }
 .hx-benefit:hover { border-color: rgba(255, 181, 71, 0.3); transform: translateY(-4px); }
 .hx-benefit svg { color: var(--amber); width: 28px; height: 28px; margin-bottom: var(--s-3); }
-.hx-benefit h4 { font: 600 1.15rem/1.3 var(--font-display); letter-spacing: -0.015em; margin: 0 0 0.4rem; color: var(--text); }
+.hx-benefit h3, .hx-benefit h4 { font: 600 1.15rem/1.3 var(--font-display); letter-spacing: -0.015em; margin: 0 0 0.4rem; color: var(--text); }
 .hx-benefit p { margin: 0; color: var(--text-dim); font-size: 0.95rem; }
 
 /* ── Process ──────────────────────────────────────────────────────────── */
@@ -309,7 +309,7 @@ body {
 .hx-steps li { position: relative; min-width: 0; }
 .hx-step-n { position: relative; z-index: 1; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px; margin-bottom: var(--s-4);
   font: 600 0.9rem var(--font-mono); color: var(--amber); background: var(--ink-1); border: 1px solid rgba(255, 181, 71, 0.35); box-shadow: 0 0 0 6px var(--ink-0); }
-.hx-steps h4 { font: 600 1.2rem/1.25 var(--font-display); letter-spacing: -0.015em; margin: 0 0 0.4rem; color: var(--text); }
+.hx-steps h3, .hx-steps h4 { font: 600 1.2rem/1.25 var(--font-display); letter-spacing: -0.015em; margin: 0 0 0.4rem; color: var(--text); }
 .hx-steps p { margin: 0; color: var(--text-dim); font-size: 0.95rem; }
 
 /* ── CTA band ─────────────────────────────────────────────────────────── */
@@ -346,8 +346,8 @@ body {
 .hx-field input::placeholder, .hx-field textarea::placeholder { color: var(--text-faint); }
 .hx-field input:hover, .hx-field select:hover, .hx-field textarea:hover { border-color: rgba(157, 179, 174, 0.35); }
 .hx-field input:focus, .hx-field select:focus, .hx-field textarea:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 4px rgba(255, 181, 71, 0.15); }
-.hx-disclaimer { margin: 0; font-size: 0.82rem; color: var(--text-faint); text-align: center; }
-.hx-disclaimer a { color: var(--text-dim); }
+.hx-disclaimer { margin: 0; font-size: 0.82rem; color: var(--text-dim); text-align: center; }
+.hx-disclaimer a { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
 .hx-disclaimer a:hover { color: var(--amber); }
 .hx-success { text-align: center; padding: var(--s-6) var(--s-3); }
 .hx-success-icon { width: 64px; height: 64px; margin: 0 auto var(--s-4); display: grid; place-items: center; border-radius: 50%; font-size: 1.8rem; color: #062018; background: var(--mint); box-shadow: 0 0 0 10px rgba(87, 227, 191, 0.12); animation: hx-pop 0.6s var(--ease-spring); }
@@ -392,3 +392,10 @@ body {
 .nav-links .hx-nav-share:focus-visible { outline: 2px solid var(--amber); outline-offset: 4px; border-radius: 4px; }
 .nav-links li:has(.hx-nav-share) { display: flex; align-items: center; }
 .footer-brand [data-social-links] { color: var(--text-dim); }
+
+/* Contact form: honeypot, error state */
+.hx-hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.hx-form-error { margin: 0 0 0.9rem; padding: 0.7rem 0.9rem; border-radius: 12px; font-size: 0.9rem; color: #ffd2c8; background: rgba(255, 106, 77, 0.12); border: 1px solid rgba(255, 106, 77, 0.45); }
+.hx-form-error a { color: #fff; }
+.hx-form [aria-invalid="true"] { border-color: var(--coral) !important; box-shadow: 0 0 0 3px rgba(255, 106, 77, 0.2); }
+.hx-success h3:focus { outline: none; }
