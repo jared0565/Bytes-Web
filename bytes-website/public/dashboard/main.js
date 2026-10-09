@@ -1411,7 +1411,7 @@ async function loadChatbotView() {
 let modelCatalog = null;
 let savedLlmModel = '';
 
-const formatPrice = (n) => `$${Number(n).toFixed(2)}`;
+const formatPrice = (n) => `$${Number(n) > 0 && Number(n) < 0.1 ? Number(n).toFixed(3) : Number(n).toFixed(2)}`;
 
 async function loadModelCatalog() {
     const select = document.getElementById('settings-llm-model');
@@ -1458,6 +1458,7 @@ function renderModelCost() {
     if (!m) { costEl.textContent = ''; return; }
     costEl.innerHTML = `Provider: <strong>${escapeHtml(m.providerName)}</strong> · Model: <code>${escapeHtml(m.id)}</code><br>`
         + `Cost: <strong>${formatPrice(m.inputPrice)}</strong> per 1M input tokens · <strong>${formatPrice(m.outputPrice)}</strong> per 1M output tokens`
+        + (m.provider === 'openrouter' ? ' <span style="color:var(--text-secondary);">(live OpenRouter price)</span>' : '')
         + (m.available ? '' : `<br><span style="color:var(--warning, #f59e0b);">No ${escapeHtml(m.providerName)} API key is set on the chatbot server — replies will use the default model.</span>`);
 }
 
