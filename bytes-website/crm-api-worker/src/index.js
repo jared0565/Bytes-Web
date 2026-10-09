@@ -1466,6 +1466,61 @@ app.post('/api/site-settings', requireAuth, async (c) => {
     return c.json({ success: true, ...update });
 });
 
+// POST /api/public/website-lead — the bytesfx.com contact form (no auth).
+// Saves the enquiry as a lead for the Bytes website, emails the admins, and sends the visitor
+// the usual confirm-your-email message. Honeypot field + 5 submissions per IP per hour.
+const WEBSITE_SERVICES = { website: 'Website development', application: 'Application development', chatbot: 'Chatbot solutions', other: 'Other / not sure' };
+
+app.post('/api/public/website-lead', async (c) => {
+    let body;
+    try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid request' }, 400); }
+    // Bots fill every field; people never see this one. Pretend success so they don't retry.
+    if (typeof body.website === 'string' && body.website.trim()) return c.json({ success: true });
+
+    const name = String(body.name || '').trim().slice(0, 100);
+    const email = String(body.email || '').trim().toLowerCase().slice(0, 200);
+    const service = WEBSITE_SERVICES[body.service] || null;
+    const message = String(body.message || '').trim().slice(0, 2000);
+    if (name.length < 2) return c.json({ error: 'Please enter your name.', field: 'name' }, 400);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return c.json({ error: 'Please enter a valid email address.', field: 'email' }, 400);
+    if (!service) return c.json({ error: 'Please choose what you need.', field: 'service' }, 400);
+
+    const ip = c.req.header('CF-Connecting-IP') || 'unknown';
+    const rlKey = `rl:website-lead:${ip}`;
+    const count = parseInt(await c.env.OAUTH_TOKENS.get(rlKey) || '0', 10);
+    if (count >= 5) return c.json({ error: 'Too many requests. Please email contact@bytesfx.com instead.' }, 429);
+    await c.env.OAUTH_TOKENS.put(rlKey, String(count + 1), { expirationTtl: 3600 });
+
+    const now = Date.now();
+    const token = crypto.randomUUID();
+    try {
+        const { meta } = await c.env.DB.prepare(
+            'INSERT INTO leads (client_id, name, email, service, budget, summary, timestamp, pipeline_stage, updated_at, is_verified, verification_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)'
+        ).bind(HOUSE_CLIENT_ID, name, email, service, '', message ? `Contact form: ${message}` : 'Contact form enquiry (no details given).', now, 'lead', now, token).run();
+
+        c.executionCtx.waitUntil((async () => {
+            const mail = await getMailSettings(c.env, HOUSE_CLIENT_ID);
+            const v = verificationEmail(c.env, name, token, false);
+            const r1 = await sendMail(mail, email, v.subject, v.html);
+            if (!r1.ok) console.warn('[Website lead] Confirmation not sent:', r1.error);
+            const admins = (c.env.ADMIN_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean);
+            if (admins.length) {
+                const html = emailShell(`<p><strong>New website enquiry</strong></p>
+                    <p>${escapeHtml(name)} &lt;${escapeHtml(email)}&gt;<br>${escapeHtml(service)}</p>
+                    ${message ? `<p style="white-space:pre-wrap">${escapeHtml(message)}</p>` : ''}
+                    <p><a href="https://web.bytesfx.com/dashboard/">Open the dashboard</a></p>`);
+                const r2 = await sendMail(mail, admins[0], `New website enquiry: ${name}`, html);
+                if (!r2.ok) console.warn('[Website lead] Admin alert not sent:', r2.error);
+            }
+        })().catch(e => console.error('[Website lead] Mail error:', e)));
+
+        return c.json({ success: true, leadId: meta?.last_row_id || null });
+    } catch (err) {
+        console.error('[Website lead] Save error:', err);
+        return c.json({ error: 'We could not save your enquiry. Please email contact@bytesfx.com.' }, 500);
+    }
+});
+
 // Public: the website footer reads its social links from here (no auth, cacheable)
 app.get('/api/public/site-socials', async (c) => {
     const cfg = JSON.parse(await c.env.CLIENT_SETTINGS.get(`client:${HOUSE_CLIENT_ID}`) || '{}');

@@ -578,22 +578,22 @@ function renderHomePage() {
         <div class="hx-benefits">
           <div class="hx-benefit reveal" style="--d:0">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>
-            <h4>ROI-focused development</h4>
+            <h3>ROI-focused development</h3>
             <p>Built around your business goals. Every feature is there to drive conversions and revenue.</p>
           </div>
           <div class="hx-benefit reveal" style="--d:1">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg>
-            <h4>Performance first</h4>
+            <h3>Performance first</h3>
             <p>Fast load times and smooth interactions that keep visitors engaged and cut bounce rates.</p>
           </div>
           <div class="hx-benefit reveal" style="--d:2">
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>
-            <h4>Conversion optimized</h4>
+            <h3>Conversion optimized</h3>
             <p>Strategic calls to action, persuasive copy and data-driven design that turn visitors into customers.</p>
           </div>
           <div class="hx-benefit reveal" style="--d:3">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10z"/></svg>
-            <h4>End-to-end support</h4>
+            <h3>End-to-end support</h3>
             <p>From strategy to launch and beyond. A partner in your growth, not just a vendor.</p>
           </div>
         </div>
@@ -610,10 +610,10 @@ function renderHomePage() {
         </header>
         <ol class="hx-steps" id="hxSteps">
           <span class="hx-steps-line" aria-hidden="true"><span></span></span>
-          <li class="reveal" style="--d:0"><span class="hx-step-n">01</span><h4>Discovery &amp; strategy</h4><p>We learn your goals, audience and competition, then plan what will win.</p></li>
-          <li class="reveal" style="--d:1"><span class="hx-step-n">02</span><h4>Design &amp; development</h4><p>We build for conversion using modern technology and proven patterns.</p></li>
-          <li class="reveal" style="--d:2"><span class="hx-step-n">03</span><h4>Testing &amp; optimization</h4><p>We test everything and tune for speed, accessibility and conversions.</p></li>
-          <li class="reveal" style="--d:3"><span class="hx-step-n">04</span><h4>Launch &amp; growth</h4><p>We launch with confidence and keep improving with ongoing support.</p></li>
+          <li class="reveal" style="--d:0"><span class="hx-step-n">01</span><h3>Discovery &amp; strategy</h3><p>We learn your goals, audience and competition, then plan what will win.</p></li>
+          <li class="reveal" style="--d:1"><span class="hx-step-n">02</span><h3>Design &amp; development</h3><p>We build for conversion using modern technology and proven patterns.</p></li>
+          <li class="reveal" style="--d:2"><span class="hx-step-n">03</span><h3>Testing &amp; optimization</h3><p>We test everything and tune for speed, accessibility and conversions.</p></li>
+          <li class="reveal" style="--d:3"><span class="hx-step-n">04</span><h3>Launch &amp; growth</h3><p>We launch with confidence and keep improving with ongoing support.</p></li>
         </ol>
       </div>
     </section>
@@ -668,6 +668,12 @@ function renderHomePage() {
               <label for="leadMessage">Project details (optional)</label>
               <textarea id="leadMessage" name="message" rows="4" placeholder="Your project, timeline and goals…"></textarea>
             </div>
+            <!-- Honeypot: hidden from people, filled by bots -->
+            <div class="hx-hp" aria-hidden="true">
+              <label for="leadWebsite">Website</label>
+              <input type="text" id="leadWebsite" name="website" tabindex="-1" autocomplete="off">
+            </div>
+            <p class="hx-form-error" id="leadFormError" role="alert" hidden></p>
             <button type="submit" class="hx-btn hx-btn-primary hx-btn-full">
               <span class="btn-text">Request free consultation</span>
               <span class="btn-loading hidden">Sending…</span>
@@ -676,8 +682,8 @@ function renderHomePage() {
           </form>
           <div id="formSuccess" class="hx-success hidden">
             <div class="hx-success-icon" aria-hidden="true">✓</div>
-            <h3>Thank you!</h3>
-            <p>We've received your enquiry and will be in touch within 24 hours.</p>
+            <h3 tabindex="-1" id="formSuccessTitle">Thank you, we've got it!</h3>
+            <p>We'll reply within 24 hours. Please check your inbox for a quick email to confirm your address.</p>
           </div>
         </div>
       </div>
@@ -712,64 +718,62 @@ function initModal() {
   });
 }
 
+const CRM_API_URL = 'https://crm-api.bmorris0565.workers.dev';
+
 async function handleLeadSubmission(form) {
   const btn = form.querySelector('button[type="submit"]');
   const btnText = btn.querySelector('.btn-text');
   const btnLoading = btn.querySelector('.btn-loading');
   const formSuccess = document.getElementById('formSuccess');
+  const errorEl = document.getElementById('leadFormError');
+  if (btn.disabled) return; // no double submits
 
-  // Show loading state
   btn.disabled = true;
   btnText?.classList.add('hidden');
   btnLoading?.classList.remove('hidden');
+  if (errorEl) { errorEl.hidden = true; errorEl.textContent = ''; }
+  form.querySelectorAll('[aria-invalid]').forEach(el => el.removeAttribute('aria-invalid'));
 
-  // Collect form data
-  const formData = new FormData(form);
-  const leadData = {
-    name: formData.get('name'),
-    email: formData.get('email'),
-    service: formData.get('service'),
-    message: formData.get('message'),
-    timestamp: new Date().toISOString(),
-    source: 'bytesfx-website'
+  const fd = new FormData(form);
+  const payload = {
+    name: fd.get('name'), email: fd.get('email'), service: fd.get('service'),
+    message: fd.get('message'), website: fd.get('website'), page: location.pathname,
   };
 
   try {
-    // Try to store in localStorage as primary storage
-    const leads = JSON.parse(localStorage.getItem('bytesfx_leads') || '[]');
-    leadData.id = Date.now().toString(36) + Math.random().toString(36).substr(2);
-    leads.push(leadData);
-    localStorage.setItem('bytesfx_leads', JSON.stringify(leads));
-
-    // Try to send to API if available
-    try {
-      await fetch('/crm-api/submit-lead', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(leadData)
-      });
-    } catch (apiError) {
-      console.log('API not available, stored locally');
+    const res = await fetch(`${CRM_API_URL}/api/public/website-lead`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (data.field) form.querySelector(`[name="${data.field}"]`)?.setAttribute('aria-invalid', 'true');
+      throw new Error(data.error || 'Something went wrong.');
     }
 
-    // Show success
     form.classList.add('hidden');
     formSuccess?.classList.remove('hidden');
-
-    // Trigger chatbot event
-    if (window.trackLeadCapture) {
-      window.trackLeadCapture(leadData);
-    }
-
+    document.getElementById('formSuccessTitle')?.focus();
+    // Conversion event for analytics/ads (Consent Mode decides what is stored)
+    try {
+      if (typeof window.gtag === 'function') window.gtag('event', 'generate_lead', { method: 'contact_form', service: payload.service });
+      (window.dataLayer = window.dataLayer || []).push({ event: 'generate_lead', lead_source: 'contact_form', service: payload.service });
+    } catch (_) {}
   } catch (error) {
     console.error('Lead submission error:', error);
-    alert('There was an error submitting your request. Please try again.');
+    if (errorEl) {
+      errorEl.innerHTML = `${escapeText(error.message || 'We could not send your enquiry.')} You can also email <a href="mailto:contact@bytesfx.com">contact@bytesfx.com</a>.`;
+      errorEl.hidden = false;
+    }
   } finally {
     btn.disabled = false;
     btnText?.classList.remove('hidden');
     btnLoading?.classList.add('hidden');
   }
 }
+
+function escapeText(s) { return String(s).replace(/[&<>"']/g, ch => `&#${ch.charCodeAt(0)};`); }
 
 // ============================================================================
 // INITIALIZE
