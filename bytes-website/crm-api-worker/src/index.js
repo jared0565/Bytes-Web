@@ -1084,7 +1084,8 @@ app.get('/api/conversations', requireAuth, async (c) => {
     if (clientFilter) { where.push('client_id = ?'); args.push(clientFilter); }
     try {
         const [logsRes, leadsRes, clientsRes] = await Promise.all([
-            c.env.DB.prepare(`SELECT id, client_id, user_message, bot_response, timestamp FROM chat_logs WHERE ${where.join(' AND ')} ORDER BY client_id, timestamp ASC LIMIT 20000`).bind(...args).all(),
+            // Newest first so a capped read drops the oldest messages, not whole clients later in the alphabet
+            c.env.DB.prepare(`SELECT id, client_id, user_message, bot_response, timestamp FROM chat_logs WHERE ${where.join(' AND ')} ORDER BY timestamp DESC LIMIT 20000`).bind(...args).all(),
             c.env.DB.prepare(`SELECT id, client_id, name, email, service, budget, pipeline_stage, timestamp FROM leads WHERE ${where.join(' AND ')}`).bind(...args).all(),
             isAdmin ? c.env.DB.prepare('SELECT DISTINCT client_id FROM chat_logs ORDER BY client_id').all() : Promise.resolve({ results: [] }),
         ]);
@@ -1092,7 +1093,8 @@ app.get('/api/conversations', requireAuth, async (c) => {
         // Group into conversations
         const convs = [];
         let cur = null;
-        for (const m of logsRes.results || []) {
+        const rows = (logsRes.results || []).sort((a, b) => (a.client_id < b.client_id ? -1 : a.client_id > b.client_id ? 1 : a.timestamp - b.timestamp));
+        for (const m of rows) {
             if (!cur || cur.clientId !== m.client_id || m.timestamp - cur.end > SESSION_GAP_MS) {
                 cur = { id: `${m.client_id}:${m.timestamp}`, clientId: m.client_id, start: m.timestamp, end: m.timestamp, messages: [] };
                 convs.push(cur);
