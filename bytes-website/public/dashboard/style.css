@@ -1547,8 +1547,8 @@ body.light-mode .ld-drawer { --cl-1: #2a78d6; --cl-soft: rgba(15, 23, 42, 0.05);
 @media (max-width: 900px) { #leads-view .kanban-board { height: auto; min-height: 0; } #leads-view .kanban-column { min-width: 82vw; height: auto; max-height: 75vh; } }
 
 /* ─── Chatbot page ─── */
-#chatbot-view { --cb-1: #3987e5; --cb-ok: #4cc44c; --cb-warn: #f0a33a; --cb-bad: #ef7a7a; --cb-line: var(--glass-border); --cb-soft: rgba(255, 255, 255, 0.04); }
-body.light-mode #chatbot-view { --cb-1: #2a78d6; --cb-ok: #0a7d0a; --cb-warn: #a35f00; --cb-bad: #b02e2e; --cb-soft: rgba(15, 23, 42, 0.05); }
+#chatbot-view, #mc-drawer { --cb-1: #3987e5; --cb-ok: #4cc44c; --cb-warn: #f0a33a; --cb-bad: #ef7a7a; --cb-line: var(--glass-border); --cb-soft: rgba(255, 255, 255, 0.04); }
+body.light-mode #chatbot-view, body.light-mode #mc-drawer { --cb-1: #2a78d6; --cb-ok: #0a7d0a; --cb-warn: #a35f00; --cb-bad: #b02e2e; --cb-soft: rgba(15, 23, 42, 0.05); }
 #chatbot-view .settings-layout { max-width: 880px; }
 .cb-status { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; }
 .cb-status:empty { display: none; }
@@ -1737,3 +1737,38 @@ body.light-mode select option, body.light-mode select optgroup { background-colo
 body.light-mode select optgroup { color: #2a78d6; }
 body.light-mode select option:disabled { color: #64748b; }
 body.light-mode select option:checked { background-color: #2a78d6; color: #fff; }
+
+/* Manage Clients drawer: chatbot settings, laid out like Settings (Bytes website) */
+.mc-bot { position: relative; margin-top: 1.25rem; }
+.mc-bot-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.mc-bot-head h4 { margin: 0; }
+.mc-dirty { font-size: 0.7rem; font-weight: 600; color: var(--ld-warn); padding: 0.15rem 0.55rem; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--ld-warn) 50%, transparent); }
+.mc-dirty[hidden] { display: none; }
+.mc-health { display: grid; grid-template-columns: 1fr; gap: 0.5rem; margin: 0.85rem 0 0.25rem; }
+.mc-health:empty { display: none; }
+.mc-health .cb-stat { padding: 0.6rem 0.75rem; }
+.mc-group { margin: 1rem 0 0; padding: 0.95rem 1rem 0.35rem; border: 1px solid var(--cl-line); border-radius: 14px; background: var(--cl-soft); min-width: 0; }
+.mc-group legend { padding: 0 0.4rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-secondary); }
+.mc-group .form-group { margin-bottom: 0.9rem; }
+.mc-group textarea { width: 100%; resize: vertical; }
+.mc-group .sett-toggle-row { padding: 0.55rem 0; }
+.mc-code { margin: 0 0 0.5rem; font-size: 0.74rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.mc-row { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.mc-wl { margin-top: 0.75rem; padding: 0.9rem 1rem; border-radius: 12px; border: 1px solid color-mix(in srgb, #3987e5 35%, transparent); background: color-mix(in srgb, #3987e5 6%, transparent); }
+.mc-wl-title { margin: 0 0 0.75rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: #6da7ec; }
+body.light-mode .mc-wl-title { color: #2a78d6; }
+#config-wl-locked:empty { display: none; }
+.mc-savebar { position: sticky; bottom: -2rem; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin: 1rem -1.25rem 0; padding: 0.75rem 1.25rem 2rem; background: var(--bg-secondary); border-top: 1px solid var(--cl-line); box-shadow: 0 -12px 24px -18px rgba(0, 0, 0, 0.6); }
+.mc-savebar p { margin: 0; font-size: 0.8rem; min-height: 1em; flex: 1; }
+.mc-savebar .btn-primary { white-space: nowrap; }
+.mc-savebar .btn-primary:disabled { opacity: 0.6; cursor: progress; }
+.mc-bot.cb-dirty .mc-savebar { border-top-color: color-mix(in srgb, var(--ld-warn) 55%, transparent); }
+
+/* Light mode: form fields used white text (unreadable on the light background) */
+body.light-mode .form-group input:not([type="checkbox"]):not([type="color"]),
+body.light-mode .form-group textarea,
+body.light-mode .form-group select { color: var(--text-primary); background-color: #ffffff; border-color: rgba(15, 23, 42, 0.16); }
+body.light-mode .form-group input::placeholder, body.light-mode .form-group textarea::placeholder { color: #94a3b8; }
+body.light-mode #dash-new-domain,
+body.light-mode #sequence-modal input,
+body.light-mode #sequence-modal textarea { color: var(--text-primary) !important; background: #ffffff !important; border-color: rgba(15, 23, 42, 0.16) !important; }

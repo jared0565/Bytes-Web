@@ -991,136 +991,218 @@ function ldExport() {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
-// --- Client Management ---
-loadConfigBtn.addEventListener('click', async () => {
-    const cid = configClientId.value.trim();
+// --- Client Management: chatbot settings in the client drawer ---
+// Same building blocks as Settings (Bytes website): health strip, mode guidance, model + cost,
+// effort, prompt helper, domains with plan limits, one save, unsaved-change guard.
+const MCB = { cid: '', plan: 'free', inTrial: false, loaded: false };
+const MCB_CAMPAIGN_NOTES = {
+    ai: 'AI writes up to 5 personalised emails from the lead\'s own conversation, signed with the company name. On the Free plan this falls back to the simple sequence.',
+    rule: 'A simple 3-email follow-up (thanks, any questions, checking in) using the company name and the service the lead asked about.',
+    manual: 'Nothing is generated. Follow-ups are written by hand from the lead\'s Campaign button.',
+};
+const mcbEl = (id) => document.getElementById(id);
+const domainListOf = (text) => [...new Set(String(text || '').split(/[\n,]+/)
+    .map(d => d.trim().toLowerCase().replace(/^[a-z]+:\/\//, '').split(/[/?#\s]/)[0].replace(/:\d+$/, '').replace(/\.$/, ''))
+    .filter(Boolean))];
+
+function mcbSetDirty(on) {
+    mcbEl('mc-bot')?.classList.toggle('cb-dirty', on);
+    const tag = mcbEl('mc-dirty'); if (tag) tag.hidden = !on;
+}
+const mcbIsDirty = () => !!mcbEl('mc-bot')?.classList.contains('cb-dirty');
+
+function mcbStatus(text, kind = 'info') {
+    const st = mcbEl('config-status');
+    st.textContent = text;
+    st.style.color = kind === 'ok' ? 'var(--success)' : kind === 'bad' ? 'var(--error)' : 'var(--text-secondary)';
+}
+
+function mcbRefreshUI() {
+    const mode = configMode.value;
+    mcbEl('config-mode-note').textContent = (typeof CB_MODE_NOTES !== 'undefined' && CB_MODE_NOTES[mode]) || '';
+    const scripted = ['free', 'standard'].includes(mode);
+    document.querySelectorAll('#mc-bot .mc-ai-only').forEach(g => { g.classList.toggle('cb-muted', scripted); g.querySelectorAll('select').forEach(x => { x.disabled = scripted; }); });
+    mcbEl('config-llm-cost').innerHTML = modelCatalog ? modelCostHtml(mcbEl('config-llm-model').value) : '';
+    const len = configPrompt.value.length;
+    mcbEl('config-prompt-count').textContent = `${len.toLocaleString('en-GB')} / 20,000 characters${len ? '' : ' · empty uses the built-in sales prompt'}`;
+    mcbEl('config-campaign-note').textContent = MCB_CAMPAIGN_NOTES[configCampaignMode.value] || '';
+    // Domains against the plan's limit (trials use Free limits)
+    const list = domainListOf(mcbEl('config-domains').value);
+    const lim = (PLAN_INSTALL_LIMITS[MCB.inTrial ? 'free' : MCB.plan] || PLAN_INSTALL_LIMITS.free).maxDomains;
+    const note = mcbEl('config-domains-note');
+    note.classList.toggle('cb-warn', lim !== -1 && list.length > lim);
+    note.textContent = !list.length
+        ? 'No list: the chatbot answers on any website that has the install code.'
+        : `${list.length} domain${list.length === 1 ? '' : 's'}${lim === -1 ? '' : ` of ${lim} on this plan`}. Only these sites can use the bot${lim !== -1 && list.length > lim ? '. Over the plan limit: the client won\'t be able to add more until they upgrade.' : '.'}`;
+    // Install code + test link
+    const safeId = (MCB.cid || '').replace(/[^a-z0-9_\-]/gi, '');
+    mcbEl('config-embed').textContent = safeId ? `<script src="https://web.bytesfx.com/widget.js"\n  data-client-id="${safeId}"></` + 'script>' : '';
+    mcbEl('config-test-chat').href = safeId ? `/preview.html?client=${encodeURIComponent(safeId)}` : '#';
+}
+
+async function mcbHealth(cid) {
+    const el = mcbEl('mc-health');
+    el.innerHTML = '';
     if (!cid) return;
+    let d = null;
+    try { const res = await apiFetch(`${API_BASE}/api/chatbot/status?clientId=${encodeURIComponent(cid)}`); if (res.ok) d = await res.json(); } catch (_) {}
+    if (!d || MCB.cid !== cid) return;
+    const fresh = d.lastChatAt && Date.now() - d.lastChatAt < 7 * 86400000;
+    const ai = ['ai', 'pro', 'elite'].includes(d.mode);
+    const item = (state, title, text) => `<div class="cb-stat cb-${state}"><span class="cb-stat-dot" aria-hidden="true"></span><span class="cb-stat-text"><strong>${title}</strong><span>${text}</span></span></div>`;
+    el.innerHTML = [
+        d.lastChatAt ? item(fresh ? 'ok' : 'warn', fresh ? 'Widget live' : 'Widget quiet', `Last chat ${cbAgo(d.lastChatAt)} · ${d.messages7d} message${d.messages7d === 1 ? '' : 's'} this week`)
+            : item('warn', 'Not detected yet', 'No conversations yet. Is the install code on their site?'),
+        item(ai ? 'ok' : 'info', ai ? 'AI replies on' : 'Scripted replies', ai ? `${escapeHtml(d.mode)} · ${d.llmModel ? escapeHtml(d.llmModel.replace(/^openrouter:/, '')) : 'default model'}` : `Mode: ${escapeHtml(d.mode)}`),
+        item(d.mailReady ? 'ok' : 'bad', d.mailReady ? 'Emails sending' : 'Emails not sending', d.mailReady ? `${d.leads7d} lead${d.leads7d === 1 ? '' : 's'} this week` : escapeHtml(d.mailIssue || 'No email sender set up')),
+    ].join('');
+}
 
-    configStatus.innerText = "Loading...";
-    configStatus.style.color = "white";
-
+async function mcbLoad(cid) {
+    MCB.cid = cid; MCB.loaded = false;
+    mcbSetDirty(false);
+    mcbStatus('Loading…');
+    mcbRefreshUI();
+    mcbHealth(cid);
     try {
-        const res = await apiFetch(`${API_BASE}/api/config?clientId=${cid}`);
+        const [res, crmRes] = await Promise.all([
+            apiFetch(`${API_BASE}/api/config?clientId=${encodeURIComponent(cid)}`),
+            apiFetch(`${API_BASE}/api/crm-settings?clientId=${encodeURIComponent(cid)}`),
+            ensureModelCatalog().catch(e => console.error('Model catalog load failed:', e)),
+        ]);
+        if (MCB.cid !== cid) return; // another client was opened meanwhile
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+        const data = await res.json();
+        const crm = crmRes.ok ? await crmRes.json() : {};
+        MCB.plan = data.plan || crm.plan || 'free';
+        MCB.inTrial = !!(data.inTrial ?? crm.inTrial);
 
-        if (res.ok) {
-            const data = await res.json();
-            configPrompt.value = data.systemPrompt || '';
-            configMode.value = data.mode || 'free';
-            configCompanyName.value = data.companyName || '';
-            configBranding.checked = data.showBranding !== false;
-            configReferral.value = data.referralId || '';
+        configCompanyName.value = data.companyName || '';
+        // Post-trial Free clients can only run the Free bot (the API refuses anything else)
+        const locked = !MCB.inTrial && MCB.plan === 'free';
+        [...configMode.options].forEach(o => {
+            const base = o.dataset.label || (o.dataset.label = o.textContent);
+            o.disabled = locked && o.value !== 'free';
+            o.textContent = o.disabled ? `${base} (paid plan)` : base;
+        });
+        configMode.value = data.mode || 'free';
+        const modelSel = mcbEl('config-llm-model');
+        if (modelCatalog) populateModelSelect(modelSel, data.llmModel || '');
+        else { modelSel.innerHTML = '<option value="">Default model (could not load the model list)</option>'; delete modelSel.dataset.filled; }
+        mcbEl('config-llm-effort').value = ['low', 'medium', 'high'].includes(data.llmEffort) ? data.llmEffort : 'medium';
+        configPrompt.value = data.systemPrompt || '';
+        mcbEl('config-domains').value = (data.allowedDomains || []).join('\n');
+        configReferral.value = data.referralId || '';
 
-            // White-label section visibility
-            if (whiteLabelSection) {
-                if (data.whiteLabelEnabled) {
-                    whiteLabelSection.style.display = 'block';
-                    configWidgetName.value = data.widgetName || '';
-                    const color = data.widgetAccentColor || '#6366f1';
-                    configWidgetColor.value = color;
-                    configWidgetColorPicker.value = /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#6366f1';
-                    configWidgetAvatar.value = data.widgetAvatar || '';
-                } else {
-                    whiteLabelSection.style.display = 'none';
-                }
-            }
+        // Badge: required on Free, Trial and Starter (the API enforces it too)
+        const brandingLocked = data.brandingMandatory ?? (MCB.inTrial || MCB.plan === 'free' || MCB.plan === 'starter');
+        configBranding.checked = brandingLocked ? true : data.showBranding !== false;
+        configBranding.disabled = !!brandingLocked;
+        mcbEl('config-branding-note').textContent = brandingLocked
+            ? (MCB.inTrial ? 'Required during the trial' : `Required on the ${mcPlanName(MCB.plan).replace(/<[^>]*>/g, '')} plan; Pro and above can hide it`)
+            : 'Optional on this plan';
 
-            // Badge mandatory on free (lifetime), trial, and starter — removable on pro+
-            const brandingLocked = data.brandingMandatory ?? (data.inTrial || data.plan === 'free' || data.plan === 'starter');
-            if (brandingLocked) {
-                configBranding.checked = true;
-                // Not `disabled`: disabled inputs swallow clicks, so the upgrade prompt would never open
-                configBranding.disabled = false;
-                configBranding.setAttribute('aria-disabled', 'true');
-                configBranding.onclick = (e) => { e.preventDefault(); showUpgradeModal('remove_branding'); };
-                const lockNote = data.inTrial
-                    ? ' 🔒 (Trial — Pro+ to remove)'
-                    : data.plan === 'starter'
-                        ? ' 🔒 (Starter — upgrade to Pro to remove)'
-                        : ' 🔒 (Free — upgrade to Pro to remove)';
-                configBranding.parentElement.querySelector('label').innerText = `Show "Powered by BytesAI"${lockNote}`;
-            } else {
-                configBranding.disabled = false;
-                configBranding.removeAttribute('aria-disabled');
-                configBranding.onclick = null;
-                configBranding.parentElement.querySelector('label').innerText = "Show \"Powered by BytesAI\"";
-            }
-            configStatus.innerText = "Settings loaded!";
-            configStatus.style.color = "var(--success)";
-
-            // LOAD CRM SETTINGS (Mode/Auto-Approve)
-            const crmRes = await apiFetch(`${API_BASE}/api/crm-settings?clientId=${cid}`);
-            if (crmRes.ok) {
-                const crmData = await crmRes.json();
-                configCampaignMode.value = crmData.default_campaign_mode || 'ai';
-                configAutoApprove.checked = crmData.auto_approve_campaigns === 1;
-            }
-        } else {
-            configStatus.innerText = "Settings not found (using defaults).";
-            configMode.value = 'ai';
-            configPrompt.value = '';
+        // White label: Business and Enterprise
+        whiteLabelSection.style.display = data.whiteLabelEnabled ? 'block' : 'none';
+        mcbEl('config-wl-locked').textContent = data.whiteLabelEnabled ? '' : 'Custom bot name, colour and avatar are available on the Business and Enterprise plans.';
+        if (data.whiteLabelEnabled) {
+            configWidgetName.value = data.widgetName || '';
+            const color = data.widgetAccentColor || '#6366f1';
+            configWidgetColor.value = color;
+            configWidgetColorPicker.value = /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#6366f1';
+            configWidgetAvatar.value = data.widgetAvatar || '';
         }
+
+        configCampaignMode.value = ['ai', 'rule', 'manual'].includes(crm.default_campaign_mode) ? crm.default_campaign_mode : 'ai';
+        configAutoApprove.checked = crm.auto_approve_campaigns === 1;
+
+        MCB.loaded = true;
+        mcbRefreshUI();
+        mcbSetDirty(false);
+        mcbStatus('');
     } catch (e) {
-        configStatus.innerText = "Error loading settings.";
+        mcbStatus(`Could not load this client's settings: ${e.message}`, 'bad');
     }
+}
+
+loadConfigBtn.addEventListener('click', () => {
+    const cid = configClientId.value.trim();
+    if (cid) mcbLoad(cid);
 });
 
 saveConfigBtn.addEventListener('click', async () => {
-    const cid = configClientId.value.trim();
-    const prompt = configPrompt.value.trim();
-    const mode = configMode.value;
-    const branding = configBranding.checked;
-    const referral = configReferral.value.trim();
-
-    if (!cid) {
-        configStatus.innerText = "Client ID is required";
-        return;
+    const cid = MCB.cid || configClientId.value.trim();
+    if (!cid) { mcbStatus('Open a client first.', 'bad'); return; }
+    const avatar = configWidgetAvatar.value.trim();
+    if (whiteLabelSection.style.display !== 'none') {
+        if (configWidgetColor.value.trim() && !/^#[0-9a-fA-F]{6}$/.test(configWidgetColor.value.trim())) { mcbStatus('Accent colour must be a hex value like #6366f1.', 'bad'); configWidgetColor.focus(); return; }
+        if (avatar && !/^https:\/\//i.test(avatar)) { mcbStatus('The avatar must be an https:// image address.', 'bad'); configWidgetAvatar.focus(); return; }
     }
-
     const settings = {
-        systemPrompt: prompt,
-        ...(mode ? { mode } : {}), // empty select = unknown stored value; keep it rather than resetting
-        companyName: configCompanyName.value,
-        showBranding: branding,
-        referralId: referral
+        companyName: configCompanyName.value.trim(),
+        mode: configMode.value,
+        llmEffort: mcbEl('config-llm-effort').value,
+        systemPrompt: configPrompt.value.trim(),
+        allowedDomains: domainListOf(mcbEl('config-domains').value),
+        referralId: configReferral.value.trim(),
     };
-
-    // Include white-label fields if the section is visible
-    if (whiteLabelSection && whiteLabelSection.style.display !== 'none') {
-        if (configWidgetName.value.trim()) settings.widgetName = configWidgetName.value.trim();
-        if (configWidgetColor.value.trim()) settings.widgetAccentColor = configWidgetColor.value.trim();
-        if (configWidgetAvatar.value.trim()) settings.widgetAvatar = configWidgetAvatar.value.trim();
+    if (!configBranding.disabled) settings.showBranding = configBranding.checked;
+    // Only send the model once the list loaded, so a failed load can't wipe the saved choice
+    if (mcbEl('config-llm-model').dataset.filled) settings.llmModel = mcbEl('config-llm-model').value || '';
+    if (whiteLabelSection.style.display !== 'none') {
+        settings.widgetName = configWidgetName.value.trim();
+        settings.widgetAccentColor = configWidgetColor.value.trim();
+        settings.widgetAvatar = avatar;
     }
 
-    configStatus.innerText = "Saving...";
+    saveConfigBtn.disabled = true;
+    mcbStatus('Saving…');
     try {
-        const res = await apiFetch(`${API_BASE}/api/config`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ clientId: cid, settings })
+        const res = await apiFetch(`${API_BASE}/api/config`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: cid, settings }) });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+        const crmRes = await apiFetch(`${API_BASE}/api/crm-settings`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ clientId: cid, default_campaign_mode: configCampaignMode.value, auto_approve_campaigns: configAutoApprove.checked }),
         });
-
-        if (res.ok) {
-            // SAVE CRM SETTINGS
-            const crmRes = await apiFetch(`${API_BASE}/api/crm-settings`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    clientId: cid,
-                    default_campaign_mode: configCampaignMode.value,
-                    auto_approve_campaigns: configAutoApprove.checked
-                })
-            });
-            configStatus.innerText = crmRes.ok ? "Settings saved successfully!" : "Chatbot settings saved, but campaign settings failed to save.";
-            configStatus.style.color = crmRes.ok ? "var(--success)" : "var(--error)";
-        } else {
-            const err = await res.json().catch(() => ({}));
-            configStatus.innerText = err.error || "Failed to save settings.";
-            configStatus.style.color = "var(--error)";
-        }
+        if (!crmRes.ok) throw new Error(`chatbot saved, but campaign settings failed: ${(await crmRes.json().catch(() => ({}))).error || `HTTP ${crmRes.status}`}`);
+        mcbEl('config-domains').value = settings.allowedDomains.join('\n');
+        mcbSetDirty(false);
+        mcbStatus('✓ Chatbot settings saved.', 'ok');
+        mcbHealth(cid);
+        if (typeof loadClients === 'function') loadClients(true); // refresh the Bot column
     } catch (e) {
-        configStatus.innerText = "Network error.";
+        mcbStatus(`Save failed: ${e.message}`, 'bad');
+    } finally {
+        saveConfigBtn.disabled = false;
     }
 });
+
+// Live guidance + unsaved-change tracking
+['config-mode', 'config-llm-model', 'config-campaign-mode'].forEach(id => mcbEl(id)?.addEventListener('change', mcbRefreshUI));
+['config-prompt', 'config-domains'].forEach(id => mcbEl(id)?.addEventListener('input', mcbRefreshUI));
+mcbEl('config-domains')?.addEventListener('blur', () => {
+    const ta = mcbEl('config-domains');
+    const cleaned = domainListOf(ta.value).join('\n');
+    if (cleaned !== ta.value.trim()) { ta.value = cleaned; mcbRefreshUI(); }
+});
+['input', 'change'].forEach(ev => mcbEl('mc-bot')?.addEventListener(ev, (e) => { if (e.isTrusted && MCB.loaded && !e.target.closest('.btn-primary')) mcbSetDirty(true); }));
+mcbEl('config-prompt-template')?.addEventListener('click', () => {
+    const company = configCompanyName.value.trim() || '[Company]';
+    const tpl = `You are the friendly assistant for ${company}.\n\nWhat we do: [one or two sentences about the services].\nWho we help: [ideal customers].\nPrices: [starting prices, or "we quote after a short call"].\nOpening hours / location: [details].\n\nGoals, in order:\n1. Answer questions clearly in 2–3 short sentences.\n2. Ask for the visitor's name and email when they show interest.\n3. Offer a free consultation and confirm we'll be in touch.\n\nRules: only discuss ${company} and its services; never invent prices or promises; if unsure, offer to have a team member follow up.`;
+    if (configPrompt.value.trim() && !confirm('Replace the current prompt with the starter prompt?')) return;
+    configPrompt.value = tpl;
+    mcbSetDirty(true);
+    mcbRefreshUI();
+    configPrompt.focus();
+});
+mcbEl('config-copy-embed')?.addEventListener('click', (e) => {
+    const code = mcbEl('config-embed').textContent;
+    if (!code) return;
+    const btn = e.currentTarget;
+    const done = (t) => { btn.textContent = t; setTimeout(() => { btn.textContent = 'Copy install code'; }, 1800); };
+    try { navigator.clipboard.writeText(code).then(() => done('Copied ✓'), () => done('Select and copy the code')); } catch (_) { done('Select and copy the code'); }
+});
+window.addEventListener('beforeunload', (e) => { if (!mcbEl('mc-drawer')?.hidden && mcbIsDirty()) { e.preventDefault(); e.returnValue = ''; } });
 
 // --- Lead Simulator Logic ---
 simulateBtn.addEventListener('click', async () => {
@@ -3386,13 +3468,16 @@ function openClientDrawer(cid) {
     const drawer = document.getElementById('mc-drawer');
     drawer.hidden = false;
     requestAnimationFrame(() => drawer.classList.add('open'));
-    if (cid) loadConfigBtn.click(); // existing loader fills the form
+    if (cid) mcbLoad(cid);
+    else { MCB.cid = ''; MCB.loaded = false; mcbSetDirty(false); mcbRefreshUI(); mcbEl('mc-health').innerHTML = ''; }
     (cid ? document.getElementById('mc-d-close') : idInput).focus();
 }
 
 function closeClientDrawer() {
     const drawer = document.getElementById('mc-drawer');
     if (!drawer || drawer.hidden) return;
+    if (mcbIsDirty() && !confirm('You have unsaved chatbot settings for this client. Close without saving?')) return;
+    mcbSetDirty(false);
     drawer.classList.remove('open');
     drawer.hidden = true;
     document.getElementById('mc-backdrop').hidden = true;

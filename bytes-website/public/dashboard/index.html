@@ -393,70 +393,131 @@
                             <p id="mc-plan-msg" class="cb-hint" role="status"></p>
                         </div>
 
-                        <h4>Chatbot settings</h4>
-                        <div class="form-group">
-                            <label>Bot Mode (Service Tier)</label>
-                            <select id="config-mode" >
-                                <option value="free">Free (Basic Scripted)</option>
-                                <option value="standard">Standard (Advanced Scripted)</option>
-                                <option value="ai">AI (set the model on the Chatbot page)</option>
-                                <option value="pro">Pro AI (Gemini Strategy)</option>
-                                <option value="elite">Elite (Advanced AI + High Limits)</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Default Campaign Mode</label>
-                            <select id="config-campaign-mode" >
-                                <option value="ai">AI-Generated (Gemini)</option>
-                                <option value="rule">Rule-Based (Templates)</option>
-                                <option value="manual">Manual (Self-Write Only)</option>
-                            </select>
-                        </div>
-                        <div class="form-group" style="display: flex; gap: 1rem; align-items: center;">
-                            <label style="flex: 1;">Auto-Approve Campaigns</label>
-                            <input type="checkbox" id="config-auto-approve" style="width: 20px; height: 20px;">
-                        </div>
-                        <div class="form-group">
-                            <label>System Prompt (Persona)</label>
-                            <textarea id="config-prompt"
-                                placeholder="Define the chatbot's personality and rules..."></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label for="config-company-name">Company / brand name</label>
-                            <input type="text" id="config-company-name" placeholder="e.g. Acme Corp">
-                        </div>
-                        <div class="form-group"
-                            style="display: flex; gap: 1rem; align-items: center; margin-top: 1rem;">
-                            <label style="flex: 1;">Show "Powered by BytesAI"</label>
-                            <input type="checkbox" id="config-branding" style="width: 20px; height: 20px;">
-                        </div>
-
-                        <!-- White-label section — Business/Enterprise only -->
-                        <div id="white-label-section" style="display:none; margin-top: 1.5rem; padding: 1.25rem; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; background: rgba(255,255,255,0.03);">
-                            <p style="font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-color); margin: 0 0 1rem;">Custom Widget Branding</p>
-                            <div class="form-group">
-                                <label>Bot Display Name</label>
-                                <input type="text" id="config-widget-name" placeholder="e.g. Acme Assistant">
+                        <div class="mc-bot" id="mc-bot">
+                            <div class="mc-bot-head">
+                                <h4>Chatbot settings</h4>
+                                <span class="mc-dirty" id="mc-dirty" hidden>Unsaved changes</span>
                             </div>
-                            <div class="form-group">
-                                <label>Accent Color <span style="font-size:0.75rem;color:var(--text-secondary);">(hex, e.g. #6366f1)</span></label>
-                                <div style="display:flex;gap:0.75rem;align-items:center;">
-                                    <input type="color" id="config-widget-color-picker" style="width:48px;height:40px;border-radius:8px;border:1px solid var(--border-color);background:none;cursor:pointer;padding:2px;">
-                                    <input type="text" id="config-widget-color" placeholder="#6366f1" style="flex:1;">
+                            <div class="cb-status mc-health" id="mc-health" aria-live="polite"></div>
+
+                            <fieldset class="mc-group">
+                                <legend>Behaviour</legend>
+                                <div class="form-group">
+                                    <label for="config-company-name">Company / brand name</label>
+                                    <input type="text" id="config-company-name" maxlength="80" placeholder="e.g. Acme Corp">
                                 </div>
-                            </div>
-                            <div class="form-group">
-                                <label>Bot Avatar URL <span style="font-size:0.75rem;color:var(--text-secondary);">(optional, replaces chat icon)</span></label>
-                                <input type="text" id="config-widget-avatar" placeholder="https://your-cdn.com/avatar.png">
-                            </div>
-                        </div>
+                                <div class="form-group">
+                                    <label for="config-mode">Bot mode</label>
+                                    <select id="config-mode" aria-describedby="config-mode-note">
+                                        <option value="free">Free — Basic Scripted</option>
+                                        <option value="standard">Standard — Advanced Scripted</option>
+                                        <option value="ai">AI — uses the AI model below</option>
+                                        <option value="pro">Pro AI — Gemini Strategy</option>
+                                        <option value="elite">Elite — Advanced AI + High Limits</option>
+                                    </select>
+                                    <p id="config-mode-note" class="cb-hint"></p>
+                                </div>
+                                <div class="form-group mc-ai-only">
+                                    <label for="config-llm-model">AI model <span class="site-hint">— used in AI, Pro and Elite modes</span></label>
+                                    <select id="config-llm-model"><option value="">Loading models…</option></select>
+                                    <p id="config-llm-cost" class="site-cost"></p>
+                                </div>
+                                <div class="form-group mc-ai-only">
+                                    <label for="config-llm-effort">Effort <span class="site-hint">— how hard the model thinks before replying</span></label>
+                                    <select id="config-llm-effort">
+                                        <option value="low">Low — fastest, cheapest replies</option>
+                                        <option value="medium" selected>Medium — balanced (recommended)</option>
+                                        <option value="high">High — most thorough, slower and costs more</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="config-prompt">System prompt <span class="site-hint">— what the bot knows about the business</span></label>
+                                    <textarea id="config-prompt" rows="7" maxlength="20000" aria-describedby="config-prompt-meta" placeholder="You are the friendly assistant for [Company]…"></textarea>
+                                    <div class="cb-prompt-meta" id="config-prompt-meta">
+                                        <span id="config-prompt-count">0 characters</span>
+                                        <button type="button" class="cl-btn" id="config-prompt-template">Insert a starter prompt</button>
+                                    </div>
+                                </div>
+                            </fieldset>
 
-                        <div class="form-group">
-                            <label>Affiliate/Referral ID</label>
-                            <input type="text" id="config-referral" placeholder="e.g. client_123_ref">
+                            <fieldset class="mc-group">
+                                <legend>Follow-up campaigns</legend>
+                                <div class="form-group">
+                                    <label for="config-campaign-mode">When a lead verifies their email</label>
+                                    <select id="config-campaign-mode" aria-describedby="config-campaign-note">
+                                        <option value="ai">AI writes the follow-up emails</option>
+                                        <option value="rule">Simple 3-email follow-up</option>
+                                        <option value="manual">Nothing automatic (write them by hand)</option>
+                                    </select>
+                                    <p id="config-campaign-note" class="cb-hint"></p>
+                                </div>
+                                <div class="sett-toggle-row">
+                                    <div>
+                                        <p class="sett-label" id="config-auto-approve-label">Send automatically</p>
+                                        <p class="sett-note">Off: emails wait as drafts for approval on the Leads page</p>
+                                    </div>
+                                    <label class="sett-toggle"><input type="checkbox" id="config-auto-approve" aria-labelledby="config-auto-approve-label"><span class="sett-toggle-thumb"></span></label>
+                                </div>
+                            </fieldset>
+
+                            <fieldset class="mc-group">
+                                <legend>Install &amp; access</legend>
+                                <div class="form-group">
+                                    <label>Install code</label>
+                                    <pre class="cb-code mc-code" id="config-embed"></pre>
+                                    <div class="mc-row">
+                                        <button type="button" class="cl-btn" id="config-copy-embed">Copy install code</button>
+                                        <a class="cl-btn" id="config-test-chat" href="#" target="_blank" rel="noopener">Test this chatbot ↗</a>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="config-domains">Allowed domains <span class="site-hint">— one per line; empty allows any site. Full URLs are fine.</span></label>
+                                    <textarea id="config-domains" rows="3" placeholder="clientsite.com&#10;*.clientsite.com" aria-describedby="config-domains-note"></textarea>
+                                    <p id="config-domains-note" class="cb-hint"></p>
+                                </div>
+                            </fieldset>
+
+                            <fieldset class="mc-group">
+                                <legend>Branding</legend>
+                                <div class="sett-toggle-row">
+                                    <div>
+                                        <p class="sett-label" id="config-branding-label">Show "Powered by BytesAI"</p>
+                                        <p class="sett-note" id="config-branding-note"></p>
+                                    </div>
+                                    <label class="sett-toggle"><input type="checkbox" id="config-branding" aria-labelledby="config-branding-label"><span class="sett-toggle-thumb"></span></label>
+                                </div>
+                                <div class="form-group" style="margin-top:0.75rem;">
+                                    <label for="config-referral">Affiliate / referral ID <span class="site-hint">— added to the badge link</span></label>
+                                    <input type="text" id="config-referral" maxlength="60" placeholder="e.g. client_123_ref">
+                                </div>
+
+                                <!-- White-label section — Business/Enterprise only -->
+                                <div id="white-label-section" class="mc-wl" style="display:none;">
+                                    <p class="mc-wl-title">Custom widget branding</p>
+                                    <div class="form-group">
+                                        <label for="config-widget-name">Bot display name</label>
+                                        <input type="text" id="config-widget-name" maxlength="40" placeholder="e.g. Acme Assistant">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="config-widget-color">Accent colour <span class="site-hint">(hex)</span></label>
+                                        <div style="display:flex;gap:0.75rem;align-items:center;">
+                                            <input type="color" id="config-widget-color-picker" aria-label="Pick accent colour" style="width:48px;height:40px;border-radius:8px;border:1px solid var(--border-color);background:none;cursor:pointer;padding:2px;">
+                                            <input type="text" id="config-widget-color" placeholder="#6366f1" style="flex:1;">
+                                        </div>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom:0;">
+                                        <label for="config-widget-avatar">Bot avatar URL <span class="site-hint">(https, optional)</span></label>
+                                        <input type="url" id="config-widget-avatar" placeholder="https://your-cdn.com/avatar.png">
+                                    </div>
+                                </div>
+                                <p class="cb-hint" id="config-wl-locked"></p>
+                            </fieldset>
+
+                            <div class="mc-savebar">
+                                <p id="config-status" role="status"></p>
+                                <button id="save-config-btn" class="btn btn-primary">Save chatbot settings</button>
+                            </div>
                         </div>
-                        <button id="save-config-btn" class="btn btn-primary" style="margin-top: 1rem;">Save chatbot settings</button>
-                        <p id="config-status" role="status"></p>
 
                         <details class="mc-dev">
                             <summary>Developer tools: send a test lead</summary>
