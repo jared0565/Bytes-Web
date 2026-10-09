@@ -1,4 +1,5 @@
 const API_BASE = "https://crm-api.bmorris0565.workers.dev";
+const CHATBOT_API = "https://ai.bytesfx.com";
 
 // apiFetch: always sends credentials (cookies) AND the stored JWT as Authorization header.
 // The Authorization header is the primary auth mechanism on mobile (iOS Safari ITP blocks
@@ -1377,6 +1378,7 @@ const PLAN_INSTALL_LIMITS = {
 let installationData = { clientId: '', allowedDomains: [], maxInstalls: 1, maxDomains: 1, plan: 'free', inTrial: true };
 
 async function loadChatbotView() {
+    loadModelCatalog();
     // Load installations first so we have clientId
     try {
         const res = await apiFetch(`${API_BASE}/api/installations`);
@@ -1405,6 +1407,62 @@ async function loadChatbotView() {
     }
 }
 
+// ─── AI model picker (catalog + prices come from the chatbot service) ─────────
+let modelCatalog = null;
+let savedLlmModel = '';
+
+const formatPrice = (n) => `$${Number(n).toFixed(2)}`;
+
+async function loadModelCatalog() {
+    const select = document.getElementById('settings-llm-model');
+    if (!select || modelCatalog) return;
+    try {
+        const res = await fetch(`${CHATBOT_API}/public/models`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        modelCatalog = await res.json();
+    } catch (e) {
+        console.error('Model catalog load failed:', e);
+        select.innerHTML = '<option value="">Default model (could not load the model list)</option>';
+        return;
+    }
+
+    const def = modelCatalog.models.find(m => m.id === modelCatalog.defaultModel);
+    select.innerHTML = '';
+    select.appendChild(new Option(`Default — ${def ? def.name : modelCatalog.defaultModel}`, ''));
+
+    // One group per provider, in catalog order
+    const groups = new Map();
+    for (const m of modelCatalog.models) {
+        if (!groups.has(m.providerName)) {
+            const og = document.createElement('optgroup');
+            og.label = m.providerName;
+            groups.set(m.providerName, og);
+            select.appendChild(og);
+        }
+        const label = `${m.name} — ${formatPrice(m.inputPrice)} in / ${formatPrice(m.outputPrice)} out per 1M tokens${m.available ? '' : ' (no API key)'}`;
+        const opt = new Option(label, m.id);
+        opt.disabled = !m.available;
+        groups.get(m.providerName).appendChild(opt);
+    }
+    select.value = savedLlmModel;
+    if (select.value !== savedLlmModel) select.value = ''; // saved model no longer offered
+    renderModelCost();
+}
+
+function renderModelCost() {
+    const select = document.getElementById('settings-llm-model');
+    const costEl = document.getElementById('settings-llm-cost');
+    if (!select || !costEl || !modelCatalog) return;
+    const id = select.value || modelCatalog.defaultModel;
+    const m = modelCatalog.models.find(x => x.id === id);
+    if (!m) { costEl.textContent = ''; return; }
+    costEl.innerHTML = `Provider: <strong>${escapeHtml(m.providerName)}</strong> · Model: <code>${escapeHtml(m.id)}</code><br>`
+        + `Cost: <strong>${formatPrice(m.inputPrice)}</strong> per 1M input tokens · <strong>${formatPrice(m.outputPrice)}</strong> per 1M output tokens`
+        + (m.available ? '' : `<br><span style="color:var(--warning, #f59e0b);">No ${escapeHtml(m.providerName)} API key is set on the chatbot server — replies will use the default model.</span>`);
+}
+
+document.getElementById('settings-llm-model')?.addEventListener('change', renderModelCost);
+
 function populateChatbotSettings(data) {
     const nameEl   = document.getElementById('settings-company-name');
     const modeEl   = document.getElementById('settings-mode');
@@ -1415,6 +1473,12 @@ function populateChatbotSettings(data) {
     if (nameEl)   nameEl.value   = data.companyName  || '';
     if (modeEl)   modeEl.value   = data.mode         || 'free';
     if (promptEl) promptEl.value = data.systemPrompt || '';
+
+    savedLlmModel = data.llmModel || '';
+    const llmSelect = document.getElementById('settings-llm-model');
+    if (llmSelect && modelCatalog) { llmSelect.value = savedLlmModel; if (llmSelect.value !== savedLlmModel) llmSelect.value = ''; renderModelCost(); }
+    const effortEl = document.getElementById('settings-llm-effort');
+    if (effortEl) effortEl.value = ['low', 'medium', 'high'].includes(data.llmEffort) ? data.llmEffort : 'medium';
 
     if (brandingEl) {
         brandingEl.checked  = data.showBranding !== false;
@@ -1687,6 +1751,9 @@ document.getElementById('settings-save-chatbot-btn').addEventListener('click', a
     };
     const modeVal = document.getElementById('settings-mode')?.value;
     if (modeVal) settings.mode = modeVal;
+    // Only send the model once the list loaded, so a failed load can't wipe the saved choice
+    if (modelCatalog) settings.llmModel = document.getElementById('settings-llm-model')?.value || '';
+    settings.llmEffort = document.getElementById('settings-llm-effort')?.value || 'medium';
 
     const wlSection = document.getElementById('settings-wl-section');
     if (wlSection && wlSection.style.display !== 'none') {
