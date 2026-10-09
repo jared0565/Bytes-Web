@@ -1101,7 +1101,28 @@ app.post('/api/test-lead', requireAuth, async (c) => {
 // CRM Settings
 // ─── Bytes website settings (admin only) ─────────────────────────────────────
 // The house chatbot on bytesfx.com: no plan limits, no badge rules, separate from every client.
-const SITE_FIELDS = ['companyName', 'mode', 'systemPrompt', 'llmModel', 'llmEffort', 'allowedDomains'];
+const SITE_FIELDS = ['companyName', 'mode', 'systemPrompt', 'llmModel', 'llmEffort', 'allowedDomains', 'socials'];
+// Footer social links: each must be an https URL on that network's own domain (empty clears it)
+const SOCIAL_HOSTS = {
+    linkedin: /(^|\.)linkedin\.com$/,
+    facebook: /(^|\.)(facebook\.com|fb\.com)$/,
+    instagram: /(^|\.)instagram\.com$/,
+    pinterest: /(^|\.)(pinterest\.[a-z.]{2,8}|pin\.it)$/,
+};
+
+function cleanSocials(input) {
+    const out = {}, errors = [];
+    for (const [key, hostRe] of Object.entries(SOCIAL_HOSTS)) {
+        const raw = typeof input?.[key] === 'string' ? input[key].trim() : '';
+        if (!raw) { out[key] = ''; continue; }
+        let u;
+        try { u = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`); } catch { errors.push(key); continue; }
+        if (!hostRe.test(u.hostname.toLowerCase())) { errors.push(key); continue; }
+        u.protocol = 'https:';
+        out[key] = u.toString().slice(0, 300);
+    }
+    return { socials: out, errors };
+}
 const SITE_MODES = ['free', 'standard', 'ai', 'pro', 'elite'];
 const DOMAIN_RE = /^(\*\.)?[a-zA-Z0-9][a-zA-Z0-9\-\.]{0,252}[a-zA-Z0-9]$/;
 
@@ -1136,10 +1157,22 @@ app.post('/api/site-settings', requireAuth, async (c) => {
             .filter(d => typeof d === 'string' && d.includes('.') && DOMAIN_RE.test(d.trim()))
             .map(d => d.trim().toLowerCase()))].slice(0, 50);
     }
+    if (body.socials !== undefined) {
+        const { socials, errors } = cleanSocials(body.socials);
+        if (errors.length) return c.json({ error: `Check the ${errors.join(', ')} link${errors.length > 1 ? 's' : ''}: use the full https:// address of that profile.`, fields: errors }, 400);
+        update.socials = socials;
+    }
     // Merge so fields this form doesn't manage survive
     const prev = JSON.parse(await c.env.CLIENT_SETTINGS.get(`client:${HOUSE_CLIENT_ID}`) || '{}');
     await c.env.CLIENT_SETTINGS.put(`client:${HOUSE_CLIENT_ID}`, JSON.stringify({ ...prev, ...update }));
     return c.json({ success: true, ...update });
+});
+
+// Public: the website footer reads its social links from here (no auth, cacheable)
+app.get('/api/public/site-socials', async (c) => {
+    const cfg = JSON.parse(await c.env.CLIENT_SETTINGS.get(`client:${HOUSE_CLIENT_ID}`) || '{}');
+    c.header('Cache-Control', 'public, max-age=300');
+    return c.json({ socials: cfg.socials || null });
 });
 
 app.get('/api/crm-settings', requireAuth, async (c) => {

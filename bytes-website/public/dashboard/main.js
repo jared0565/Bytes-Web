@@ -2215,6 +2215,10 @@ async function loadSiteSettings() {
         document.getElementById('site-llm-effort').value = ['low', 'medium', 'high'].includes(d.llmEffort) ? d.llmEffort : 'medium';
         document.getElementById('site-domains').value = (d.allowedDomains || []).join('\n');
         document.getElementById('site-prompt').value = d.systemPrompt || '';
+        document.querySelectorAll('#site-settings-view [data-social]').forEach(el => {
+            el.value = (d.socials || {})[el.dataset.social] || '';
+            el.removeAttribute('aria-invalid');
+        });
         if (modelCatalog) populateModelSelect(modelSel, d.llmModel || '');
         else modelSel.innerHTML = '<option value="">Default model (could not load the model list)</option>';
         document.getElementById('site-llm-cost').innerHTML = modelCostHtml(modelSel.value);
@@ -2239,7 +2243,9 @@ document.getElementById('site-save-btn')?.addEventListener('click', async () => 
         llmEffort: document.getElementById('site-llm-effort').value,
         allowedDomains: document.getElementById('site-domains').value.split(/[\n,]+/).map(d => d.trim()).filter(Boolean),
         systemPrompt: document.getElementById('site-prompt').value.trim(),
+        socials: Object.fromEntries([...document.querySelectorAll('#site-settings-view [data-social]')].map(el => [el.dataset.social, el.value.trim()])),
     };
+    document.querySelectorAll('#site-settings-view [data-social]').forEach(el => el.removeAttribute('aria-invalid'));
     // Only send the model once the list loaded, so a failed load can't wipe the saved choice
     if (modelSel.dataset.filled) body.llmModel = modelSel.value || '';
     btn.disabled = true;
@@ -2252,7 +2258,11 @@ document.getElementById('site-save-btn')?.addEventListener('click', async () => 
             body: JSON.stringify(body),
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        if (!res.ok) {
+            (data.fields || []).forEach(f => document.getElementById(`site-social-${f}`)?.setAttribute('aria-invalid', 'true'));
+            throw new Error(data.error || `HTTP ${res.status}`);
+        }
+        if (data.socials) document.querySelectorAll('#site-settings-view [data-social]').forEach(el => { el.value = data.socials[el.dataset.social] || ''; });
         const dropped = body.allowedDomains.length - (data.allowedDomains || []).length;
         if (data.allowedDomains) document.getElementById('site-domains').value = data.allowedDomains.join('\n');
         status.textContent = dropped > 0 ? `Saved. ${dropped} invalid domain${dropped === 1 ? ' was' : 's were'} skipped.` : 'Website settings saved.';
