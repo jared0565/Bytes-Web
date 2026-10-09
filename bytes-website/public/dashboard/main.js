@@ -3541,7 +3541,7 @@ async function siteHealth() {
             ? item(fresh ? 'ok' : 'warn', fresh ? 'Website chat active' : 'Website chat quiet', `Last conversation ${cbAgo(d.lastChatAt)} · ${d.messages7d} message${d.messages7d === 1 ? '' : 's'} this week`, 'site-card')
             : item('warn', 'No website chats yet', 'Open the website and send a test message.', 'site-card'),
         item(ai ? 'ok' : 'bad', ai ? 'AI replies on' : 'Scripted replies only', ai ? `Mode: ${escapeHtml(d.mode)} · ${d.llmModel ? escapeHtml(d.llmModel.replace(/^openrouter:/, '')) : 'default model'}` : `Mode: ${escapeHtml(d.mode)}. Visitors get canned answers. Set Bot Mode to AI below.`, 'site-mode'),
-        item(d.mailReady ? 'ok' : 'bad', d.mailReady ? 'Lead emails ready' : 'Lead emails not sending', d.mailReady ? `${d.leads7d} website lead${d.leads7d === 1 ? '' : 's'} this week` : `${escapeHtml(d.mailIssue)}. Set it up on the Chatbot page → Email sender.`, 'site-card'),
+        item(d.mailReady ? 'ok' : 'bad', d.mailReady ? 'Lead emails ready' : 'Lead emails not sending', d.mailReady ? `${d.leads7d} website lead${d.leads7d === 1 ? '' : 's'} this week` : `${escapeHtml(d.mailIssue)}. Save a Resend key with wrangler secret put RESEND_API_KEY (crm-api-worker folder), or set the Chatbot page → Email sender.`, 'site-card'),
     ].join('');
 }
 document.getElementById('site-health')?.addEventListener('click', (e) => {

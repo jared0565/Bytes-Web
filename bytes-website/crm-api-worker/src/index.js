@@ -435,18 +435,16 @@ app.get('/api/chatbot/status', requireAuth, async (c) => {
     if (!clientId) return c.json({ error: 'No client is linked to this account' }, 403);
     const since = Date.now() - 7 * 86400000;
     try {
-        const [last, msgs, leads, mailRaw, cfgRaw] = await Promise.all([
+        const [last, msgs, leads, mail, cfgRaw] = await Promise.all([
             c.env.DB.prepare('SELECT MAX(timestamp) AS t FROM chat_logs WHERE client_id = ?').bind(clientId).first(),
             c.env.DB.prepare('SELECT COUNT(*) AS n FROM chat_logs WHERE client_id = ? AND timestamp >= ?').bind(clientId, since).first(),
             c.env.DB.prepare('SELECT COUNT(*) AS n FROM leads WHERE client_id = ? AND timestamp >= ?').bind(clientId, since).first(),
-            // Same fallback as getMailSettings: clients without their own sender use the agency's
-            c.env.OAUTH_TOKENS.get(`mail:${clientId}`).then(v => v || c.env.OAUTH_TOKENS.get('mail:agency_demo')),
+            getMailSettings(c.env, clientId),
             c.env.CLIENT_SETTINGS.get(`client:${clientId}`),
         ]);
-        const mail = mailRaw ? JSON.parse(mailRaw) : null;
         const mailIssue = !mail?.provider ? 'No email provider selected'
             : mail.provider === 'smtp' ? 'Custom SMTP is not supported yet'
-            : !mail.fromEmail ? 'From Email is missing'
+            : !mail.fromEmail ? (clientId === HOUSE_CLIENT_ID && c.env.RESEND_API_KEY ? 'Sender address missing: set the WEBSITE_MAIL_FROM secret' : 'From Email is missing')
             : !mail.apiKey ? 'API key is missing'
             : (mail.provider === 'mailgun' && !mail.mailgunDomain) ? 'Mailgun domain is missing' : null;
         const cfg = cfgRaw ? JSON.parse(cfgRaw) : {};
@@ -2225,7 +2223,18 @@ async function handleVerificationCron(env) {
 // without its own sender falls back to the agency's.
 async function getMailSettings(env, clientId) {
     const raw = (clientId && await env.OAUTH_TOKENS.get(`mail:${clientId}`)) || await env.OAUTH_TOKENS.get('mail:agency_demo');
-    return raw ? JSON.parse(raw) : null;
+    const saved = raw ? JSON.parse(raw) : null;
+    // The Bytes website can send through a Resend key stored as a Worker secret
+    // (wrangler secret put RESEND_API_KEY / WEBSITE_MAIL_FROM), like the AI provider keys
+    if (clientId === HOUSE_CLIENT_ID && env.RESEND_API_KEY) {
+        return {
+            provider: 'resend',
+            apiKey: env.RESEND_API_KEY,
+            fromEmail: env.WEBSITE_MAIL_FROM || saved?.fromEmail || '',
+            fromName: env.WEBSITE_MAIL_NAME || saved?.fromName || 'BytesFX',
+        };
+    }
+    return saved;
 }
 
 // Sends one email through the saved provider. Returns { ok: true } or { ok: false, error }.
