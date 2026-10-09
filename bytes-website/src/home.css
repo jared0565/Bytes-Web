@@ -384,3 +384,11 @@ body {
   .reveal { opacity: 1; transform: none; }
   .hx-glow, .hx-ticker-track, .hx-cta-glow, .hx-nodes i, .hx-pulse::after, .hx-typing i { animation: none !important; }
 }
+
+/* Share button in the nav (opens the share dialog from /share.js) */
+.nav-links .hx-nav-share { appearance: none; background: none; border: 0; font: 500 0.95rem var(--font-body, inherit); color: var(--text-dim); cursor: pointer; }
+.nav-links .hx-nav-share:hover { color: var(--amber); }
+.nav-links .hx-nav-share:active { transform: scale(0.96); }
+.nav-links .hx-nav-share:focus-visible { outline: 2px solid var(--amber); outline-offset: 4px; border-radius: 4px; }
+.nav-links li:has(.hx-nav-share) { display: flex; align-items: center; }
+.footer-brand [data-social-links] { color: var(--text-dim); }
