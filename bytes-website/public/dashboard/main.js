@@ -93,6 +93,18 @@ const simulateBtn = document.getElementById('simulate-lead-btn');
 const simStatus = document.getElementById('sim-status');
 
 // --- Initialization ---
+// Login nonce: made when a sign-in starts in this tab and checked by the server when the login is
+// completed, so a sign-in link someone else started can't log this browser into their account.
+function loginNonce(fresh = false) {
+    let n = '';
+    try { n = sessionStorage.getItem('login_nonce') || ''; } catch (_) {}
+    if (fresh || !n) {
+        n = Array.from(crypto.getRandomValues(new Uint8Array(24)), b => b.toString(16).padStart(2, '0')).join('');
+        try { sessionStorage.setItem('login_nonce', n); } catch (_) {}
+    }
+    return n;
+}
+
 (async () => {
     const params = new URLSearchParams(window.location.search);
     const step = params.get('step');
@@ -117,7 +129,7 @@ const simStatus = document.getElementById('sim-status');
     if (sessionGrant) {
         history.replaceState(null, '', window.location.pathname);
         try {
-            const res = await fetch(`${API_BASE}/api/auth/redeem-grant?token=${encodeURIComponent(sessionGrant)}`, { credentials: 'include' });
+            const res = await fetch(`${API_BASE}/api/auth/redeem-grant?token=${encodeURIComponent(sessionGrant)}&nonce=${encodeURIComponent(loginNonce())}`, { credentials: 'include' });
             if (res.ok) {
                 const grantData = await res.json();
                 // Store JWT in localStorage so apiFetch can send it as Authorization header.
@@ -192,7 +204,7 @@ function show2faVerify(pid) {
             const res = await fetch(`${API_BASE}/api/auth/totp/user-verify`, {
                 method: 'POST', credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ pid, code, rememberDevice })
+                body: JSON.stringify({ pid, code, rememberDevice, nonce: loginNonce() })
             });
             const data = await res.json();
 
@@ -236,7 +248,7 @@ async function show2faSetup(pid) {
     document.getElementById('setup-2fa-section').style.display = 'block';
 
     try {
-        const res = await fetch(`${API_BASE}/api/auth/totp/user-setup?pid=${encodeURIComponent(pid)}`, { credentials: 'include' });
+        const res = await fetch(`${API_BASE}/api/auth/totp/user-setup?pid=${encodeURIComponent(pid)}&nonce=${encodeURIComponent(loginNonce())}`, { credentials: 'include' });
         if (!res.ok) {
             loginError.innerText = 'Session expired. Please log in again.';
             document.getElementById('setup-2fa-section').style.display = 'none';
@@ -244,7 +256,16 @@ async function show2faSetup(pid) {
             return;
         }
         const data = await res.json();
-        document.getElementById('setup-qr-img').src = data.qrUrl;
+        // Drawn here from the otpauth link: the secret never goes to a third-party QR service
+        try {
+            const mod = await import('/vendor/qrcode.mjs');
+            const qrcode = mod.default || mod.qrcode;
+            const qr = qrcode(0, 'M'); qr.addData(data.uri); qr.make();
+            const n = qr.getModuleCount(), q = 2; let d = '';
+            for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) d += `M${c + q} ${r + q}h1v1h-1z`;
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n + q * 2} ${n + q * 2}" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+            document.getElementById('setup-qr-img').src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+        } catch (e) { console.error('[2FA] QR render failed', e); }
         document.getElementById('setup-secret').textContent = data.secret;
     } catch {
         loginError.innerText = 'Connection error. Please try again.';
@@ -261,7 +282,7 @@ async function show2faSetup(pid) {
             const res = await fetch(`${API_BASE}/api/auth/totp/user-enable`, {
                 method: 'POST', credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ pid, code, rememberDevice })
+                body: JSON.stringify({ pid, code, rememberDevice, nonce: loginNonce() })
             });
             const data = await res.json();
 
@@ -346,7 +367,7 @@ document.querySelectorAll('.btn-social').forEach(btn => {
                 if (token) bypassParam = `&bypass=${encodeURIComponent(token)}`;
             }
         } catch (_) {}
-        window.location.href = `${API_BASE}/api/auth/${provider}?redirect=dashboard${bypassParam}`;
+        window.location.href = `${API_BASE}/api/auth/${encodeURIComponent(provider)}?redirect=dashboard${bypassParam}&n=${loginNonce(true)}`;
     });
 });
 
@@ -420,7 +441,10 @@ function showKickedBanner(message) {
     const banner = document.createElement('div');
     banner.id = 'kicked-banner';
     banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#b45309;color:#fff;text-align:center;padding:0.85rem 1rem;font-size:0.9rem;font-weight:500;display:flex;align-items:center;justify-content:center;gap:1rem;';
-    banner.innerHTML = `<span>${message}</span><button onclick="location.reload()" style="background:#fff;color:#b45309;border:none;border-radius:6px;padding:0.3rem 0.9rem;font-weight:600;cursor:pointer;">Log In Again</button>`;
+    banner.innerHTML = `<span>${escapeHtml(message)}</span><button type="button" style="background:#fff;color:#b45309;border:none;border-radius:6px;padding:0.3rem 0.9rem;font-weight:600;cursor:pointer;">Log In Again</button>`;
+    banner.querySelector('button').addEventListener('click', () => location.reload());
+    // This session is over: don't keep its token around
+    localStorage.removeItem('bytes_session_jwt');
     document.body.prepend(banner);
 }
 
@@ -890,7 +914,7 @@ function openLeadDrawer(id, keepFocus = false) {
     document.getElementById('ld-d-body').innerHTML = `
         ${ldIsWaiting(l) ? `<div class="ld-alert">Waiting ${ldAge(l.timestamp)} without follow-up. Leads answered within an hour are far more likely to convert.</div>` : ''}
         <dl class="ld-dl">
-            ${row('Email', l.email ? `<a href="mailto:${escapeHtml(l.email)}">${escapeHtml(l.email)}</a> <button type="button" class="ld-copy" data-copy="${escapeHtml(l.email)}">Copy</button>` : '')}
+            ${row('Email', l.email ? `<a href="mailto:${encodeURIComponent(l.email)}">${escapeHtml(l.email)}</a> <button type="button" class="ld-copy" data-copy="${escapeHtml(l.email)}">Copy</button>` : '')}
             ${row('Email status', l.is_verified === 1 ? '✓ Verified' : 'Not verified yet: they haven\'t clicked the link in our verification email')}
             ${row('Service', escapeHtml(l.service || ''))}
             ${row('Budget', escapeHtml(l.budget || ''))}
@@ -904,7 +928,7 @@ function openLeadDrawer(id, keepFocus = false) {
             ${LD_STAGES.map(st => `<button type="button" class="cl-seg-btn${st === col ? ' active' : ''}" data-stage-pick="${st}" aria-pressed="${st === col}">${LD_STAGE_NAMES[st]}</button>`).join('')}
         </div>
         <div class="ld-actions">
-            ${l.email ? `<a class="cl-btn ld-primary" href="mailto:${escapeHtml(l.email)}?subject=${encodeURIComponent(`Following up on your enquiry${l.service ? ` about ${l.service}` : ''}`)}">Email ${escapeHtml((l.name || '').split(' ')[0] || 'lead')}</a>` : ''}
+            ${l.email ? `<a class="cl-btn ld-primary" href="mailto:${encodeURIComponent(l.email)}?subject=${encodeURIComponent(`Following up on your enquiry${l.service ? ` about ${l.service}` : ''}`)}">Email ${escapeHtml((l.name || '').split(' ')[0] || 'lead')}</a>` : ''}
             <button type="button" class="cl-btn" data-d-chat>View chat</button>
             <button type="button" class="cl-btn" data-d-campaign>Campaign</button>
             <button type="button" class="cl-btn ld-danger" data-d-delete>Delete lead</button>
@@ -1853,7 +1877,7 @@ function renderChatbotView() {
             ? `Your 7-day trial runs on Free plan limits — ${domLabel}. Choose a paid plan when your trial ends to expand.`
             : plan === 'free'
                 ? `Your <strong style="color:#e2e8f0;">Free</strong> plan includes ${domLabel} — this is a permanent tier. Upgrade anytime to add more.`
-                : `Your <strong style="color:#e2e8f0;">${plan.charAt(0).toUpperCase() + plan.slice(1)}</strong> plan allows ${domLabel}.`;
+                : `Your <strong style="color:#e2e8f0;">${escapeHtml(plan.charAt(0).toUpperCase() + plan.slice(1))}</strong> plan allows ${domLabel}.`;
     }
 
     // Upgrade button
@@ -3192,7 +3216,7 @@ if ('IntersectionObserver' in window) {
 
 // ─── Manage Clients: directory, plan & trial, editor drawer ──────────────────
 const MC = { list: [], open: null, listeners: false };
-const mcPlanName = (p) => (p || 'free').charAt(0).toUpperCase() + (p || 'free').slice(1);
+const mcPlanName = (p) => escapeHtml((p || 'free').charAt(0).toUpperCase() + (p || 'free').slice(1));
 
 function mcPlanBadge(c) {
     if (c.inTrial) return `<span class="ld-chip ld-chip-info">Trial · ${c.trialDaysLeft}d left</span>`;
