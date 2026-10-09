@@ -577,6 +577,7 @@ function switchView(viewName) {
     if (viewName === 'chatbot') loadChatbotView();
     if (viewName === 'analytics') loadAnalytics();
     if (viewName === 'site-settings') loadSiteSettings();
+    if (viewName === 'clients') loadClients();
     document.getElementById('settings-cog-btn')?.classList.toggle('active', viewName === 'site-settings');
 }
 
@@ -585,6 +586,7 @@ refreshBtn.addEventListener('click', () => {
     if (!document.getElementById('site-settings-view')?.classList.contains('hidden')) loadSiteSettings();
     if (activeView === 'leads') loadLeads();
     if (activeView === 'logs') loadLogs();
+    if (activeView === 'clients') loadClients(true);
     if (activeView === 'analytics') loadAnalytics(true);
 });
 
@@ -2891,4 +2893,225 @@ if ('IntersectionObserver' in window) {
         entries.filter(en => en.isIntersecting).forEach(en => links.forEach(l => l.classList.toggle('active', l.getAttribute('href') === `#${en.target.id}`)));
     }, { rootMargin: '-20% 0px -70% 0px' });
     links.forEach(l => { const t = document.querySelector(l.getAttribute('href')); if (t) io.observe(t); });
+}
+
+// ─── Manage Clients: directory, plan & trial, editor drawer ──────────────────
+const MC = { list: [], open: null, listeners: false };
+const mcPlanName = (p) => (p || 'free').charAt(0).toUpperCase() + (p || 'free').slice(1);
+
+function mcPlanBadge(c) {
+    if (c.inTrial) return `<span class="ld-chip ld-chip-info">Trial · ${c.trialDaysLeft}d left</span>`;
+    if (c.trialExpired) return '<span class="ld-chip mc-chip-warn">Trial expired</span>';
+    if (c.plan && c.plan !== 'free') return `<span class="ld-chip ld-chip-ok">${mcPlanName(c.plan)}</span>`;
+    return `<span class="ld-chip">${mcPlanName(c.plan)}${c.registered ? '' : ' · not registered'}</span>`;
+}
+function mcAgo(ts) {
+    if (!ts) return 'Never';
+    const h = (Date.now() - ts) / 3600000;
+    if (h < 1) return 'Just now';
+    if (h < 48) return `${Math.round(h)}h ago`;
+    return `${Math.round(h / 24)}d ago`;
+}
+
+function mcAttach() {
+    if (MC.listeners) return;
+    MC.listeners = true;
+    let t;
+    document.getElementById('mc-q').addEventListener('input', () => { clearTimeout(t); t = setTimeout(renderClients, 120); });
+    ['mc-filter', 'mc-sort'].forEach(id => document.getElementById(id).addEventListener('change', renderClients));
+    document.getElementById('mc-export').addEventListener('click', mcExport);
+    document.getElementById('mc-new').addEventListener('click', () => openClientDrawer(null));
+    document.getElementById('mc-body').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-go]');
+        const row = e.target.closest('tr[data-cid]');
+        if (!row) return;
+        if (btn) { e.stopPropagation(); return mcGo(btn.dataset.go, row.dataset.cid); }
+        openClientDrawer(row.dataset.cid);
+    });
+    document.getElementById('mc-body').addEventListener('keydown', (e) => {
+        const row = e.target.closest('tr[data-cid]');
+        if (row && e.target === row && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openClientDrawer(row.dataset.cid); }
+    });
+    document.getElementById('mc-d-close').addEventListener('click', closeClientDrawer);
+    document.getElementById('mc-backdrop').addEventListener('click', closeClientDrawer);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !document.getElementById('mc-drawer').hidden) closeClientDrawer(); });
+    document.getElementById('config-client-id').addEventListener('input', mcIdHint);
+    document.getElementById('mc-plan-save').addEventListener('click', () => mcPlan({ plan: document.getElementById('mc-plan-select').value }, 'Plan updated.'));
+    document.getElementById('mc-trial-extend').addEventListener('click', () => mcPlan({ extendTrialDays: 7 }, 'Trial extended by 7 days.'));
+    document.getElementById('mc-trial-end').addEventListener('click', () => { if (confirm('End this client’s trial now? They drop to their plan’s limits immediately.')) mcPlan({ endTrial: true }, 'Trial ended.'); });
+    // Refresh the list after the existing editor saves
+    new MutationObserver(() => { if (/saved successfully/i.test(document.getElementById('config-status').textContent)) loadClients(true); })
+        .observe(document.getElementById('config-status'), { childList: true, characterData: true, subtree: true });
+}
+
+async function loadClients(keepDrawer = false) {
+    mcAttach();
+    try {
+        const res = await apiFetch(`${API_BASE}/api/admin/clients`);
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+        MC.list = (await res.json()).clients || [];
+    } catch (err) {
+        document.getElementById('mc-body').innerHTML = `<tr><td colspan="7" class="mc-empty">Could not load clients: ${escapeHtml(err.message)}</td></tr>`;
+        return;
+    }
+    document.getElementById('mc-client-ids').innerHTML = MC.list.map(c => `<option value="${escapeHtml(c.clientId)}">${escapeHtml(c.companyName || '')}</option>`).join('');
+    renderClients();
+    if (keepDrawer && MC.open) mcFillHeader(MC.list.find(c => c.clientId === MC.open));
+}
+
+function mcFiltered() {
+    const q = document.getElementById('mc-q').value.trim().toLowerCase();
+    const f = document.getElementById('mc-filter').value;
+    const sort = document.getElementById('mc-sort').value;
+    const d30 = Date.now() - 30 * 86400000;
+    const out = MC.list.filter(c =>
+        (!q || [c.clientId, c.companyName, c.ownerEmail].some(v => String(v || '').toLowerCase().includes(q))) &&
+        (!f || (f === 'trial' && c.inTrial) || (f === 'ending' && c.inTrial && c.trialDaysLeft <= 3) || (f === 'expired' && c.trialExpired)
+            || (f === 'paying' && c.plan !== 'free') || (f === 'inactive' && (!c.lastActivity || c.lastActivity < d30))));
+    out.sort((a, b) => sort === 'leads' ? b.leads30d - a.leads30d
+        : sort === 'trial' ? (a.inTrial ? a.trialEndsAt : Infinity) - (b.inTrial ? b.trialEndsAt : Infinity)
+        : sort === 'name' ? (a.companyName || a.clientId).localeCompare(b.companyName || b.clientId)
+        : (b.lastActivity || 0) - (a.lastActivity || 0));
+    return out;
+}
+
+function renderClients() {
+    const list = MC.list, shown = mcFiltered();
+    const d30 = Date.now() - 30 * 86400000;
+    const tiles = [
+        { label: 'Clients', value: list.length, help: shown.length !== list.length ? `${shown.length} shown` : 'excluding the Bytes website' },
+        { label: 'In trial', value: list.filter(c => c.inTrial).length, help: `${list.filter(c => c.inTrial && c.trialDaysLeft <= 3).length} ending within 3 days`, warn: list.some(c => c.inTrial && c.trialDaysLeft <= 3) },
+        { label: 'Paying', value: list.filter(c => c.plan !== 'free').length, help: 'Starter or above' },
+        { label: 'Trial expired', value: list.filter(c => c.trialExpired).length, help: 'on Free, worth a follow-up' },
+        { label: 'Active (30d)', value: list.filter(c => c.lastActivity && c.lastActivity >= d30).length, help: 'had chats or leads' },
+    ];
+    document.getElementById('mc-stats').innerHTML = tiles.map(t => `<div class="cl-stat${t.warn ? ' ld-stat-warn' : ''}"><span class="cl-stat-label">${t.label}</span><span class="cl-stat-num">${t.value}</span><span class="cl-stat-help">${t.help}</span></div>`).join('');
+
+    const body = document.getElementById('mc-body');
+    if (!shown.length) { body.innerHTML = `<tr><td colspan="7" class="mc-empty">${list.length ? 'No clients match these filters.' : 'No clients yet. They appear here after signing up through onboarding.'}</td></tr>`; return; }
+    body.innerHTML = shown.map(c => `
+        <tr data-cid="${escapeHtml(c.clientId)}" tabindex="0" aria-label="Open ${escapeHtml(c.companyName || c.clientId)}">
+            <td data-label="Client"><div class="mc-name">${escapeHtml(c.companyName || c.clientId)}</div><div class="mc-sub"><code>${escapeHtml(c.clientId)}</code>${c.ownerEmail ? ` · ${escapeHtml(c.ownerEmail)}` : ''}</div></td>
+            <td data-label="Plan">${mcPlanBadge(c)}</td>
+            <td data-label="Bot"><span class="mc-sub">${c.hasConfig ? escapeHtml(c.mode || 'free') : 'not set up'}${c.domains ? ` · ${c.domains} domain${c.domains === 1 ? '' : 's'}` : ''}</span></td>
+            <td data-label="Leads 30d" class="num">${c.leads30d}<span class="mc-sub"> / ${c.leadsTotal}</span></td>
+            <td data-label="Chats 30d" class="num">${c.messages30d}</td>
+            <td data-label="Last activity"><span class="${c.lastActivity && Date.now() - c.lastActivity < 7 * 86400000 ? '' : 'mc-sub'}">${mcAgo(c.lastActivity)}</span></td>
+            <td class="mc-actions">
+                <button type="button" class="cl-btn" data-go="leads" title="Leads for this client">Leads</button>
+                <button type="button" class="cl-btn" data-go="logs" title="Chats for this client">Chats</button>
+                <button type="button" class="cl-btn" data-go="analytics" title="Analytics for this client">Stats</button>
+            </td>
+        </tr>`).join('');
+}
+
+function mcGo(where, cid) {
+    closeClientDrawer();
+    if (where === 'leads') {
+        switchView('leads');
+        loadLeads().then(() => { const sel = document.getElementById('ld-client'); if (sel) { sel.value = cid; renderLeads(window.allLeads); } });
+    } else if (where === 'logs') {
+        const sel = document.getElementById('cl-client');
+        if (sel) { if (![...sel.options].some(o => o.value === cid)) sel.add(new Option(cid, cid)); sel.value = cid; }
+        if (typeof CL !== 'undefined') { CL.offset = 0; CL.selected = null; }
+        switchView('logs');
+    } else if (where === 'analytics') {
+        analyticsClient = cid;
+        switchView('analytics');
+        loadAnalytics(true);
+    }
+}
+
+function mcIdHint() {
+    const id = document.getElementById('config-client-id').value.trim();
+    const hint = document.getElementById('mc-id-hint');
+    if (!id) { hint.textContent = ''; return; }
+    if (id === 'default') { hint.textContent = 'The Bytes website is edited under Settings, not here.'; return; }
+    hint.textContent = MC.list.some(c => c.clientId === id) ? '' : 'Not an existing client: saving will create settings for this new ID. Check the spelling.';
+}
+
+function mcFillHeader(c) {
+    const id = MC.open;
+    document.getElementById('mc-d-name').textContent = c?.companyName || id || 'Open a client';
+    document.getElementById('mc-d-sub').textContent = c ? `${c.clientId}${c.ownerEmail ? ` · ${c.ownerEmail}` : ''} · last activity ${mcAgo(c.lastActivity).toLowerCase()}` : (id ? 'New client ID' : 'Type a client ID and press Load');
+    document.getElementById('mc-plan-select').value = c?.plan || 'free';
+    document.getElementById('mc-plan-status').innerHTML = c
+        ? (c.inTrial ? `On a <strong>${mcPlanName(c.plan)}</strong> plan with a trial ending ${new Date(c.trialEndsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} (${c.trialDaysLeft} day${c.trialDaysLeft === 1 ? '' : 's'} left).`
+            : c.trialExpired ? `Trial ended ${new Date(c.trialEndsAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}; now on <strong>Free</strong>.`
+            : `On the <strong>${mcPlanName(c.plan)}</strong> plan.`)
+        : 'Open or create a client to manage its plan.';
+    document.getElementById('mc-trial-end').hidden = !c?.inTrial;
+    document.querySelectorAll('#mc-plan-save, #mc-trial-extend').forEach(b => { b.disabled = !id; });
+    document.getElementById('mc-quick').innerHTML = c ? `
+        <div class="mc-quick-stats"><span><strong>${c.leads30d}</strong> leads (30d)</span><span><strong>${c.leadsTotal}</strong> leads total</span><span><strong>${c.messages30d}</strong> chat messages (30d)</span></div>
+        <div class="mc-quick-links"><button type="button" class="cl-btn" data-qgo="leads">View leads</button><button type="button" class="cl-btn" data-qgo="logs">View chats</button><button type="button" class="cl-btn" data-qgo="analytics">View analytics</button></div>` : '';
+    document.querySelectorAll('#mc-quick [data-qgo]').forEach(b => b.addEventListener('click', () => mcGo(b.dataset.qgo, id)));
+}
+
+let mcLastFocus = null;
+function openClientDrawer(cid) {
+    mcAttach();
+    mcLastFocus = document.activeElement;
+    MC.open = cid;
+    const c = MC.list.find(x => x.clientId === cid);
+    const idInput = document.getElementById('config-client-id');
+    idInput.value = cid || '';
+    idInput.readOnly = !!cid;
+    document.getElementById('load-config-btn').hidden = !!cid;
+    document.getElementById('sim-client-id').value = cid || '';
+    document.getElementById('config-status').textContent = '';
+    document.getElementById('mc-plan-msg').textContent = '';
+    mcIdHint();
+    mcFillHeader(c);
+    document.getElementById('mc-backdrop').hidden = false;
+    const drawer = document.getElementById('mc-drawer');
+    drawer.hidden = false;
+    requestAnimationFrame(() => drawer.classList.add('open'));
+    if (cid) loadConfigBtn.click(); // existing loader fills the form
+    (cid ? document.getElementById('mc-d-close') : idInput).focus();
+}
+
+function closeClientDrawer() {
+    const drawer = document.getElementById('mc-drawer');
+    if (!drawer || drawer.hidden) return;
+    drawer.classList.remove('open');
+    drawer.hidden = true;
+    document.getElementById('mc-backdrop').hidden = true;
+    MC.open = null;
+    if (mcLastFocus && document.contains(mcLastFocus)) mcLastFocus.focus();
+}
+
+// Typed IDs: keep the drawer in sync when Load is pressed
+document.getElementById('load-config-btn')?.addEventListener('click', () => {
+    const id = document.getElementById('config-client-id').value.trim();
+    if (!id || id === MC.open) return;
+    MC.open = id;
+    document.getElementById('sim-client-id').value = id;
+    mcFillHeader(MC.list.find(x => x.clientId === id));
+});
+
+async function mcPlan(body, okMsg) {
+    const id = MC.open || document.getElementById('config-client-id').value.trim();
+    const msg = document.getElementById('mc-plan-msg');
+    if (!id) { msg.textContent = 'Open a client first.'; return; }
+    msg.textContent = 'Saving…'; msg.style.color = 'var(--text-secondary)';
+    try {
+        const res = await apiFetch(`${API_BASE}/api/admin/clients/${encodeURIComponent(id)}/plan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        msg.textContent = `✓ ${okMsg}`; msg.style.color = 'var(--success)';
+        await loadClients(true);
+    } catch (err) { msg.textContent = `Failed: ${err.message}`; msg.style.color = 'var(--error)'; }
+}
+
+function mcExport() {
+    const rows = [['client_id', 'company', 'owner_email', 'plan', 'in_trial', 'trial_ends', 'bot_mode', 'domains', 'leads_30d', 'leads_total', 'chat_messages_30d', 'last_activity']];
+    mcFiltered().forEach(c => rows.push([c.clientId, c.companyName, c.ownerEmail, c.plan, c.inTrial ? 'yes' : 'no', c.trialEndsAt ? new Date(c.trialEndsAt).toISOString().slice(0, 10) : '', c.mode, c.domains, c.leads30d, c.leadsTotal, c.messages30d, c.lastActivity ? new Date(c.lastActivity).toISOString() : '']));
+    const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const blob = new Blob(['﻿' + rows.map(r => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `clients-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
