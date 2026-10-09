@@ -425,6 +425,8 @@ function showKickedBanner(message) {
 }
 
 async function loadPlanStatus() {
+    // Agency admins aren't on a client plan: no trial banner, no Free-plan locks
+    if (userRole === 'admin') { planStatus = { plan: 'agency', inTrial: false, trialDaysLeft: 0, trialEndsAt: 0 }; return; }
     try {
         const res = await apiFetch(`${API_BASE}/api/crm-settings`);
         if (!res.ok) return;
@@ -447,7 +449,7 @@ function renderPlanBanner() {
         banner.style.display = 'block';
         banner.style.background = 'linear-gradient(90deg, rgba(239,68,68,0.12) 0%, rgba(239,68,68,0.04) 100%)';
         banner.style.color = '#f87171';
-        banner.innerHTML = `🔒 <strong>Free Plan</strong> — AI features are disabled. Max 10 leads/day · 50 contacts. <a href="/onboarding/" style="color:#fb923c;text-decoration:underline;margin-left:8px;">Upgrade your plan →</a>`;
+        banner.innerHTML = `🔒 <strong>Free Plan</strong> — AI features are disabled. Max 10 leads/day · 50 contacts. <a href="/?upgrade=free#pricing" style="color:#fb923c;text-decoration:underline;margin-left:8px;">Upgrade your plan →</a>`;
     }
 }
 
@@ -597,6 +599,28 @@ refreshBtn.addEventListener('click', () => {
 
 // --- Data Fetching ---
 async function loadLeads() {
+    const result = await fetchLeads();
+    ldShowError(result.success ? '' : result.error);
+    return result;
+}
+
+// Load failure banner with Retry — otherwise a failed load looks like "no leads"
+function ldShowError(msg) {
+    let el = document.getElementById('ld-error');
+    if (!msg) { if (el) el.hidden = true; return; }
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'ld-error';
+        el.className = 'ld-error';
+        el.setAttribute('role', 'alert');
+        document.getElementById('ld-stats').before(el);
+    }
+    el.innerHTML = `<span>Couldn't load leads: ${escapeHtml(msg)}</span><button type="button" class="cl-btn">Retry</button>`;
+    el.querySelector('button').addEventListener('click', loadLeads);
+    el.hidden = false;
+}
+
+async function fetchLeads() {
     try {
         const res = await apiFetch(`${API_BASE}/api/leads`);
 
@@ -613,6 +637,7 @@ async function loadLeads() {
         }
 
         const data = await res.json();
+        ldMarkNew(data);
         renderLeads(data);
         return { success: true };
     } catch (e) {
@@ -637,7 +662,25 @@ function ldBudget(str) {
     const m = String(str).replace(/[£€$,\s]/g, '').toLowerCase().match(/(\d+(?:\.\d+)?)([km]?)/);
     return m ? Math.round(parseFloat(m[1]) * (m[2] === 'k' ? 1e3 : m[2] === 'm' ? 1e6 : 1)) : 0;
 }
-const ldMoney = (n) => (n >= 1e6 ? `£${(n / 1e6).toFixed(1)}M` : n >= 1e4 ? `£${Math.round(n / 1e3)}K` : `£${n.toLocaleString('en-GB')}`);
+const ldCur = (str) => { const m = String(str || '').match(/[£$€]|\b(usd|eur|gbp)\b/i); return m ? ({ usd: '$', eur: '€', gbp: '£' })[m[0].toLowerCase()] || m[0] : '£'; };
+const ldMoney = (n, cur = '£') => (n >= 1e6 ? `${cur}${(n / 1e6).toFixed(1)}M` : n >= 1e4 ? `${cur}${Math.round(n / 1e3)}K` : `${cur}${n.toLocaleString('en-GB')}`);
+// Budgets in different currencies are never added together: "£41K + $20K"
+function ldMoneyMix(list) {
+    const by = {};
+    list.forEach(l => { const v = ldBudget(l.budget); if (v) { const c = ldCur(l.budget); by[c] = (by[c] || 0) + v; } });
+    return Object.entries(by).sort((a, b) => (b[0] === '£') - (a[0] === '£') || b[1] - a[1]).map(([c, v]) => ldMoney(v, c)).join(' + ');
+}
+
+// "New" marker: leads captured since this browser last opened the board
+let ldSeenBefore = null;
+function ldMarkNew(leads) {
+    let seen = 0;
+    try { seen = Number(localStorage.getItem('ld_seen_at')) || 0; } catch (_) {}
+    if (ldSeenBefore === null) ldSeenBefore = seen || Date.now();
+    const newest = Math.max(0, ...leads.map(l => l.timestamp || 0));
+    try { if (newest > seen) localStorage.setItem('ld_seen_at', String(newest)); } catch (_) {}
+}
+const ldIsNew = (l) => ldSeenBefore !== null && l.timestamp > ldSeenBefore;
 function ldAge(ts) {
     const h = (Date.now() - ts) / 3600000;
     if (h < 1) return `${Math.max(1, Math.round(h * 60))}m`;
@@ -674,7 +717,17 @@ function ldAttach() {
     });
     document.getElementById('ld-d-close').addEventListener('click', closeLeadDrawer);
     document.getElementById('ld-backdrop').addEventListener('click', closeLeadDrawer);
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !document.getElementById('ld-drawer').hidden) closeLeadDrawer(); });
+    document.addEventListener('keydown', (e) => {
+        const drawer = document.getElementById('ld-drawer');
+        if (drawer.hidden) return;
+        if (e.key === 'Escape') return closeLeadDrawer();
+        if (e.key !== 'Tab') return;
+        // Keep focus inside the open drawer (it's a modal dialog)
+        const f = [...drawer.querySelectorAll('a[href], button:not([disabled]), select, input, [tabindex]:not([tabindex="-1"])')].filter(x => x.offsetParent);
+        if (!f.length) return;
+        if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
+        else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+    });
 }
 
 function ldFiltered(leads) {
@@ -713,26 +766,26 @@ function renderLeads(leads) {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const waiting = shown.filter(ldIsWaiting).length;
     const verified = shown.filter(l => l.is_verified === 1).length;
-    const value = shown.reduce((s, l) => s + ldBudget(l.budget), 0);
+    const value = ldMoneyMix(shown);
     const filtered = shown.length !== window.allLeads.length;
     const tiles = [
         { label: 'Leads', value: shown.length, help: filtered ? `of ${window.allLeads.length} total` : 'all time' },
         { label: 'New today', value: shown.filter(l => l.timestamp >= today.getTime()).length, help: 'captured since midnight' },
         { label: 'Waiting 24h+', value: waiting, help: 'in Inbox or Priority', warn: waiting > 0 },
         { label: 'Verified email', value: shown.length ? `${Math.round((verified / shown.length) * 100)}%` : '—', help: `${verified} of ${shown.length}` },
-        { label: 'Pipeline value', value: ldMoney(value), help: 'from stated budgets' },
+        { label: 'Pipeline value', value: value ? value.split(' + ')[0] : '—', help: value.includes(' + ') ? `+ ${value.split(' + ').slice(1).join(' + ')} · stated budgets` : 'from stated budgets' },
     ];
     document.getElementById('ld-stats').innerHTML = tiles.map(t => `<div class="cl-stat${t.warn ? ' ld-stat-warn' : ''}"><span class="cl-stat-label">${t.label}</span><span class="cl-stat-num">${t.value}</span><span class="cl-stat-help">${t.help}</span></div>`).join('');
 
     const cols = { lead: colLead, priority: colPriority, opportunity: colOpportunity, campaign: colCampaign };
     Object.values(cols).forEach(c => { c.innerHTML = ''; });
-    const counts = { lead: 0, priority: 0, opportunity: 0, campaign: 0 }, values = { lead: 0, priority: 0, opportunity: 0, campaign: 0 };
+    const counts = { lead: 0, priority: 0, opportunity: 0, campaign: 0 }, values = { lead: [], priority: [], opportunity: [], campaign: [] };
     const locked = isFreeLocked();
 
     shown.forEach(l => {
         const stage = l.pipeline_stage || 'lead';
         const col = ldCol(stage);
-        counts[col]++; values[col] += ldBudget(l.budget);
+        counts[col]++; values[col].push(l);
         const wait = ldIsWaiting(l);
         const card = document.createElement('div');
         card.className = `lead-card${wait ? ' ld-waiting' : ''}`;
@@ -742,7 +795,7 @@ function renderLeads(leads) {
         card.setAttribute('aria-label', `${l.name || 'Lead'}, ${LD_STAGE_NAMES[col]}. Press Enter for details.`);
         card.innerHTML = `
             <div class="ld-card-top">
-                <span class="ld-name">${escapeHtml(l.name || 'Unnamed lead')}</span>
+                <span class="ld-name">${ldIsNew(l) ? '<span class="ld-new">New</span>' : ''}${escapeHtml(l.name || 'Unnamed lead')}</span>
                 <span class="ld-age${wait ? ' ld-age-warn' : ''}" title="Captured ${new Date(l.timestamp).toLocaleString('en-GB')}">${wait ? 'Waiting ' : ''}${ldAge(l.timestamp)}</span>
             </div>
             <div class="ld-email">${escapeHtml(l.email || 'No email')}</div>
@@ -773,7 +826,8 @@ function renderLeads(leads) {
 
     LD_STAGES.forEach(st => {
         document.getElementById(`count-${st}`).innerText = counts[st];
-        document.getElementById(`value-${st}`).textContent = values[st] ? `${ldMoney(values[st])} in budgets` : ({ lead: 'New leads land here', priority: 'High-budget leads', opportunity: 'Qualified and in talks', campaign: 'Email sequences' })[st];
+        const mix = ldMoneyMix(values[st]);
+        document.getElementById(`value-${st}`).textContent = mix ? `${mix} in budgets` : ({ lead: 'New leads land here', priority: 'High-budget leads', opportunity: 'Qualified and in talks', campaign: 'Email sequences' })[st];
         if (!counts[st]) cols[st].innerHTML = `<div class="ld-empty">${window.allLeads.length ? (filtered ? 'No leads match the filters.' : 'Drag a lead here or use “Move to…”.') : (st === 'lead' ? 'No leads yet. They appear here when your chatbot captures a contact.' : '')}</div>`;
     });
 
@@ -831,7 +885,7 @@ function openLeadDrawer(id, keepFocus = false) {
         ${ldIsWaiting(l) ? `<div class="ld-alert">Waiting ${ldAge(l.timestamp)} without follow-up. Leads answered within an hour are far more likely to convert.</div>` : ''}
         <dl class="ld-dl">
             ${row('Email', l.email ? `<a href="mailto:${escapeHtml(l.email)}">${escapeHtml(l.email)}</a> <button type="button" class="ld-copy" data-copy="${escapeHtml(l.email)}">Copy</button>` : '')}
-            ${row('Email status', l.is_verified === 1 ? '✓ Verified' : 'Not verified yet (verification email sent)')}
+            ${row('Email status', l.is_verified === 1 ? '✓ Verified' : 'Not verified yet: they haven\'t clicked the link in our verification email')}
             ${row('Service', escapeHtml(l.service || ''))}
             ${row('Budget', escapeHtml(l.budget || ''))}
             ${userRole === 'admin' ? row('Client', `<code>${escapeHtml(l.client_id || '')}</code>`) : ''}
@@ -887,10 +941,18 @@ function closeLeadDrawer() {
     if (ldLastFocus && document.contains(ldLastFocus)) ldLastFocus.focus();
 }
 
+// CSV cell, quoted. Visitor-typed text starting with = + - @ would run as a formula in
+// Excel/Sheets (CSV injection), so it's prefixed with an apostrophe.
+function csvCell(v) {
+    let t = String(v ?? '');
+    if (typeof v === 'string' && /^[=+\-@\t\r]/.test(t)) t = `'${t}`;
+    return `"${t.replace(/"/g, '""')}"`;
+}
+
 function ldExport() {
-    const rows = [['id', 'name', 'email', 'service', 'budget', 'stage', 'verified', 'captured', 'client_id', 'summary']];
-    ldFiltered(window.allLeads || []).forEach(l => rows.push([l.id, l.name, l.email, l.service, l.budget, l.pipeline_stage || 'lead', l.is_verified === 1 ? 'yes' : 'no', new Date(l.timestamp).toISOString(), l.client_id, l.summary]));
-    const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const rows = [['id', 'name', 'email', 'service', 'budget', 'stage', 'verified', 'captured', 'client_id', 'summary', 'next_step']];
+    ldFiltered(window.allLeads || []).forEach(l => rows.push([l.id, l.name, l.email, l.service, l.budget, LD_STAGE_NAMES[ldCol(l.pipeline_stage || 'lead')], l.is_verified === 1 ? 'yes' : 'no', new Date(l.timestamp).toISOString(), l.client_id, l.summary, l.next_best_action]));
+    const cell = csvCell;
     const blob = new Blob(['﻿' + rows.map(r => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -1306,6 +1368,7 @@ if (addManualStepBtn) {
 closeSequenceModalBtn.addEventListener('click', () => {
     sequenceModal.classList.add('hidden');
 });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !sequenceModal.classList.contains('hidden')) sequenceModal.classList.add('hidden'); });
 
 async function openSequenceModal(leadId) {
     currentLeadId = Number(leadId); // API requires a numeric leadId
@@ -1496,7 +1559,8 @@ approveSequenceBtn.addEventListener('click', async () => {
             // Refresh underlying leads table
             loadLeads();
         } else {
-            sequenceStatus.innerText = 'Failed to approve campaign.';
+            const err = await res.json().catch(() => ({}));
+            sequenceStatus.innerText = err.error ? `Could not approve: ${err.error}` : 'Failed to approve campaign.';
             sequenceStatus.style.color = 'var(--error)';
         }
     } catch (e) {
@@ -2296,7 +2360,7 @@ function renderQuality(d) {
 
 function exportAnalyticsCsv() {
     const d = analyticsData; if (!d) return;
-    const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const cell = csvCell;
     const c = d.current, p = d.previous || {};
     const rows = [['metric', 'this_period', 'previous_period'],
         ...[['conversations', c.conversations, p.conversations], ['leads', c.leads, p.leads], ['chat_to_lead_rate', c.chatToLead, p.chatToLead], ['verified_rate', c.verifiedRate, p.verifiedRate],
@@ -2741,7 +2805,7 @@ function openConversation(id, silent = false) {
 
 function exportConversationsCsv() {
     const d = CL.data; if (!d) return;
-    const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const cell = csvCell;
     const rows = [['conversation_id', 'client_id', 'time', 'visitor_message', 'bot_reply', 'lead_name', 'lead_email']];
     d.conversations.forEach(cv => cv.messages.forEach(m => rows.push([cv.id, cv.clientId, new Date(m.t).toISOString(), m.user, m.bot, cv.lead?.name, cv.lead?.email])));
     const blob = new Blob(['﻿' + rows.map(r => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
@@ -2772,6 +2836,11 @@ async function refreshLogsBadge() {
 
 function startLogsBadge() {
     refreshLogsBadge();
+    clearInterval(window.ldTimer);
+    window.ldTimer = setInterval(() => {
+        const busy = document.querySelector('#leads-view .lead-card.dragging, #leads-kanban select:focus') || !sequenceModal.classList.contains('hidden');
+        if (!document.hidden && !busy && !document.getElementById('leads-view')?.classList.contains('hidden')) loadLeads();
+    }, 60000);
     clearInterval(CL.timer);
     CL.timer = setInterval(() => {
         if (document.hidden) return;
@@ -3115,7 +3184,7 @@ async function mcPlan(body, okMsg) {
 function mcExport() {
     const rows = [['client_id', 'company', 'owner_email', 'plan', 'in_trial', 'trial_ends', 'bot_mode', 'domains', 'leads_30d', 'leads_total', 'chat_messages_30d', 'last_activity']];
     mcFiltered().forEach(c => rows.push([c.clientId, c.companyName, c.ownerEmail, c.plan, c.inTrial ? 'yes' : 'no', c.trialEndsAt ? new Date(c.trialEndsAt).toISOString().slice(0, 10) : '', c.mode, c.domains, c.leads30d, c.leadsTotal, c.messages30d, c.lastActivity ? new Date(c.lastActivity).toISOString() : '']));
-    const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const cell = csvCell;
     const blob = new Blob(['﻿' + rows.map(r => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
