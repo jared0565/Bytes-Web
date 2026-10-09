@@ -31,7 +31,6 @@ body { font-family: var(--font-body); background: var(--ink-0); color: var(--tex
 ::selection { background: rgba(255, 181, 71, 0.3); }
 
 /* Background: warm glow + dot grid instead of the starfield */
-#onboarding-stars-canvas { display: none; }
 #onboarding-bg-tint {
   background:
     radial-gradient(ellipse 50% 45% at 85% 0%, rgba(255, 181, 71, 0.18), transparent 70%),
