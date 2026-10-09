@@ -2403,6 +2403,7 @@ function renderWaiting(d) {
 // Reads/writes /api/site-settings, which only ever touches the house client ("default").
 
 async function loadSiteSettings() {
+    siteHealth();
     const status = document.getElementById('site-status');
     const modelSel = document.getElementById('site-llm-model');
     if (!modelSel) return;
@@ -2428,6 +2429,8 @@ async function loadSiteSettings() {
         else modelSel.innerHTML = '<option value="">Default model (could not load the model list)</option>';
         document.getElementById('site-llm-cost').innerHTML = modelCostHtml(modelSel.value);
         status.textContent = '';
+        siteRefreshUI();
+        document.getElementById('site-card')?.classList.remove('cb-dirty');
     } catch (e) {
         status.textContent = `Could not load website settings: ${e.message}`;
         status.style.color = 'var(--error)';
@@ -2446,7 +2449,7 @@ document.getElementById('site-save-btn')?.addEventListener('click', async () => 
         companyName: document.getElementById('site-company-name').value.trim(),
         mode: document.getElementById('site-mode').value,
         llmEffort: document.getElementById('site-llm-effort').value,
-        allowedDomains: document.getElementById('site-domains').value.split(/[\n,]+/).map(d => d.trim()).filter(Boolean),
+        allowedDomains: siteDomainList(),
         systemPrompt: document.getElementById('site-prompt').value.trim(),
         socials: Object.fromEntries([...document.querySelectorAll('#site-settings-view [data-social]')].map(el => [el.dataset.social, el.value.trim()])),
     };
@@ -3115,3 +3118,108 @@ function mcExport() {
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
+
+// ─── Bytes website Settings: health, mode guidance, domains, prompt, socials preview, unsaved guard ───
+function siteDomainList() {
+    return document.getElementById('site-domains').value.split(/[\n,]+/)
+        .map(d => d.trim().toLowerCase().replace(/^[a-z]+:\/\//, '').split(/[/?#\s]/)[0].replace(/:\d+$/, '').replace(/\.$/, ''))
+        .filter(Boolean);
+}
+
+async function siteHealth() {
+    const el = document.getElementById('site-health');
+    if (!el) return;
+    let d = null;
+    try { const res = await apiFetch(`${API_BASE}/api/chatbot/status?clientId=default`); if (res.ok) d = await res.json(); } catch (_) {}
+    if (!d) { el.innerHTML = ''; return; }
+    const fresh = d.lastChatAt && Date.now() - d.lastChatAt < 7 * 86400000;
+    const ai = ['ai', 'pro', 'elite'].includes(d.mode);
+    const item = (state, title, text, target) => `<a class="cb-stat cb-${state}" href="#" data-target="${target}"><span class="cb-stat-dot" aria-hidden="true"></span><span class="cb-stat-text"><strong>${title}</strong><span>${text}</span></span></a>`;
+    el.innerHTML = [
+        d.lastChatAt
+            ? item(fresh ? 'ok' : 'warn', fresh ? 'Website chat active' : 'Website chat quiet', `Last conversation ${cbAgo(d.lastChatAt)} · ${d.messages7d} message${d.messages7d === 1 ? '' : 's'} this week`, 'site-card')
+            : item('warn', 'No website chats yet', 'Open the website and send a test message.', 'site-card'),
+        item(ai ? 'ok' : 'bad', ai ? 'AI replies on' : 'Scripted replies only', ai ? `Mode: ${escapeHtml(d.mode)} · ${d.llmModel ? escapeHtml(d.llmModel.replace(/^openrouter:/, '')) : 'default model'}` : `Mode: ${escapeHtml(d.mode)}. Visitors get canned answers. Set Bot Mode to AI below.`, 'site-mode'),
+        item(d.mailReady ? 'ok' : 'bad', d.mailReady ? 'Lead emails ready' : 'Lead emails not sending', d.mailReady ? `${d.leads7d} website lead${d.leads7d === 1 ? '' : 's'} this week` : `${escapeHtml(d.mailIssue)}. Set it up on the Chatbot page → Email sender.`, 'site-card'),
+    ].join('');
+}
+document.getElementById('site-health')?.addEventListener('click', (e) => {
+    const a = e.target.closest('[data-target]');
+    if (!a) return;
+    e.preventDefault();
+    const t = document.getElementById(a.dataset.target);
+    t?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (t && t.tagName === 'SELECT') setTimeout(() => t.focus(), 300);
+});
+
+function siteModeChanged() {
+    const sel = document.getElementById('site-mode');
+    if (!sel) return;
+    document.getElementById('site-mode-note').textContent = (typeof CB_MODE_NOTES !== 'undefined' && CB_MODE_NOTES[sel.value]) || '';
+    const scripted = ['free', 'standard'].includes(sel.value);
+    document.querySelectorAll('#site-settings-view .site-ai-only').forEach(g => {
+        g.classList.toggle('cb-muted', scripted);
+        g.querySelectorAll('select').forEach(x => { x.disabled = scripted; });
+    });
+}
+
+function siteDomainsCheck() {
+    const warn = document.getElementById('site-domains-warn');
+    const list = siteDomainList();
+    if (!list.length) { warn.hidden = true; return; }
+    const covers = (host) => list.some(d => d.startsWith('*.') ? (host === d.slice(2) || host.endsWith('.' + d.slice(2))) : (host === d || host === 'www.' + d));
+    const missing = ['bytesfx.com', 'www.bytesfx.com'].filter(h => !covers(h));
+    warn.hidden = false;
+    warn.textContent = `With a list set, the chatbot only answers on these domains (web.bytesfx.com always works).${missing.length ? ` Not covered: ${missing.join(', ')}. Add *.bytesfx.com to include every subdomain.` : ''}`;
+}
+
+function sitePromptCount() {
+    const ta = document.getElementById('site-prompt');
+    document.getElementById('site-prompt-count').textContent = `${ta.value.length.toLocaleString('en-GB')} / 20,000 characters${ta.value.length ? '' : ' · empty uses the built-in BytesFX sales prompt'}`;
+}
+
+function siteSocialPreview() {
+    const el = document.getElementById('site-social-preview');
+    if (!el) return;
+    const items = [...document.querySelectorAll('#site-settings-view [data-social]')].filter(i => i.value.trim());
+    el.innerHTML = items.length
+        ? `<span class="cb-hint" style="margin:0;">Footer preview:</span> ${items.map(i => {
+            let ok = false; try { ok = /^https?:$/.test(new URL(/^https?:\/\//i.test(i.value.trim()) ? i.value.trim() : `https://${i.value.trim()}`).protocol); } catch (_) {}
+            return `<a class="cl-btn" href="${ok ? escapeHtml(/^https?:\/\//i.test(i.value.trim()) ? i.value.trim() : `https://${i.value.trim()}`) : '#'}" target="_blank" rel="noopener" title="Open ${escapeHtml(i.dataset.social)} in a new tab">${escapeHtml(i.dataset.social.charAt(0).toUpperCase() + i.dataset.social.slice(1))} ↗</a>`;
+        }).join(' ')}`
+        : '<span class="cb-hint" style="margin:0;">No social links yet, so the footer shows only the share button.</span>';
+}
+
+function siteRefreshUI() { siteModeChanged(); siteDomainsCheck(); sitePromptCount(); siteSocialPreview(); }
+
+document.getElementById('site-mode')?.addEventListener('change', siteModeChanged);
+document.getElementById('site-domains')?.addEventListener('input', siteDomainsCheck);
+document.getElementById('site-domains')?.addEventListener('blur', () => {
+    const ta = document.getElementById('site-domains');
+    const cleaned = [...new Set(siteDomainList())].join('\n');
+    if (cleaned !== ta.value.trim()) { ta.value = cleaned; siteDomainsCheck(); }
+});
+document.getElementById('site-prompt')?.addEventListener('input', sitePromptCount);
+document.querySelectorAll('#site-settings-view [data-social]').forEach(i => i.addEventListener('input', siteSocialPreview));
+document.getElementById('site-prompt-template')?.addEventListener('click', () => {
+    const ta = document.getElementById('site-prompt');
+    const company = document.getElementById('site-company-name').value.trim() || 'BytesFX';
+    const tpl = `You are the friendly assistant for ${company}, a London studio that builds high-converting websites, custom apps and AI chatbots.\n\nWho we help: small and growing businesses that want more enquiries and sales from their website.\nWhat we offer: website design and development, web and mobile apps, AI chatbots that capture leads, and SEO foundations.\nPricing: projects are quoted after a free consultation; never invent prices.\n\nGoals, in order:\n1. Understand what the visitor needs in 2–3 short, friendly sentences.\n2. Ask for their name and business email when they show interest.\n3. Offer a free consultation and confirm the team will be in touch within one working day.\n\nRules: stay on topic; be concise; never promise timelines or prices; if unsure, offer to have the team follow up.`;
+    if (ta.value.trim() && !confirm('Replace the current prompt with the starter prompt?')) return;
+    ta.value = tpl;
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    document.getElementById('site-card')?.classList.add('cb-dirty');
+    ta.focus();
+});
+
+// Unsaved-change guard (same pattern as the Chatbot page)
+(() => {
+    const card = document.getElementById('site-card'), st = document.getElementById('site-status');
+    if (!card || !st) return;
+    const mark = (e) => { if (e.isTrusted && !e.target.closest('.btn-primary, a')) card.classList.add('cb-dirty'); };
+    card.addEventListener('input', mark);
+    card.addEventListener('change', mark);
+    new MutationObserver(() => { if (/saved/i.test(st.textContent) && !/fail/i.test(st.textContent)) { card.classList.remove('cb-dirty'); siteHealth(); } })
+        .observe(st, { childList: true, characterData: true, subtree: true });
+    window.addEventListener('beforeunload', (e) => { if (card.classList.contains('cb-dirty')) { e.preventDefault(); e.returnValue = ''; } });
+})();

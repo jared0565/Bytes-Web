@@ -1673,3 +1673,19 @@ body.light-mode .mc-drawer { --cl-1: #2a78d6; --cl-soft: rgba(15, 23, 42, 0.05);
   .mc-table td[data-label]:not([data-label="Client"])::before { content: attr(data-label) ': '; font-size: 0.72rem; color: var(--text-secondary); }
   .mc-actions { padding-top: 0.5rem !important; }
 }
+
+/* ─── Bytes website Settings ─── */
+#site-settings-view { --cb-1: #3987e5; --cb-ok: #4cc44c; --cb-warn: #f0a33a; --cb-bad: #ef7a7a; --cb-line: var(--glass-border); --cb-soft: rgba(255, 255, 255, 0.04); max-width: 880px; }
+body.light-mode #site-settings-view { --cb-1: #2a78d6; --cb-ok: #0a7d0a; --cb-warn: #a35f00; --cb-bad: #b02e2e; --cb-soft: rgba(15, 23, 42, 0.05); }
+.site-health { margin-bottom: 1rem; }
+#site-settings-view .site-settings-card { max-width: none; position: relative; }
+#site-card.cb-dirty { border-color: color-mix(in srgb, var(--cb-warn) 55%, transparent); }
+#site-card.cb-dirty::after { content: 'Unsaved changes'; position: absolute; top: 1.25rem; right: 1.5rem; font-size: 0.7rem; font-weight: 600; color: var(--cb-warn); padding: 0.15rem 0.55rem; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--cb-warn) 50%, transparent); }
+.site-section { margin: 1.75rem 0 0.75rem; padding-top: 1.25rem; border-top: 1px solid var(--cb-line); font-size: 0.95rem; }
+#site-settings-view .site-socials { margin-top: 1.5rem; }
+#site-settings-view .cl-btn { font: inherit; font-size: 0.76rem; padding: 0.35rem 0.8rem; border-radius: 999px; border: 1px solid var(--cb-line); background: var(--cb-soft); color: var(--text-primary); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; }
+#site-settings-view .cl-btn:hover { border-color: var(--cb-1); }
+#site-settings-view .cl-btn:focus-visible, #site-settings-view .cb-stat:focus-visible { outline: 2px solid var(--cb-1); outline-offset: 2px; }
+.site-social-preview { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin: 0.25rem 0 0.75rem; }
+.site-savebar { position: sticky; bottom: 0; z-index: 4; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin: 1.25rem -1.75rem -1.75rem; padding: 0.9rem 1.75rem; border-top: 1px solid var(--cb-line); border-radius: 0 0 16px 16px; background: color-mix(in srgb, var(--bg-secondary) 92%, transparent); backdrop-filter: blur(10px); }
+@media (max-width: 600px) { .site-savebar { margin: 1.25rem -1.25rem -1.25rem; padding: 0.8rem 1.25rem; } }
