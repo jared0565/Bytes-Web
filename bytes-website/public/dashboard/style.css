@@ -1772,3 +1772,15 @@ body.light-mode .form-group input::placeholder, body.light-mode .form-group text
 body.light-mode #dash-new-domain,
 body.light-mode #sequence-modal input,
 body.light-mode #sequence-modal textarea { color: var(--text-primary) !important; background: #ffffff !important; border-color: rgba(15, 23, 42, 0.16) !important; }
+
+/* Settings: Website email sender card */
+#site-mail-card { margin-top: 1.25rem; position: relative; }
+#site-mail-card.cb-dirty { border-color: color-mix(in srgb, var(--cb-warn) 55%, transparent); }
+#site-mail-card.cb-dirty::after { content: 'Unsaved changes'; position: absolute; top: 1.25rem; right: 1.5rem; font-size: 0.7rem; font-weight: 600; color: var(--cb-warn); padding: 0.15rem 0.55rem; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--cb-warn) 50%, transparent); }
+.site-mail-source { display: flex; gap: 0.6rem; align-items: flex-start; margin: 0 0 1.25rem; padding: 0.75rem 0.9rem; border-radius: 12px; border: 1px solid var(--cb-line); background: var(--cb-soft); font-size: 0.84rem; line-height: 1.5; color: var(--text-primary); }
+.site-mail-source:empty { display: none; }
+.site-mail-source .cb-stat-dot { margin-top: 0.35rem; flex: none; }
+.site-mail-source.cb-warn { border-color: color-mix(in srgb, var(--cb-warn) 45%, transparent); }
+.site-mail-source.cb-bad { border-color: color-mix(in srgb, var(--cb-bad) 45%, transparent); }
+.site-mail-fields.cb-muted input { cursor: not-allowed; }
+#site-mail-test:disabled, #site-mail-save:disabled { opacity: 0.6; cursor: progress; }

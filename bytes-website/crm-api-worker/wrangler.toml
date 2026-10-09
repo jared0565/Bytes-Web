@@ -38,6 +38,8 @@ crons = ["* * * * *"]
 # ADMIN_SECRET
 # JWT_SECRET
 # OAUTH_STATE_SECRET
+# RESEND_API_KEY      (optional: Resend key for the Bytes website emails)
+# WEBSITE_MAIL_FROM   (optional: sender address for those emails, on a Resend-verified domain)
 # GEMINI_API_KEY
 # GOOGLE_CLIENT_ID
 # GOOGLE_CLIENT_SECRET

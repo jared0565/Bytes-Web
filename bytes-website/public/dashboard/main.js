@@ -2772,6 +2772,7 @@ function exportVisitorsCsv() {
 
 async function loadSiteSettings() {
     siteHealth();
+    loadSiteMail();
     const status = document.getElementById('site-status');
     const modelSel = document.getElementById('site-llm-model');
     if (!modelSel) return;
@@ -2850,6 +2851,104 @@ document.getElementById('site-save-btn')?.addEventListener('click', async () => 
         btn.disabled = false;
     }
 });
+
+// ─── Website email sender (Settings): mail:default, with the server-secret and agency fallbacks ───
+let siteMailSavedKey = false;
+const SM = (id) => document.getElementById(id);
+
+function siteMailProviderUI() {
+    const p = SM('site-mail-provider').value;
+    SM('site-mail-fields').classList.toggle('cb-muted', !p);
+    SM('site-mail-fields').querySelectorAll('input').forEach(i => { i.disabled = !p; });
+    SM('site-mail-mailgun-group').hidden = p !== 'mailgun';
+    SM('site-mail-api-key-label').textContent = p === 'resend' ? 'API key (starts with re_)' : p === 'sendgrid' ? 'API key (starts with SG.)' : 'API key';
+}
+
+function siteMailSource(d) {
+    const el = SM('site-mail-source');
+    const from = d._activeFrom ? ` from <strong>${escapeHtml(d._activeFrom)}</strong>` : '';
+    const map = {
+        saved: ['ok', `Website emails go out with the sender saved below${from}.`],
+        secret: ['ok', `Website emails go out with the Resend key saved as a server secret${from}. Saving a sender below overrides it.`],
+        agency: ['warn', `No website sender of its own: emails go out with the agency sender from the Chatbot page${from}.`],
+        none: ['bad', 'No email sender is set up, so website leads aren\'t getting verification emails. Choose a provider below.'],
+    };
+    const [state, text] = map[d._source] || map.none;
+    el.className = `site-mail-source cb-${state}`;
+    el.innerHTML = `<span class="cb-stat-dot" aria-hidden="true"></span><span>${text}</span>`;
+}
+
+async function loadSiteMail() {
+    const st = SM('site-mail-status');
+    if (!st) return;
+    try {
+        const res = await apiFetch(`${API_BASE}/api/mail-settings?site=1`);
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+        const d = await res.json();
+        SM('site-mail-provider').value = ['resend', 'sendgrid', 'mailgun'].includes(d.provider) ? d.provider : '';
+        SM('site-mail-from-name').value = d.fromName || '';
+        SM('site-mail-from-email').value = d.fromEmail || '';
+        SM('site-mail-mailgun-domain').value = d.mailgunDomain || '';
+        SM('site-mail-api-key').value = '';
+        siteMailSavedKey = !!d.apiKey;
+        SM('site-mail-key-hint').textContent = d.apiKey ? `A key ending in ${d.apiKey.replace(/^•+/, '')} is saved. Leave this empty to keep it.` : (d._secretKey ? 'A Resend key is also saved as a server secret; it is used when no sender is saved here.' : '');
+        siteMailSource(d);
+        siteMailProviderUI();
+        SM('site-mail-card').classList.remove('cb-dirty');
+        st.textContent = '';
+    } catch (e) {
+        st.textContent = `Could not load the email sender: ${e.message}`;
+        st.style.color = 'var(--error)';
+    }
+}
+
+SM('site-mail-provider')?.addEventListener('change', siteMailProviderUI);
+['input', 'change'].forEach(ev => SM('site-mail-card')?.addEventListener(ev, (e) => { if (e.isTrusted && !e.target.closest('button')) SM('site-mail-card').classList.add('cb-dirty'); }));
+
+SM('site-mail-save')?.addEventListener('click', async () => {
+    const st = SM('site-mail-status'), btn = SM('site-mail-save');
+    const provider = SM('site-mail-provider').value;
+    const fromEmail = SM('site-mail-from-email').value.trim();
+    const apiKey = SM('site-mail-api-key').value.trim();
+    const fail = (msg, el) => { st.textContent = msg; st.style.color = 'var(--error)'; el?.focus(); };
+    if (provider) {
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(fromEmail)) return fail('Enter the From email, on a domain verified with the provider.', SM('site-mail-from-email'));
+        if (!apiKey && !siteMailSavedKey) return fail('Paste the API key.', SM('site-mail-api-key'));
+        if (provider === 'resend' && apiKey && !apiKey.startsWith('re_')) return fail('Resend keys start with re_. Check you copied the whole key.', SM('site-mail-api-key'));
+        if (provider === 'mailgun' && !SM('site-mail-mailgun-domain').value.trim()) return fail('Enter the Mailgun sending domain.', SM('site-mail-mailgun-domain'));
+    }
+    const body = { provider, fromName: SM('site-mail-from-name').value.trim(), fromEmail, mailgunDomain: SM('site-mail-mailgun-domain').value.trim() };
+    if (apiKey) body.apiKey = apiKey;
+    btn.disabled = true;
+    st.textContent = 'Saving…'; st.style.color = 'var(--text-secondary)';
+    try {
+        const res = await apiFetch(`${API_BASE}/api/mail-settings?site=1`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+        await loadSiteMail();
+        st.textContent = provider ? '✓ Email sender saved. Send a test email to check it.' : '✓ Saved. Website emails now use the fallback sender.';
+        st.style.color = 'var(--success)';
+        siteHealth();
+    } catch (e) {
+        fail(`Save failed: ${e.message}`);
+    } finally { btn.disabled = false; }
+});
+
+SM('site-mail-test')?.addEventListener('click', async () => {
+    const st = SM('site-mail-status'), btn = SM('site-mail-test');
+    if (SM('site-mail-card').classList.contains('cb-dirty')) { st.textContent = 'Save your changes first, then send the test.'; st.style.color = 'var(--warning, #f59e0b)'; return; }
+    btn.disabled = true;
+    st.textContent = 'Sending a test email…'; st.style.color = 'var(--text-secondary)';
+    try {
+        const res = await apiFetch(`${API_BASE}/api/mail-settings/test?site=1`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+        st.textContent = `✓ Test email sent to ${d.sentTo || 'your email'}. Check the inbox (and spam folder).`;
+        st.style.color = 'var(--success)';
+    } catch (e) {
+        st.textContent = `Test failed: ${e.message}`; st.style.color = 'var(--error)';
+    } finally { btn.disabled = false; }
+});
+window.addEventListener('beforeunload', (e) => { if (SM('site-mail-card')?.classList.contains('cb-dirty')) { e.preventDefault(); e.returnValue = ''; } });
 
 // ─── Chat Logs: conversations inbox ───────────────────────────────────────────
 // /api/conversations groups messages into conversations (30-min inactivity rule), links captured
@@ -3541,7 +3640,7 @@ async function siteHealth() {
             ? item(fresh ? 'ok' : 'warn', fresh ? 'Website chat active' : 'Website chat quiet', `Last conversation ${cbAgo(d.lastChatAt)} · ${d.messages7d} message${d.messages7d === 1 ? '' : 's'} this week`, 'site-card')
             : item('warn', 'No website chats yet', 'Open the website and send a test message.', 'site-card'),
         item(ai ? 'ok' : 'bad', ai ? 'AI replies on' : 'Scripted replies only', ai ? `Mode: ${escapeHtml(d.mode)} · ${d.llmModel ? escapeHtml(d.llmModel.replace(/^openrouter:/, '')) : 'default model'}` : `Mode: ${escapeHtml(d.mode)}. Visitors get canned answers. Set Bot Mode to AI below.`, 'site-mode'),
-        item(d.mailReady ? 'ok' : 'bad', d.mailReady ? 'Lead emails ready' : 'Lead emails not sending', d.mailReady ? `${d.leads7d} website lead${d.leads7d === 1 ? '' : 's'} this week` : `${escapeHtml(d.mailIssue)}. Set it up on the Chatbot page → Email sender.`, 'site-card'),
+        item(d.mailReady ? 'ok' : 'bad', d.mailReady ? 'Lead emails ready' : 'Lead emails not sending', d.mailReady ? `${d.leads7d} website lead${d.leads7d === 1 ? '' : 's'} this week` : `${escapeHtml(d.mailIssue)}. Set it up in Website email sender below.`, 'site-mail-card'),
     ].join('');
 }
 document.getElementById('site-health')?.addEventListener('click', (e) => {
