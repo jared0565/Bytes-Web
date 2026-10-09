@@ -1617,6 +1617,9 @@ app.get('/api/config', requireAuth, async (c) => {
     return c.json({ ...config, plan: planStatus.plan, inTrial: planStatus.inTrial, brandingMandatory, whiteLabelEnabled });
 });
 
+// Fields the chatbot settings forms may write (badgeUrl/allowedDomains are further limited for clients)
+const CONFIG_FIELDS = ['companyName', 'mode', 'systemPrompt', 'llmModel', 'llmEffort', 'showBranding', 'referralId', 'allowedDomains', 'badgeUrl', 'widgetName', 'widgetAccentColor', 'widgetAvatar'];
+
 app.post('/api/config', requireAuth, async (c) => {
     let body;
     try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
@@ -1637,6 +1640,22 @@ app.post('/api/config', requireAuth, async (c) => {
     if ((c.get('user') || {}).role !== 'admin') {
         for (const k of ['allowedDomains', 'badgeUrl', 'referralId']) delete settings[k];
     }
+    // Validate every field that reaches the widget or the chatbot (admins included)
+    const bad = (msg) => c.json({ error: msg }, 400);
+    if (settings.mode !== undefined && !SITE_MODES.includes(settings.mode)) return bad('Unknown bot mode.');
+    if (settings.llmEffort !== undefined && !['low', 'medium', 'high'].includes(settings.llmEffort)) return bad('Effort must be low, medium or high.');
+    if (settings.llmModel !== undefined && (typeof settings.llmModel !== 'string' || !/^[\w.:/\-]{0,120}$/.test(settings.llmModel))) return bad('Unknown AI model.');
+    for (const [k, n] of [['companyName', 80], ['systemPrompt', 20000], ['referralId', 60], ['widgetName', 40]]) {
+        if (settings[k] !== undefined) { if (typeof settings[k] !== 'string') return bad(`${k} must be text.`); settings[k] = settings[k].trim().slice(0, n); }
+    }
+    if (settings.widgetAccentColor && !/^#[0-9a-fA-F]{6}$/.test(settings.widgetAccentColor)) return bad('Accent colour must be a hex value like #6366f1.');
+    if (settings.widgetAvatar && !/^https:\/\/[^\s"'<>]{4,500}$/i.test(settings.widgetAvatar)) return bad('The avatar must be an https:// image address.');
+    if (settings.allowedDomains !== undefined) {
+        if (!Array.isArray(settings.allowedDomains)) return bad('allowedDomains must be a list.');
+        settings.allowedDomains = [...new Set(settings.allowedDomains.filter(d => typeof d === 'string').map(d => d.trim().toLowerCase()).filter(d => DOMAIN_RE.test(d)))].slice(0, 50);
+    }
+    if (settings.showBranding !== undefined) settings.showBranding = settings.showBranding !== false;
+    for (const k of Object.keys(settings)) if (!CONFIG_FIELDS.includes(k)) delete settings[k];
     // Merge into the stored record so fields this form doesn't send (allowedDomains, badgeUrl, referralId…) survive
     const prev = JSON.parse(await c.env.CLIENT_SETTINGS.get(`client:${clientId}`) || '{}');
     const merged = { ...prev, ...settings };
