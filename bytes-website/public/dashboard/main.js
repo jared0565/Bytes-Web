@@ -367,6 +367,10 @@ function showDashboard() {
         if (clientsNav) clientsNav.style.display = 'none';
         document.getElementById('logs-view')?.remove();
         document.getElementById('clients-view')?.remove();
+        document.getElementById('site-settings-view')?.remove();
+        // Settings is reserved for the Bytes website; clients use Profile Settings / the Chatbot page
+        const cog = document.getElementById('settings-cog-btn');
+        if (cog) cog.style.display = 'none';
     }
 
     // Load plan/trial status and render banner
@@ -377,7 +381,7 @@ function showDashboard() {
     const requestedView = new URLSearchParams(window.location.search).get('view')
         || sessionStorage.getItem('pendingView');
     sessionStorage.removeItem('pendingView');
-    switchView(requestedView || 'leads');
+    switchView(requestedView === 'site-settings' && userRole !== 'admin' ? 'leads' : (requestedView || 'leads'));
 
     // Single-session enforcement: re-check session whenever the tab regains focus
     startSessionWatcher();
@@ -504,8 +508,16 @@ document.getElementById('dd-upgrade').addEventListener('click', () => {
     window.open(`https://web.bytesfx.com/?upgrade=${plan}#pricing`, '_blank');
     document.getElementById('user-dropdown-menu').classList.remove('open');
 });
-// Settings live on the Chatbot page — jump to them and flash the card so the click is visibly answered
+// Settings (sidebar cog) is the Bytes website's own chatbot, separate from every client. Admin only;
+// the cog is hidden for clients, who reach their own settings via Profile Settings.
 function openSettings() {
+    if (userRole === 'admin') switchView('site-settings');
+    else openChatbotSettings();
+}
+
+// Your own account's chatbot settings live on the Chatbot page — jump there and flash the card
+
+function openChatbotSettings() {
     switchView('chatbot');
     const card = document.getElementById('chatbot-settings-card');
     if (!card) return;
@@ -516,7 +528,7 @@ function openSettings() {
 }
 
 document.getElementById('dd-profile-settings').addEventListener('click', () => {
-    openSettings();
+    openChatbotSettings(); // your own account's chatbot, for admins too
     document.getElementById('user-dropdown-menu').classList.remove('open');
 });
 document.getElementById('dd-dark-mode').addEventListener('click', () => {
@@ -560,16 +572,19 @@ function switchView(viewName) {
     navItems.forEach(nav => nav.classList.toggle('active', nav.getAttribute('data-view') === viewName));
     views.forEach(view => view.classList.toggle('hidden', view.id !== `${viewName}-view`));
 
-    const titles = { leads: 'Captured Leads', logs: 'Chat Logs', clients: 'Manage Clients', chatbot: 'Chatbot & Installations', analytics: 'Analytics & Reports' };
+    const titles = { 'site-settings': 'Bytes Website Settings', leads: 'Captured Leads', logs: 'Chat Logs', clients: 'Manage Clients', chatbot: 'Chatbot & Installations', analytics: 'Analytics & Reports' };
     viewTitle.innerText = titles[viewName] || (viewName.charAt(0).toUpperCase() + viewName.slice(1));
     if (viewName === 'leads') loadLeads();
     if (viewName === 'logs') loadLogs();
     if (viewName === 'chatbot') loadChatbotView();
     if (viewName === 'analytics') loadAnalytics();
+    if (viewName === 'site-settings') loadSiteSettings();
+    document.getElementById('settings-cog-btn')?.classList.toggle('active', viewName === 'site-settings');
 }
 
 refreshBtn.addEventListener('click', () => {
-    const activeView = document.querySelector('.nav-item.active').getAttribute('data-view');
+    const activeView = document.querySelector('.nav-item.active')?.getAttribute('data-view');
+    if (!document.getElementById('site-settings-view')?.classList.contains('hidden')) loadSiteSettings();
     if (activeView === 'leads') loadLeads();
     if (activeView === 'logs') loadLogs();
     if (activeView === 'analytics') loadAnalytics(true);
@@ -1413,24 +1428,19 @@ let savedLlmModel = '';
 
 const formatPrice = (n) => `$${Number(n) > 0 && Number(n) < 0.1 ? Number(n).toFixed(3) : Number(n).toFixed(2)}`;
 
-async function loadModelCatalog() {
-    const select = document.getElementById('settings-llm-model');
-    if (!select || modelCatalog) return;
-    try {
-        const res = await fetch(`${CHATBOT_API}/public/models`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        modelCatalog = await res.json();
-    } catch (e) {
-        console.error('Model catalog load failed:', e);
-        select.innerHTML = '<option value="">Default model (could not load the model list)</option>';
-        return;
-    }
+async function ensureModelCatalog() {
+    if (modelCatalog) return modelCatalog;
+    const res = await fetch(`${CHATBOT_API}/public/models`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    modelCatalog = await res.json();
+    return modelCatalog;
+}
 
+// Fills a model <select> with "Default" + one optgroup per provider, in catalog order
+function populateModelSelect(select, savedValue) {
     const def = modelCatalog.models.find(m => m.id === modelCatalog.defaultModel);
     select.innerHTML = '';
     select.appendChild(new Option(`Default — ${def ? def.name : modelCatalog.defaultModel}`, ''));
-
-    // One group per provider, in catalog order
     const groups = new Map();
     for (const m of modelCatalog.models) {
         if (!groups.has(m.providerName)) {
@@ -1444,22 +1454,40 @@ async function loadModelCatalog() {
         opt.disabled = !m.available;
         groups.get(m.providerName).appendChild(opt);
     }
-    select.value = savedLlmModel;
-    if (select.value !== savedLlmModel) select.value = ''; // saved model no longer offered
+    select.dataset.filled = '1';
+    select.value = savedValue || '';
+    if (select.value !== (savedValue || '')) select.value = ''; // saved model no longer offered
+}
+
+async function loadModelCatalog() {
+    const select = document.getElementById('settings-llm-model');
+    if (!select || select.dataset.filled) return;
+    try {
+        await ensureModelCatalog();
+    } catch (e) {
+        console.error('Model catalog load failed:', e);
+        select.innerHTML = '<option value="">Default model (could not load the model list)</option>';
+        return;
+    }
+    populateModelSelect(select, savedLlmModel);
     renderModelCost();
+}
+
+// Cost line under a model picker (shared by Chatbot and Bytes website settings)
+function modelCostHtml(id) {
+    const m = modelCatalog && modelCatalog.models.find(x => x.id === (id || modelCatalog.defaultModel));
+    if (!m) return '';
+    return `Provider: <strong>${escapeHtml(m.providerName)}</strong> · Model: <code>${escapeHtml(m.id)}</code><br>`
+        + `Cost: <strong>${formatPrice(m.inputPrice)}</strong> per 1M input tokens · <strong>${formatPrice(m.outputPrice)}</strong> per 1M output tokens`
+        + (m.provider === 'openrouter' ? ' <span style="color:var(--text-secondary);">(live OpenRouter price)</span>' : '')
+        + (m.available ? '' : `<br><span style="color:var(--warning, #f59e0b);">No ${escapeHtml(m.providerName)} API key is set on the chatbot server — replies will use the default model.</span>`);
 }
 
 function renderModelCost() {
     const select = document.getElementById('settings-llm-model');
     const costEl = document.getElementById('settings-llm-cost');
     if (!select || !costEl || !modelCatalog) return;
-    const id = select.value || modelCatalog.defaultModel;
-    const m = modelCatalog.models.find(x => x.id === id);
-    if (!m) { costEl.textContent = ''; return; }
-    costEl.innerHTML = `Provider: <strong>${escapeHtml(m.providerName)}</strong> · Model: <code>${escapeHtml(m.id)}</code><br>`
-        + `Cost: <strong>${formatPrice(m.inputPrice)}</strong> per 1M input tokens · <strong>${formatPrice(m.outputPrice)}</strong> per 1M output tokens`
-        + (m.provider === 'openrouter' ? ' <span style="color:var(--text-secondary);">(live OpenRouter price)</span>' : '')
-        + (m.available ? '' : `<br><span style="color:var(--warning, #f59e0b);">No ${escapeHtml(m.providerName)} API key is set on the chatbot server — replies will use the default model.</span>`);
+    costEl.innerHTML = modelCostHtml(select.value);
 }
 
 document.getElementById('settings-llm-model')?.addEventListener('change', renderModelCost);
@@ -1477,7 +1505,7 @@ function populateChatbotSettings(data) {
 
     savedLlmModel = data.llmModel || '';
     const llmSelect = document.getElementById('settings-llm-model');
-    if (llmSelect && modelCatalog) { llmSelect.value = savedLlmModel; if (llmSelect.value !== savedLlmModel) llmSelect.value = ''; renderModelCost(); }
+    if (llmSelect && llmSelect.dataset.filled) { llmSelect.value = savedLlmModel; if (llmSelect.value !== savedLlmModel) llmSelect.value = ''; renderModelCost(); }
     const effortEl = document.getElementById('settings-llm-effort');
     if (effortEl) effortEl.value = ['low', 'medium', 'high'].includes(data.llmEffort) ? data.llmEffort : 'medium';
 
@@ -1753,7 +1781,8 @@ document.getElementById('settings-save-chatbot-btn').addEventListener('click', a
     const modeVal = document.getElementById('settings-mode')?.value;
     if (modeVal) settings.mode = modeVal;
     // Only send the model once the list loaded, so a failed load can't wipe the saved choice
-    if (modelCatalog) settings.llmModel = document.getElementById('settings-llm-model')?.value || '';
+    const llmSel = document.getElementById('settings-llm-model');
+    if (llmSel?.dataset.filled) settings.llmModel = llmSel.value || '';
     settings.llmEffort = document.getElementById('settings-llm-effort')?.value || 'medium';
 
     const wlSection = document.getElementById('settings-wl-section');
@@ -2164,3 +2193,74 @@ function renderWaiting(d) {
         '<p class="viz-wait-note">Replying within an hour makes a lead far more likely to convert than replying the next day.</p>';
     el.querySelectorAll('[data-goto-leads]').forEach(b => b.addEventListener('click', () => switchView('leads')));
 }
+
+// ─── Bytes website settings (admin only) ──────────────────────────────────────
+// Reads/writes /api/site-settings, which only ever touches the house client ("default").
+
+async function loadSiteSettings() {
+    const status = document.getElementById('site-status');
+    const modelSel = document.getElementById('site-llm-model');
+    if (!modelSel) return;
+    status.textContent = 'Loading…';
+    status.style.color = 'var(--text-secondary)';
+    try {
+        const [res] = await Promise.all([
+            apiFetch(`${API_BASE}/api/site-settings`),
+            ensureModelCatalog().catch(e => { console.error('Model catalog load failed:', e); }),
+        ]);
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+        const d = await res.json();
+        document.getElementById('site-company-name').value = d.companyName || '';
+        document.getElementById('site-mode').value = d.mode || 'free';
+        document.getElementById('site-llm-effort').value = ['low', 'medium', 'high'].includes(d.llmEffort) ? d.llmEffort : 'medium';
+        document.getElementById('site-domains').value = (d.allowedDomains || []).join('\n');
+        document.getElementById('site-prompt').value = d.systemPrompt || '';
+        if (modelCatalog) populateModelSelect(modelSel, d.llmModel || '');
+        else modelSel.innerHTML = '<option value="">Default model (could not load the model list)</option>';
+        document.getElementById('site-llm-cost').innerHTML = modelCostHtml(modelSel.value);
+        status.textContent = '';
+    } catch (e) {
+        status.textContent = `Could not load website settings: ${e.message}`;
+        status.style.color = 'var(--error)';
+    }
+}
+
+document.getElementById('site-llm-model')?.addEventListener('change', (e) => {
+    document.getElementById('site-llm-cost').innerHTML = modelCostHtml(e.target.value);
+});
+
+document.getElementById('site-save-btn')?.addEventListener('click', async () => {
+    const status = document.getElementById('site-status');
+    const btn = document.getElementById('site-save-btn');
+    const modelSel = document.getElementById('site-llm-model');
+    const body = {
+        companyName: document.getElementById('site-company-name').value.trim(),
+        mode: document.getElementById('site-mode').value,
+        llmEffort: document.getElementById('site-llm-effort').value,
+        allowedDomains: document.getElementById('site-domains').value.split(/[\n,]+/).map(d => d.trim()).filter(Boolean),
+        systemPrompt: document.getElementById('site-prompt').value.trim(),
+    };
+    // Only send the model once the list loaded, so a failed load can't wipe the saved choice
+    if (modelSel.dataset.filled) body.llmModel = modelSel.value || '';
+    btn.disabled = true;
+    status.textContent = 'Saving…';
+    status.style.color = 'var(--text-secondary)';
+    try {
+        const res = await apiFetch(`${API_BASE}/api/site-settings`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        const dropped = body.allowedDomains.length - (data.allowedDomains || []).length;
+        if (data.allowedDomains) document.getElementById('site-domains').value = data.allowedDomains.join('\n');
+        status.textContent = dropped > 0 ? `Saved. ${dropped} invalid domain${dropped === 1 ? ' was' : 's were'} skipped.` : 'Website settings saved.';
+        status.style.color = 'var(--success)';
+    } catch (e) {
+        status.textContent = `Save failed: ${e.message}`;
+        status.style.color = 'var(--error)';
+    } finally {
+        btn.disabled = false;
+    }
+});

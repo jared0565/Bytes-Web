@@ -1009,9 +1009,29 @@ app.get('/api/analytics', requireAuth, async (c) => {
 });
 
 // Chatbot client settings (stored in CLIENT_SETTINGS KV, shared with chatbot-api)
+// ─── Client scoping ──────────────────────────────────────────────────────────
+// The Bytes website's own chatbot runs as client "default". It is edited only through
+// /api/site-settings (admin) and never through the per-client endpoints below.
+const HOUSE_CLIENT_ID = 'default';
+
+// Which client a request may act on: admins pick any client (except the house site), everyone else only their own.
+function scopedClientId(c, requested) {
+    const user = c.get('user') || {};
+    if (user.role === 'admin') {
+        const id = typeof requested === 'string' ? requested.trim() : '';
+        if (!id) return { error: 'Missing clientId', status: 400 };
+        if (id === HOUSE_CLIENT_ID) return { error: 'The Bytes website is configured under Settings, not per-client settings.', status: 400 };
+        return { clientId: id };
+    }
+    if (!user.clientId) return { error: 'No client is linked to this account', status: 403 };
+    if (requested && requested !== user.clientId) return { error: 'You can only change your own settings', status: 403 };
+    return { clientId: user.clientId };
+}
+
 app.get('/api/config', requireAuth, async (c) => {
-    const clientId = c.req.query('clientId');
-    if (!clientId) return c.json({ error: 'Missing clientId' }, 400);
+    const scope = scopedClientId(c, c.req.query('clientId'));
+    if (scope.error) return c.json({ error: scope.error }, scope.status);
+    const { clientId } = scope;
     const kvData = await c.env.CLIENT_SETTINGS.get(`client:${clientId}`);
     const config = kvData ? JSON.parse(kvData) : {};
     const planStatus = await getPlanStatus(c.env, clientId);
@@ -1035,8 +1055,11 @@ app.get('/api/config', requireAuth, async (c) => {
 app.post('/api/config', requireAuth, async (c) => {
     let body;
     try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
-    const { clientId, settings } = body;
-    if (!clientId || !settings) return c.json({ error: 'Missing clientId or settings' }, 400);
+    const { settings } = body;
+    if (!settings || typeof settings !== 'object') return c.json({ error: 'Missing settings' }, 400);
+    const scope = scopedClientId(c, body.clientId);
+    if (scope.error) return c.json({ error: scope.error }, scope.status);
+    const { clientId } = scope;
     const planStatus = await getPlanStatus(c.env, clientId);
     // Post-trial free plans are locked to the free bot (the cron reverts anything else) — say so instead of a silent revert
     if (!planStatus.inTrial && planStatus.plan === 'free' && settings.mode && settings.mode !== 'free') {
@@ -1076,8 +1099,54 @@ app.post('/api/test-lead', requireAuth, async (c) => {
 });
 
 // CRM Settings
+// ─── Bytes website settings (admin only) ─────────────────────────────────────
+// The house chatbot on bytesfx.com: no plan limits, no badge rules, separate from every client.
+const SITE_FIELDS = ['companyName', 'mode', 'systemPrompt', 'llmModel', 'llmEffort', 'allowedDomains'];
+const SITE_MODES = ['free', 'standard', 'ai', 'pro', 'elite'];
+const DOMAIN_RE = /^(\*\.)?[a-zA-Z0-9][a-zA-Z0-9\-\.]{0,252}[a-zA-Z0-9]$/;
+
+function requireAdmin(c) {
+    return (c.get('user') || {}).role === 'admin' ? null : c.json({ error: 'Admins only' }, 403);
+}
+
+app.get('/api/site-settings', requireAuth, async (c) => {
+    const denied = requireAdmin(c); if (denied) return denied;
+    const cfg = JSON.parse(await c.env.CLIENT_SETTINGS.get(`client:${HOUSE_CLIENT_ID}`) || '{}');
+    const out = { clientId: HOUSE_CLIENT_ID };
+    for (const k of SITE_FIELDS) if (cfg[k] !== undefined) out[k] = cfg[k];
+    return c.json(out);
+});
+
+app.post('/api/site-settings', requireAuth, async (c) => {
+    const denied = requireAdmin(c); if (denied) return denied;
+    let body;
+    try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+    const update = {};
+    if (typeof body.companyName === 'string') update.companyName = body.companyName.trim().slice(0, 120);
+    if (typeof body.systemPrompt === 'string') update.systemPrompt = body.systemPrompt.slice(0, 20000);
+    if (body.mode !== undefined) {
+        if (!SITE_MODES.includes(body.mode)) return c.json({ error: 'Invalid bot mode' }, 400);
+        update.mode = body.mode;
+    }
+    if (typeof body.llmModel === 'string') update.llmModel = body.llmModel.trim().slice(0, 200);
+    if (body.llmEffort !== undefined) update.llmEffort = ['low', 'medium', 'high'].includes(body.llmEffort) ? body.llmEffort : 'medium';
+    if (body.allowedDomains !== undefined) {
+        if (!Array.isArray(body.allowedDomains)) return c.json({ error: 'allowedDomains must be a list' }, 400);
+        update.allowedDomains = [...new Set(body.allowedDomains
+            .filter(d => typeof d === 'string' && d.includes('.') && DOMAIN_RE.test(d.trim()))
+            .map(d => d.trim().toLowerCase()))].slice(0, 50);
+    }
+    // Merge so fields this form doesn't manage survive
+    const prev = JSON.parse(await c.env.CLIENT_SETTINGS.get(`client:${HOUSE_CLIENT_ID}`) || '{}');
+    await c.env.CLIENT_SETTINGS.put(`client:${HOUSE_CLIENT_ID}`, JSON.stringify({ ...prev, ...update }));
+    return c.json({ success: true, ...update });
+});
+
 app.get('/api/crm-settings', requireAuth, async (c) => {
-    const clientId = c.req.query('clientId') || 'agency_demo';
+    const user = c.get('user') || {};
+    const scope = scopedClientId(c, c.req.query('clientId') || (user.role === 'admin' ? 'agency_demo' : undefined));
+    if (scope.error) return c.json({ error: scope.error }, scope.status);
+    const { clientId } = scope;
     try {
         let settings = await c.env.DB.prepare('SELECT * FROM crm_settings WHERE client_id = ?').bind(clientId).first();
         if (!settings) settings = { client_id: clientId, default_campaign_mode: 'ai', auto_approve_campaigns: 0, plan: 'free', trial_started_at: 0, trial_ends_at: 0 };
@@ -1092,8 +1161,10 @@ app.get('/api/crm-settings', requireAuth, async (c) => {
 app.post('/api/crm-settings', requireAuth, async (c) => {
     let body;
     try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
-    const { clientId, default_campaign_mode, auto_approve_campaigns } = body;
-    if (!clientId || typeof clientId !== 'string') return c.json({ error: 'clientId is required' }, 400);
+    const { default_campaign_mode, auto_approve_campaigns } = body;
+    const scope = scopedClientId(c, body.clientId);
+    if (scope.error) return c.json({ error: scope.error }, scope.status);
+    const { clientId } = scope;
 
     const validModes = ['ai', 'rule', 'manual'];
     const mode = validModes.includes(default_campaign_mode) ? default_campaign_mode : 'ai';
