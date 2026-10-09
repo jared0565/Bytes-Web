@@ -163,3 +163,16 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--amber); outline
   .page-hero .wrap > * { animation: none; }
   .btn, .email-btn { transition: none; }
 }
+
+/* Share button in the nav (opens the share dialog from /share.js) */
+.site-share {
+  appearance: none; display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.6rem 0.95rem; border-radius: 999px;
+  border: 1px solid var(--line-strong); background: rgba(255, 255, 255, 0.02); color: var(--text); font: 500 0.9rem/1 var(--font-body); cursor: pointer;
+  transition: transform 0.35s var(--ease-spring), border-color 0.2s ease, color 0.2s ease;
+}
+.site-share:hover { border-color: rgba(255, 181, 71, 0.5); color: var(--amber); transform: translateY(-2px); }
+.site-share:active { transform: scale(0.97); }
+.site-share:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+.site-nav-links + .site-share { margin-left: 0; }
+.site-footer-brand [data-social-links] { color: var(--text-dim); }
+@media (max-width: 640px) { .site-share { margin-left: auto; padding: 0.6rem; } .site-share { font-size: 0; gap: 0; } .site-share svg { width: 18px; height: 18px; } .site-nav .btn { margin-left: 0; } }
