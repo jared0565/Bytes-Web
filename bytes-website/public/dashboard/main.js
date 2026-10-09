@@ -619,138 +619,277 @@ async function loadLogs() { return loadConversations(); }
 // --- Rendering ---
 window.allLeads = [];
 
-function renderLeads(leads) {
-    window.allLeads = leads;
-    // Pipeline Metrics Gamification (CRM logic)
-    const pipelineCount = leads.filter(l => ['lead', 'opportunity', 'priority'].includes(l.pipeline_stage)).length;
-    // Generated sequences land in 'campaign' (AI/rule generation) until approved → 'active'
-    const draftedCount = leads.filter(l => ['campaign', 'drafting', 'sequence_generated'].includes(l.pipeline_stage)).length;
-    const activeCount = leads.filter(l => l.pipeline_stage === 'active').length;
+// ─── Leads board ──────────────────────────────────────────────────────────────
+const LD_STAGES = ['lead', 'priority', 'opportunity', 'campaign'];
+const LD_STAGE_NAMES = { lead: 'Inbox', priority: 'Priority', opportunity: 'Opportunity', campaign: 'Campaigns' };
+const LD_SUB = { drafting: 'Drafting', sequence_generated: 'Sequence ready', active: 'Campaign live', campaign: 'Sequence drafted' };
+const ldCol = (stage) => (['drafting', 'active', 'sequence_generated', 'campaign'].includes(stage) ? 'campaign' : (LD_STAGES.includes(stage) ? stage : 'lead'));
 
-    document.getElementById('metric-captured').innerText = pipelineCount;
-    document.getElementById('metric-drafted').innerText = draftedCount;
-    document.getElementById('metric-active').innerText = activeCount;
+function ldBudget(str) {
+    if (!str) return 0;
+    const m = String(str).replace(/[£€$,\s]/g, '').toLowerCase().match(/(\d+(?:\.\d+)?)([km]?)/);
+    return m ? Math.round(parseFloat(m[1]) * (m[2] === 'k' ? 1e3 : m[2] === 'm' ? 1e6 : 1)) : 0;
+}
+const ldMoney = (n) => (n >= 1e6 ? `£${(n / 1e6).toFixed(1)}M` : n >= 1e4 ? `£${Math.round(n / 1e3)}K` : `£${n.toLocaleString('en-GB')}`);
+function ldAge(ts) {
+    const h = (Date.now() - ts) / 3600000;
+    if (h < 1) return `${Math.max(1, Math.round(h * 60))}m`;
+    if (h < 48) return `${Math.round(h)}h`;
+    return `${Math.round(h / 24)}d`;
+}
+const ldIsWaiting = (l) => ['lead', 'priority'].includes(l.pipeline_stage || 'lead') && Date.now() - l.timestamp > 86400000;
 
-    // Clear columns
-    colLead.innerHTML = '';
-    colPriority.innerHTML = '';
-    colOpportunity.innerHTML = '';
-    colCampaign.innerHTML = '';
-
-    const counts = { lead: 0, priority: 0, opportunity: 0, campaign: 0 };
-
-    leads.forEach(l => {
-        let stage = l.pipeline_stage || 'lead';
-        // Group sequencing sub-stages into the 'campaign' column for layout simplicity
-        if (stage === 'drafting' || stage === 'active' || stage === 'sequence_generated') {
-            stage = 'campaign';
-        }
-
-        counts[stage] = (counts[stage] || 0) + 1;
-
-        const card = document.createElement('div');
-        card.className = `lead-card ${l.locked ? 'lead-locked' : ''}`;
-        card.draggable = !l.locked;
-        card.dataset.id = l.id;
-        
-        card.innerHTML = `
-            <div class="lead-card-header">
-                <div class="lead-card-title">${escapeHtml(l.name)}</div>
-                <div class="lead-card-budget">${escapeHtml(l.budget)}</div>
-            </div>
-            <div class="lead-card-email">${escapeHtml(l.email)}</div>
-            <div class="lead-card-summary" title="${escapeHtml(l.summary)}">${escapeHtml(l.summary) || 'No summary provided.'}</div>
-            ${l.next_best_action ? `
-            <div style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.85rem;">
-                <strong style="color: var(--accent-color); display: block; margin-bottom: 0.25rem;">✨ Copilot Insight:</strong>
-                <span style="color: var(--text-primary);">${escapeHtml(l.next_best_action)}</span>
-            </div>` : ''}
-            <div class="lead-card-footer">
-                <div class="lead-card-time">${new Date(l.timestamp).toLocaleDateString()}</div>
-                ${!l.locked ? `<button class="btn btn-outline manage-campaign-btn" data-id="${escapeHtml(String(l.id))}" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">${isFreeLocked() ? '🔒 ' : ''}Campaign</button>` : ''}
-            </div>
-            <div style="margin-top: 0.5rem;">
-                ${l.has_lightning_badge ? '<span class="badge" title="Lightning Response" style="background: rgba(234, 179, 8, 0.2); color: #eab308; border-color: #eab308; font-size: 0.7rem; display: inline-block; margin-right: 0.25rem;">⚡ Fast Action</span>' : ''}
-                ${l.is_verified === 1 ? '<span class="badge" style="background: rgba(76, 175, 80, 0.2); color: #4CAF50; border-color: #4CAF50; font-size: 0.7rem; display: inline-block;">✅ Verified</span>' : '<span class="badge" style="background: rgba(244, 67, 54, 0.2); color: #F44336; border-color: #F44336; font-size: 0.7rem; display: inline-block;">⚠️ Unverified</span>'}
-            </div>
-        `;
-
-        if (card.draggable) {
-            card.addEventListener('dragstart', () => {
-                card.dataset.fromStage = card.closest('[data-stage]')?.getAttribute('data-stage') || '';
-                card.classList.add('dragging');
-            });
-            card.addEventListener('dragend', () => {
-                card.classList.remove('dragging');
-            });
-        }
-
-        if (stage === 'priority') colPriority.appendChild(card);
-        else if (stage === 'opportunity') colOpportunity.appendChild(card);
-        else if (stage === 'campaign') colCampaign.appendChild(card);
-        else colLead.appendChild(card);
+let ldListeners = false;
+function ldAttach() {
+    if (ldListeners) return;
+    ldListeners = true;
+    let t;
+    document.getElementById('ld-q').addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => renderLeads(window.allLeads), 150); });
+    ['ld-date', 'ld-verified', 'ld-client', 'ld-sort'].forEach(id => document.getElementById(id).addEventListener('change', () => renderLeads(window.allLeads)));
+    document.getElementById('ld-clear').addEventListener('click', () => {
+        document.getElementById('ld-q').value = '';
+        ['ld-date', 'ld-verified', 'ld-client'].forEach(id => { document.getElementById(id).selectedIndex = 0; });
+        renderLeads(window.allLeads);
     });
-
-    document.getElementById('count-lead').innerText = counts.lead;
-    document.getElementById('count-priority').innerText = counts.priority;
-    document.getElementById('count-opportunity').innerText = counts.opportunity;
-    document.getElementById('count-campaign').innerText = counts.campaign;
-
-    // Add event listeners for the Campaign buttons
-    document.querySelectorAll('.manage-campaign-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const leadId = e.target.getAttribute('data-id');
-            openSequenceModal(leadId);
-        });
+    document.getElementById('ld-export').addEventListener('click', ldExport);
+    document.getElementById('leads-kanban').addEventListener('click', (e) => {
+        if (e.target.closest('select, .manage-campaign-btn, a, [data-copy]')) return;
+        const card = e.target.closest('.lead-card');
+        if (card) openLeadDrawer(card.dataset.id);
     });
+    document.getElementById('leads-kanban').addEventListener('keydown', (e) => {
+        const card = e.target.closest('.lead-card');
+        if (card && e.target === card && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openLeadDrawer(card.dataset.id); }
+    });
+    document.getElementById('leads-kanban').addEventListener('change', (e) => {
+        const sel = e.target.closest('select[data-move]');
+        if (sel && sel.value) moveLead(sel.dataset.move, sel.value);
+    });
+    document.getElementById('ld-d-close').addEventListener('click', closeLeadDrawer);
+    document.getElementById('ld-backdrop').addEventListener('click', closeLeadDrawer);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !document.getElementById('ld-drawer').hidden) closeLeadDrawer(); });
 }
 
-// --- Drag and Drop Logic ---
-[colLead, colPriority, colOpportunity, colCampaign].forEach(container => {
-    container.addEventListener('dragover', e => {
-        e.preventDefault();
-        const draggable = document.querySelector('.dragging');
-        if (draggable) {
-            container.appendChild(draggable);
-        }
+function ldFiltered(leads) {
+    const q = document.getElementById('ld-q').value.trim().toLowerCase();
+    const days = parseInt(document.getElementById('ld-date').value, 10);
+    const ver = document.getElementById('ld-verified').value;
+    const client = document.getElementById('ld-client').value;
+    const sort = document.getElementById('ld-sort').value;
+    let from = 0;
+    if (days) { const d = new Date(); d.setHours(0, 0, 0, 0); from = d.getTime() - (days - 1) * 86400000; }
+    const out = leads.filter(l =>
+        (!q || [l.name, l.email, l.service, l.summary, l.budget].some(v => String(v || '').toLowerCase().includes(q))) &&
+        (!from || l.timestamp >= from) &&
+        (ver === '' || (ver === '1' ? l.is_verified === 1 : l.is_verified !== 1)) &&
+        (!client || l.client_id === client));
+    out.sort((a, b) => sort === 'old' ? a.timestamp - b.timestamp : sort === 'budget' ? ldBudget(b.budget) - ldBudget(a.budget) || b.timestamp - a.timestamp : b.timestamp - a.timestamp);
+    document.getElementById('ld-clear').hidden = !(q || days || ver !== '' || client);
+    return out;
+}
+
+function renderLeads(leads) {
+    window.allLeads = leads || [];
+    ldAttach();
+    const isAdmin = userRole === 'admin';
+
+    const clientSel = document.getElementById('ld-client');
+    const clients = [...new Set(window.allLeads.map(l => l.client_id).filter(Boolean))].sort();
+    if (isAdmin && clients.length > 1) {
+        const cur = clientSel.value;
+        clientSel.hidden = false;
+        clientSel.innerHTML = '<option value="">All clients</option>' + clients.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c === 'default' ? 'Bytes website' : c)}</option>`).join('');
+        clientSel.value = cur;
+    }
+
+    const shown = ldFiltered(window.allLeads);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const waiting = shown.filter(ldIsWaiting).length;
+    const verified = shown.filter(l => l.is_verified === 1).length;
+    const value = shown.reduce((s, l) => s + ldBudget(l.budget), 0);
+    const filtered = shown.length !== window.allLeads.length;
+    const tiles = [
+        { label: 'Leads', value: shown.length, help: filtered ? `of ${window.allLeads.length} total` : 'all time' },
+        { label: 'New today', value: shown.filter(l => l.timestamp >= today.getTime()).length, help: 'captured since midnight' },
+        { label: 'Waiting 24h+', value: waiting, help: 'in Inbox or Priority', warn: waiting > 0 },
+        { label: 'Verified email', value: shown.length ? `${Math.round((verified / shown.length) * 100)}%` : '—', help: `${verified} of ${shown.length}` },
+        { label: 'Pipeline value', value: ldMoney(value), help: 'from stated budgets' },
+    ];
+    document.getElementById('ld-stats').innerHTML = tiles.map(t => `<div class="cl-stat${t.warn ? ' ld-stat-warn' : ''}"><span class="cl-stat-label">${t.label}</span><span class="cl-stat-num">${t.value}</span><span class="cl-stat-help">${t.help}</span></div>`).join('');
+
+    const cols = { lead: colLead, priority: colPriority, opportunity: colOpportunity, campaign: colCampaign };
+    Object.values(cols).forEach(c => { c.innerHTML = ''; });
+    const counts = { lead: 0, priority: 0, opportunity: 0, campaign: 0 }, values = { lead: 0, priority: 0, opportunity: 0, campaign: 0 };
+    const locked = isFreeLocked();
+
+    shown.forEach(l => {
+        const stage = l.pipeline_stage || 'lead';
+        const col = ldCol(stage);
+        counts[col]++; values[col] += ldBudget(l.budget);
+        const wait = ldIsWaiting(l);
+        const card = document.createElement('div');
+        card.className = `lead-card${wait ? ' ld-waiting' : ''}`;
+        card.draggable = true;
+        card.tabIndex = 0;
+        card.dataset.id = l.id;
+        card.setAttribute('aria-label', `${l.name || 'Lead'}, ${LD_STAGE_NAMES[col]}. Press Enter for details.`);
+        card.innerHTML = `
+            <div class="ld-card-top">
+                <span class="ld-name">${escapeHtml(l.name || 'Unnamed lead')}</span>
+                <span class="ld-age${wait ? ' ld-age-warn' : ''}" title="Captured ${new Date(l.timestamp).toLocaleString('en-GB')}">${wait ? 'Waiting ' : ''}${ldAge(l.timestamp)}</span>
+            </div>
+            <div class="ld-email">${escapeHtml(l.email || 'No email')}</div>
+            <div class="ld-chips">
+                ${l.budget ? `<span class="ld-chip ld-chip-budget">${escapeHtml(l.budget)}</span>` : ''}
+                ${l.service ? `<span class="ld-chip">${escapeHtml(l.service)}</span>` : ''}
+                ${l.is_verified === 1 ? '<span class="ld-chip ld-chip-ok">✓ Verified</span>' : '<span class="ld-chip ld-chip-muted">Unverified</span>'}
+                ${col === 'campaign' && LD_SUB[stage] ? `<span class="ld-chip ld-chip-info">${LD_SUB[stage]}</span>` : ''}
+                ${isAdmin && clients.length > 1 ? `<span class="ld-chip ld-chip-muted">${escapeHtml(l.client_id === 'default' ? 'Bytes website' : l.client_id)}</span>` : ''}
+            </div>
+            ${l.summary ? `<p class="ld-summary">${escapeHtml(l.summary)}</p>` : ''}
+            ${l.next_best_action ? `<p class="ld-nba"><strong>Next step:</strong> ${escapeHtml(l.next_best_action)}</p>` : ''}
+            <div class="ld-card-foot">
+                <select data-move="${l.id}" aria-label="Move ${escapeHtml(l.name || 'lead')} to stage">
+                    <option value="">Move to…</option>
+                    ${LD_STAGES.filter(s2 => s2 !== col).map(s2 => `<option value="${s2}">${LD_STAGE_NAMES[s2]}</option>`).join('')}
+                </select>
+                <button type="button" class="cl-btn manage-campaign-btn" data-id="${escapeHtml(String(l.id))}">${locked ? '🔒 ' : ''}Campaign</button>
+            </div>`;
+        card.addEventListener('dragstart', (e) => {
+            card.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', String(l.id));
+        });
+        card.addEventListener('dragend', () => { card.classList.remove('dragging'); document.querySelectorAll('.kanban-column-body.drop-target').forEach(c => c.classList.remove('drop-target')); });
+        cols[col].appendChild(card);
     });
 
-    container.addEventListener('drop', async e => {
+    LD_STAGES.forEach(st => {
+        document.getElementById(`count-${st}`).innerText = counts[st];
+        document.getElementById(`value-${st}`).textContent = values[st] ? `${ldMoney(values[st])} in budgets` : ({ lead: 'New leads land here', priority: 'High-budget leads', opportunity: 'Qualified and in talks', campaign: 'Email sequences' })[st];
+        if (!counts[st]) cols[st].innerHTML = `<div class="ld-empty">${window.allLeads.length ? (filtered ? 'No leads match the filters.' : 'Drag a lead here or use “Move to…”.') : (st === 'lead' ? 'No leads yet. They appear here when your chatbot captures a contact.' : '')}</div>`;
+    });
+
+    document.querySelectorAll('.manage-campaign-btn').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); openSequenceModal(btn.getAttribute('data-id')); }));
+    const open = document.getElementById('ld-drawer').dataset.leadId;
+    if (open && !document.getElementById('ld-drawer').hidden) openLeadDrawer(open, true);
+}
+
+async function moveLead(id, toStage) {
+    const lead = window.allLeads.find(l => String(l.id) === String(id));
+    if (!lead || ldCol(lead.pipeline_stage) === toStage) return renderLeads(window.allLeads);
+    const prev = lead.pipeline_stage;
+    lead.pipeline_stage = toStage; // optimistic
+    renderLeads(window.allLeads);
+    try {
+        const res = await apiFetch(`${API_BASE}/api/leads/${id}/stage`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stage: toStage }) });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+    } catch (err) {
+        console.error('[Leads] Move failed:', err);
+        lead.pipeline_stage = prev;
+        renderLeads(window.allLeads);
+        alert(`Could not move the lead: ${err.message}`);
+    }
+}
+
+// --- Drag and Drop (drop target highlights; the card moves on drop, not on every dragover) ---
+[colLead, colPriority, colOpportunity, colCampaign].forEach(container => {
+    container.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; container.classList.add('drop-target'); });
+    container.addEventListener('dragleave', e => { if (!container.contains(e.relatedTarget)) container.classList.remove('drop-target'); });
+    container.addEventListener('drop', e => {
         e.preventDefault();
-        const draggable = document.querySelector('.dragging');
-        if (draggable) {
-            const newStage = container.getAttribute('data-stage');
-            const leadId = draggable.dataset.id;
-            // Same column — nothing changed (and keeps 'active' campaigns from being reset to 'campaign')
-            if (draggable.dataset.fromStage === newStage) return;
-            
-            // Optimistically update counts
-            updateKanbanCounts();
-
-            try {
-                const res = await apiFetch(`${API_BASE}/api/leads/${leadId}/stage`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ stage: newStage })
-                });
-
-                if (!res.ok) {
-                    console.error('Failed to update stage');
-                    loadLeads(); // revert
-                }
-            } catch (err) {
-                console.error(err);
-                loadLeads(); // revert
-            }
-        }
+        container.classList.remove('drop-target');
+        const id = e.dataTransfer.getData('text/plain') || document.querySelector('.lead-card.dragging')?.dataset.id;
+        if (id) moveLead(id, container.getAttribute('data-stage'));
     });
 });
 
 function updateKanbanCounts() {
-    document.getElementById('count-lead').innerText = colLead.querySelectorAll('.lead-card').length;
-    document.getElementById('count-priority').innerText = colPriority.querySelectorAll('.lead-card').length;
-    document.getElementById('count-opportunity').innerText = colOpportunity.querySelectorAll('.lead-card').length;
-    document.getElementById('count-campaign').innerText = colCampaign.querySelectorAll('.lead-card').length;
+    LD_STAGES.forEach(st => { document.getElementById(`count-${st}`).innerText = document.getElementById(`col-${st}`).querySelectorAll('.lead-card').length; });
+}
+
+// ─── Lead detail drawer ───────────────────────────────────────────────────────
+let ldLastFocus = null;
+function openLeadDrawer(id, keepFocus = false) {
+    const l = window.allLeads.find(x => String(x.id) === String(id));
+    const drawer = document.getElementById('ld-drawer');
+    if (!l) return closeLeadDrawer();
+    if (!keepFocus) ldLastFocus = document.activeElement;
+    drawer.dataset.leadId = l.id;
+    const col = ldCol(l.pipeline_stage || 'lead');
+    document.getElementById('ld-d-name').textContent = l.name || 'Unnamed lead';
+    document.getElementById('ld-d-sub').textContent = `${LD_STAGE_NAMES[col]}${LD_SUB[l.pipeline_stage] && col === 'campaign' ? ` · ${LD_SUB[l.pipeline_stage]}` : ''} · captured ${new Date(l.timestamp).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
+    const row = (k, v) => v ? `<div class="ld-row"><dt>${k}</dt><dd>${v}</dd></div>` : '';
+    document.getElementById('ld-d-body').innerHTML = `
+        ${ldIsWaiting(l) ? `<div class="ld-alert">Waiting ${ldAge(l.timestamp)} without follow-up. Leads answered within an hour are far more likely to convert.</div>` : ''}
+        <dl class="ld-dl">
+            ${row('Email', l.email ? `<a href="mailto:${escapeHtml(l.email)}">${escapeHtml(l.email)}</a> <button type="button" class="ld-copy" data-copy="${escapeHtml(l.email)}">Copy</button>` : '')}
+            ${row('Email status', l.is_verified === 1 ? '✓ Verified' : 'Not verified yet (verification email sent)')}
+            ${row('Service', escapeHtml(l.service || ''))}
+            ${row('Budget', escapeHtml(l.budget || ''))}
+            ${userRole === 'admin' ? row('Client', `<code>${escapeHtml(l.client_id || '')}</code>`) : ''}
+            ${row('Last updated', l.updated_at ? new Date(l.updated_at).toLocaleString('en-GB') : '')}
+        </dl>
+        ${l.summary ? `<h4>Conversation summary</h4><p class="ld-d-summary">${escapeHtml(l.summary)}</p>` : ''}
+        ${l.next_best_action ? `<h4>Suggested next step</h4><p class="ld-d-summary">${escapeHtml(l.next_best_action)}</p>` : ''}
+        <h4>Stage</h4>
+        <div class="ld-stage-pick" role="group" aria-label="Stage">
+            ${LD_STAGES.map(st => `<button type="button" class="cl-seg-btn${st === col ? ' active' : ''}" data-stage-pick="${st}" aria-pressed="${st === col}">${LD_STAGE_NAMES[st]}</button>`).join('')}
+        </div>
+        <div class="ld-actions">
+            ${l.email ? `<a class="cl-btn ld-primary" href="mailto:${escapeHtml(l.email)}?subject=${encodeURIComponent(`Following up on your enquiry${l.service ? ` about ${l.service}` : ''}`)}">Email ${escapeHtml((l.name || '').split(' ')[0] || 'lead')}</a>` : ''}
+            <button type="button" class="cl-btn" data-d-chat>View chat</button>
+            <button type="button" class="cl-btn" data-d-campaign>Campaign</button>
+            <button type="button" class="cl-btn ld-danger" data-d-delete>Delete lead</button>
+        </div>`;
+    const body = document.getElementById('ld-d-body');
+    body.querySelectorAll('[data-stage-pick]').forEach(b => b.addEventListener('click', () => moveLead(l.id, b.dataset.stagePick)));
+    body.querySelector('[data-copy]')?.addEventListener('click', (e) => { navigator.clipboard?.writeText(e.target.dataset.copy).then(() => { e.target.textContent = 'Copied'; setTimeout(() => (e.target.textContent = 'Copy'), 1200); }); });
+    body.querySelector('[data-d-chat]').addEventListener('click', () => {
+        closeLeadDrawer();
+        const q = document.getElementById('cl-q');
+        if (q) q.value = l.email || l.name || '';
+        const range = document.querySelector('.cl-seg-btn[data-range="90"]');
+        if (range) { document.querySelectorAll('.cl-seg-btn[data-range]').forEach(b => b.classList.toggle('active', b === range)); if (typeof CL !== 'undefined') { CL.range = '90'; CL.offset = 0; CL.selected = null; } }
+        switchView('logs');
+    });
+    body.querySelector('[data-d-campaign]').addEventListener('click', () => { closeLeadDrawer(); openSequenceModal(String(l.id)); });
+    body.querySelector('[data-d-delete]').addEventListener('click', async (e) => {
+        if (!confirm(`Delete ${l.name || 'this lead'} and their email sequence? This can't be undone.`)) return;
+        e.target.disabled = true;
+        try {
+            const res = await apiFetch(`${API_BASE}/api/leads/${l.id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+            window.allLeads = window.allLeads.filter(x => x.id !== l.id);
+            closeLeadDrawer();
+            renderLeads(window.allLeads);
+        } catch (err) { e.target.disabled = false; alert(`Could not delete: ${err.message}`); }
+    });
+    document.getElementById('ld-backdrop').hidden = false;
+    drawer.hidden = false;
+    requestAnimationFrame(() => drawer.classList.add('open'));
+    if (!keepFocus) document.getElementById('ld-d-close').focus();
+}
+
+function closeLeadDrawer() {
+    const drawer = document.getElementById('ld-drawer');
+    drawer.classList.remove('open');
+    drawer.hidden = true;
+    drawer.dataset.leadId = '';
+    document.getElementById('ld-backdrop').hidden = true;
+    if (ldLastFocus && document.contains(ldLastFocus)) ldLastFocus.focus();
+}
+
+function ldExport() {
+    const rows = [['id', 'name', 'email', 'service', 'budget', 'stage', 'verified', 'captured', 'client_id', 'summary']];
+    ldFiltered(window.allLeads || []).forEach(l => rows.push([l.id, l.name, l.email, l.service, l.budget, l.pipeline_stage || 'lead', l.is_verified === 1 ? 'yes' : 'no', new Date(l.timestamp).toISOString(), l.client_id, l.summary]));
+    const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const blob = new Blob(['﻿' + rows.map(r => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 // --- Client Management ---

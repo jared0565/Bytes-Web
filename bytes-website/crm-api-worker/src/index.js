@@ -40,7 +40,7 @@ app.use('*', async (c, next) => {
     const corsHeaders = origin && allowed.includes(origin) ? {
         'Access-Control-Allow-Origin': origin,
         'Access-Control-Allow-Credentials': 'true',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
         'Vary': 'Origin',
     } : {};
@@ -869,11 +869,35 @@ app.put('/api/leads/:id/stage', requireAuth, async (c) => {
     if (!stage || !validStages.includes(stage)) return c.json({ error: 'Invalid stage value' }, 400);
 
     try {
-        await c.env.DB.prepare('UPDATE leads SET pipeline_stage = ?, updated_at = ? WHERE id = ?').bind(stage, Date.now(), leadId).run();
+        // Only the lead's own client (or an admin) may move it
+        const user = c.get('user') || {};
+        const res = user.role === 'admin'
+            ? await c.env.DB.prepare('UPDATE leads SET pipeline_stage = ?, updated_at = ? WHERE id = ?').bind(stage, Date.now(), leadId).run()
+            : await c.env.DB.prepare('UPDATE leads SET pipeline_stage = ?, updated_at = ? WHERE id = ? AND client_id = ?').bind(stage, Date.now(), leadId, user.clientId || '').run();
+        if (!res.meta?.changes) return c.json({ error: 'Lead not found' }, 404);
         return c.json({ success: true });
     } catch (err) {
         console.error('[Leads] Stage update error:', err);
         return c.json({ error: 'Failed to update stage' }, 500);
+    }
+});
+
+// Delete a lead and its email sequence (e.g. a data-deletion request). Owner or admin only.
+app.delete('/api/leads/:id', requireAuth, async (c) => {
+    const leadId = parseInt(c.req.param('id'), 10);
+    if (!leadId) return c.json({ error: 'Invalid lead ID' }, 400);
+    const user = c.get('user') || {};
+    try {
+        const lead = await c.env.DB.prepare('SELECT id, client_id FROM leads WHERE id = ?').bind(leadId).first();
+        if (!lead || (user.role !== 'admin' && lead.client_id !== user.clientId)) return c.json({ error: 'Lead not found' }, 404);
+        await c.env.DB.batch([
+            c.env.DB.prepare('DELETE FROM email_sequences WHERE lead_id = ?').bind(leadId),
+            c.env.DB.prepare('DELETE FROM leads WHERE id = ?').bind(leadId),
+        ]);
+        return c.json({ success: true });
+    } catch (err) {
+        console.error('[Leads] Delete error:', err);
+        return c.json({ error: 'Failed to delete lead' }, 500);
     }
 });
 
