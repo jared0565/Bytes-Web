@@ -343,21 +343,23 @@ function removeTypingIndicator() {
 const CHAT_API_URL = 'https://ai.bytesfx.com';
 const LINKEDIN_URL = 'https://www.linkedin.com/in/fbmacagba/';
 
+// The conversation is kept on the server; this tab only holds its opaque id
+let chatSessionId = null;
+try { chatSessionId = sessionStorage.getItem('bytesai_chat_default'); } catch (_) { /* storage blocked */ }
+
 // Ask the AI backend, falling back to canned replies if it's unreachable
 async function generateChatResponse(userMessage) {
-  // chatHistory already ends with the message being sent; the API takes it separately
-  const history = chatHistory.slice(0, -1).map(entry => ({
-    role: entry.sender === 'user' ? 'user' : 'model',
-    parts: [{ text: entry.text }]
-  }));
-
   try {
     const res = await fetch(CHAT_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: userMessage, history, clientId: 'default' })
+      body: JSON.stringify({ message: userMessage, clientId: 'default', sessionId: chatSessionId })
     });
     const data = await res.json();
+    if (data.sessionId && data.sessionId !== chatSessionId) {
+      chatSessionId = data.sessionId;
+      try { sessionStorage.setItem('bytesai_chat_default', chatSessionId); } catch (_) { /* storage blocked */ }
+    }
     if (res.ok && data.response) {
       return data.response;
     }
@@ -785,3 +787,6 @@ if (document.readyState === 'loading') {
 } else {
   init();
 }
+// Footer year (kept out of inline scripts so the Content-Security-Policy can forbid them)
+const yearEl = document.getElementById('currentYear');
+if (yearEl) yearEl.textContent = new Date().getFullYear();

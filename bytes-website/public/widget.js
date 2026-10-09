@@ -2,17 +2,16 @@
     // --- Configuration & Constants ---
     const API_URL = "https://ai.bytesfx.com";
     const LINKEDIN_URL = 'https://www.linkedin.com/in/fbmacagba/';
-    const GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSfUBw3kAv2qoIC2Z45K8RNdzQlaIZYz_UALH4sEFnWDxfUETw/formResponse';
 
     // Get clientId from script tag (if provided)
     const scriptTag = document.currentScript;
     const clientId = scriptTag ? scriptTag.getAttribute('data-client-id') || 'default' : 'default';
 
     // --- State ---
-    let chatHistory = [
-        { role: 'model', parts: [{ text: "Hi there! I'm BytesAI. How can I help you scale today?" }] }
-    ];
-    let isSubmittingLead = false;
+    // The conversation is kept on the server; the browser only holds an opaque id for this tab's chat
+    const SESSION_KEY = `bytesai_chat_${clientId}`;
+    let sessionId = null;
+    try { sessionId = sessionStorage.getItem(SESSION_KEY); } catch (e) { /* storage blocked */ }
 
     // --- Styles ---
     const styles = `
@@ -153,6 +152,8 @@
             padding: 0.8rem 1rem;
             border-radius: 12px;
             line-height: 1.5;
+            white-space: pre-line;
+            overflow-wrap: anywhere;
             font-size: 0.95rem;
             animation: widget-fadeIn 0.3s ease;
             word-wrap: break-word;
@@ -317,10 +318,10 @@
 
         const showBranding = config.showBranding !== false;
         const refId = encodeURIComponent(config.referralId || '');
-        const baseBadgeUrl = config.badgeUrl || 'https://web.bytesfx.com/';
-        const brandingUrl = refId
+        const baseBadgeUrl = /^https:\/\//i.test(config.badgeUrl || '') ? config.badgeUrl : 'https://web.bytesfx.com/';
+        const brandingUrl = escapeAttr(refId
             ? baseBadgeUrl + (baseBadgeUrl.includes('?') ? `&ref=${refId}` : `?ref=${refId}`)
-            : baseBadgeUrl;
+            : baseBadgeUrl);
 
         // White-label customization (business+ only — enforced by backend)
         const widgetName = escapeAttr(config.widgetName || 'BytesAI');
@@ -365,7 +366,7 @@
                     </form>
                 </div>
                 <div class="branding-area" id="branding-area" style="display: ${showBranding ? 'block' : 'none'}">
-                    Powered by <a href="${brandingUrl}" target="_blank">BytesAI</a>
+                    Powered by <a href="${brandingUrl}" target="_blank" rel="noopener noreferrer">BytesAI</a>
                 </div>
             </div>
             <button class="chatbot-launcher" id="chatbot-launcher">
@@ -412,21 +413,18 @@
                 const response = await fetch(API_URL, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ message: message, history: chatHistory, clientId: clientId })
+                    body: JSON.stringify({ message: message, clientId: clientId, sessionId: sessionId })
                 });
 
                 const data = await response.json();
                 removeTypingIndicator(typingId);
 
+                if (data.sessionId && data.sessionId !== sessionId) {
+                    sessionId = data.sessionId;
+                    try { sessionStorage.setItem(SESSION_KEY, sessionId); } catch (e) { /* storage blocked */ }
+                }
                 if (response.ok && data.response) {
-                    chatHistory.push({ role: 'user', parts: [{ text: message }] });
-                    chatHistory.push({ role: 'model', parts: [{ text: data.response }] });
                     appendMessage(data.response, 'bot-message');
-
-                    if (data.leadData && !window._chatLeadSubmitted) {
-                        window._chatLeadSubmitted = true;
-                        submitLead(data.leadData.name, data.leadData.email, data.leadData.summary);
-                    }
                 } else {
                     appendMessage(data.error || "Connection error. Please try again later.", 'bot-message');
                 }
@@ -445,14 +443,25 @@
         const div = document.createElement('div');
         div.className = `chat-message ${className}`;
 
-        let formattedText = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-
-        const linkedinBtnHTML = `<a href="${LINKEDIN_URL}" target="_blank" rel="noopener noreferrer" class="chat-linkedin-btn">
-            DM us on LinkedIn
-        </a>`;
-        formattedText = formattedText.replace(/\[linkedin_button\]/gi, linkedinBtnHTML);
-
-        div.innerHTML = formattedText;
+        // Built with DOM nodes only: bot replies and visitor text can never become HTML or script
+        String(text).split(/(\*\*[^*]+?\*\*|\[linkedin_button\])/i).forEach((seg) => {
+            if (!seg) return;
+            if (/^\*\*[^*]+?\*\*$/.test(seg)) {
+                const b = document.createElement('strong');
+                b.textContent = seg.slice(2, -2);
+                div.appendChild(b);
+            } else if (/^\[linkedin_button\]$/i.test(seg)) {
+                const a = document.createElement('a');
+                a.href = LINKEDIN_URL;
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                a.className = 'chat-linkedin-btn';
+                a.textContent = 'DM us on LinkedIn';
+                div.appendChild(a);
+            } else {
+                div.appendChild(document.createTextNode(seg));
+            }
+        });
         messagesContainer.appendChild(div);
         messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
@@ -474,41 +483,6 @@
         if (el) el.remove();
     }
 
-    function submitLead(name, email, summary) {
-        let iframe = document.getElementById('chatLeadIframe');
-        if (!iframe) {
-            iframe = document.createElement('iframe');
-            iframe.id = 'chatLeadIframe';
-            iframe.name = 'chatLeadIframe';
-            iframe.style.display = 'none';
-            document.body.appendChild(iframe);
-        }
-
-        const form = document.createElement('form');
-        form.action = GOOGLE_FORM_URL;
-        form.method = 'POST';
-        form.target = 'chatLeadIframe';
-        form.style.display = 'none';
-
-        const inputs = {
-            'entry.1698580962': name,
-            'entry.1399885084': email,
-            'entry.584713419': `Agent Client: ${clientId}`,
-            'entry.31456989': summary || 'Chatbot conversation'
-        };
-
-        for (const key in inputs) {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = key;
-            input.value = inputs[key];
-            form.appendChild(input);
-        }
-
-        document.body.appendChild(form);
-        form.submit();
-        setTimeout(() => form.remove(), 2000);
-    }
 
     // Start
     if (document.readyState === 'loading') {

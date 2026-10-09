@@ -99,7 +99,9 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (socialToken) {
         try {
             // H3: Exchange the opaque token for user info — PII never travels in URL params
-            const res = await fetch(`https://crm-api.bmorris0565.workers.dev/api/auth/exchange?token=${encodeURIComponent(socialToken)}`);
+            let nonce = '';
+            try { nonce = sessionStorage.getItem('login_nonce') || ''; } catch (_) {}
+            const res = await fetch(`${API_BASE}/api/auth/exchange?token=${encodeURIComponent(socialToken)}&nonce=${encodeURIComponent(nonce)}`);
             if (!res.ok) throw new Error('Exchange failed');
 
             const userData = await res.json();
@@ -153,8 +155,11 @@ window.addEventListener('DOMContentLoaded', async () => {
 document.querySelectorAll('.btn-social').forEach(btn => {
     btn.addEventListener('click', () => {
         const provider = btn.getAttribute('data-provider');
-        // Redirect to backend auth endpoint
-        window.location.href = `${API_BASE}/api/auth/${encodeURIComponent(provider)}`;
+        // A random value kept in this tab and checked when the sign-in comes back, so someone
+        // else's sign-in link can't pre-fill this form with their details
+        const nonce = Array.from(crypto.getRandomValues(new Uint8Array(24)), b => b.toString(16).padStart(2, '0')).join('');
+        try { sessionStorage.setItem('login_nonce', nonce); } catch (_) {}
+        window.location.href = `${API_BASE}/api/auth/${encodeURIComponent(provider)}?n=${nonce}`;
     });
 });
 

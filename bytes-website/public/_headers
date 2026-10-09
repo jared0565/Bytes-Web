@@ -1,0 +1,24 @@
+# Security headers for web.bytesfx.com (Cloudflare Workers static assets).
+# CSP: only our own scripts run (no inline scripts or event handlers anywhere on the site);
+# inline style attributes are allowed because the pages and widget use them.
+/*
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://crm-api.bmorris0565.workers.dev https://ai.bytesfx.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-src 'none'; frame-ancestors 'none'; upgrade-insecure-requests
+
+# Signed-in areas: never cached by browsers or proxies, no referrer leaves the dashboard
+/dashboard/*
+  Cache-Control: no-store
+  Referrer-Policy: no-referrer
+
+/onboarding/*
+  Cache-Control: no-store
+
+# The chat widget is loaded by customers' websites
+/widget.js
+  Cross-Origin-Resource-Policy: cross-origin
+  Cache-Control: public, max-age=300

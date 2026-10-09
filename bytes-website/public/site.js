@@ -1,3 +1,6 @@
+// Footer year (no inline scripts: the Content-Security-Policy forbids them)
+document.querySelectorAll('[data-year]').forEach((el) => { el.textContent = new Date().getFullYear(); });
+
 // Inner pages: builds the "On this page" list from the article's h2s and highlights the section in view.
 (function () {
   const article = document.querySelector('.prose');
