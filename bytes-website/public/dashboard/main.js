@@ -2036,7 +2036,6 @@ document.getElementById('settings-test-mail-btn').addEventListener('click', asyn
 // Server computes the numbers (/api/analytics); this file only draws them.
 // Palette: one validated blue (sequential/ordinal) + fixed status colours for deltas, each with an arrow + text.
 
-let analyticsDays = 30;
 let analyticsMetric = 'leads';
 let analyticsData = null;
 let analyticsListenersAttached = false;
@@ -2045,18 +2044,34 @@ const HEAT_DARK = ['#184f95', '#1c5cab', '#256abf', '#3987e5', '#6da7ec', '#9ec5
 const HEAT_LIGHT = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95'];
 const MIN_SAMPLE = 30; // below this a rate is shown with a low-sample note
 
+let analyticsRange = '30';      // '7' | '30' | '90' | '0' | 'custom'
+let analyticsClient = '';       // admin only
+
+function vizIso(d) { return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
+
 async function loadAnalytics(force = false) {
     if (!analyticsListenersAttached) {
         analyticsListenersAttached = true;
-        document.querySelectorAll('.time-btn').forEach(btn => {
-            btn.classList.toggle('active', parseInt(btn.dataset.days, 10) === analyticsDays);
+        document.querySelectorAll('.time-btn[data-days]').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.days === analyticsRange);
+            btn.setAttribute('aria-pressed', btn.dataset.days === analyticsRange);
             btn.addEventListener('click', () => {
-                document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                analyticsDays = parseInt(btn.dataset.days, 10);
+                analyticsRange = btn.dataset.days;
+                document.querySelectorAll('.time-btn[data-days]').forEach(b => { b.classList.toggle('active', b === btn); b.setAttribute('aria-pressed', b === btn); });
+                const custom = document.getElementById('viz-custom');
+                custom.hidden = analyticsRange !== 'custom';
+                if (analyticsRange === 'custom' && !document.getElementById('viz-from').value) {
+                    const today = new Date();
+                    document.getElementById('viz-to').value = vizIso(today);
+                    document.getElementById('viz-from').value = vizIso(new Date(today.getTime() - 27 * 86400000));
+                }
                 loadAnalytics(true);
             });
         });
+        ['viz-from', 'viz-to'].forEach(id => document.getElementById(id).addEventListener('change', () => loadAnalytics(true)));
+        document.getElementById('viz-client').addEventListener('change', (e) => { analyticsClient = e.target.value; loadAnalytics(true); });
+        document.getElementById('viz-export').addEventListener('click', exportAnalyticsCsv);
+        document.getElementById('viz-onboard-btn').addEventListener('click', () => switchView('chatbot'));
         document.querySelectorAll('.viz-seg-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 analyticsMetric = btn.dataset.metric;
@@ -2071,16 +2086,28 @@ async function loadAnalytics(force = false) {
     }
     if (analyticsData && !force) { renderAnalytics(analyticsData); return; }
 
+    const params = new URLSearchParams({ tz: new Date().getTimezoneOffset() });
+    if (analyticsRange === 'custom') {
+        const f = document.getElementById('viz-from').value, t = document.getElementById('viz-to').value;
+        if (!f || !t) return;
+        const from = new Date(`${f}T00:00:00`).getTime(), to = new Date(`${t}T23:59:59.999`).getTime();
+        params.set('from', Math.min(from, to)); params.set('to', Math.max(from, to));
+    } else params.set('days', analyticsRange);
+    if (analyticsClient) params.set('clientId', analyticsClient);
+
     const kpis = document.getElementById('viz-kpis');
     if (kpis && !analyticsData) kpis.innerHTML = '<div class="viz-kpi"><span class="viz-kpi-label">Loading…</span></div>';
+    document.getElementById('analytics-view')?.setAttribute('aria-busy', 'true');
     try {
-        const res = await apiFetch(`${API_BASE}/api/analytics?days=${analyticsDays}&tz=${new Date().getTimezoneOffset()}`);
+        const res = await apiFetch(`${API_BASE}/api/analytics?${params}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         analyticsData = await res.json();
         renderAnalytics(analyticsData);
     } catch (err) {
         console.error('[Analytics]', err);
         if (kpis) kpis.innerHTML = '<div class="viz-kpi"><span class="viz-kpi-label">Could not load analytics</span><span class="viz-kpi-help">Check your connection and try again.</span></div>';
+    } finally {
+        document.getElementById('analytics-view')?.removeAttribute('aria-busy');
     }
 }
 
@@ -2093,14 +2120,15 @@ function fmtMoney(n) {
     return `£${n.toLocaleString('en-GB')}`;
 }
 function periodName(days) { return days ? `prev ${days}d` : ''; }
+const vizRangeLabel = (d) => `${new Date(d.from).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} – ${new Date(d.to).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 
-function deltaHtml(cur, prev, { isRate = false, days }) {
+function deltaHtml(cur, prev, { isRate = false, days, lowerIsBetter = false }) {
     if (!days) return '<span>All time</span>';
     if (cur == null || prev == null) return `<span>no ${periodName(days)} data</span>`;
     if (isRate) {
         const pts = (cur - prev) * 100;
         if (Math.abs(pts) < 0.05) return `<span>no change vs ${periodName(days)}</span>`;
-        const cls = pts > 0 ? 'up' : 'down';
+        const cls = (pts > 0) !== lowerIsBetter ? 'up' : 'down';
         return `<span class="${cls}">${pts > 0 ? '▲' : '▼'} ${Math.abs(pts).toFixed(1)} pts</span> vs ${periodName(days)}`;
     }
     if (prev === 0) return cur === 0 ? `<span>no change vs ${periodName(days)}</span>` : `<span class="up">▲ new</span> vs ${periodName(days)} (0)`;
@@ -2113,9 +2141,19 @@ function deltaHtml(cur, prev, { isRate = false, days }) {
 function renderAnalytics(d) {
     const c = d.current, p = d.previous || {};
     const scope = document.getElementById('viz-scope');
-    if (scope) scope.textContent = d.days
-        ? `Last ${d.days} days, compared with the ${d.days} days before. Conversations are estimated (a new one starts after 30 min of inactivity).`
-        : 'All time. Conversations are estimated (a new one starts after 30 min of inactivity).';
+    const who = d.clientId ? ` · ${d.clientId === 'default' ? 'Bytes website' : d.clientId}` : (userRole === 'admin' ? ' · all clients' : '');
+    if (scope) scope.textContent = (d.previous
+        ? `${vizRangeLabel(d)}, compared with the ${d.days} days before`
+        : `All time (${vizRangeLabel(d)})`) + `${who}. Conversations are estimated (a new one starts after 30 min of inactivity).`;
+
+    const clientSel = document.getElementById('viz-client');
+    if (clientSel && userRole === 'admin' && d.clients?.length > 1) {
+        clientSel.hidden = false;
+        clientSel.innerHTML = '<option value="">All clients</option>' + d.clients.map(cid => `<option value="${escapeHtml(cid)}">${escapeHtml(cid === 'default' ? 'Bytes website' : cid)}</option>`).join('');
+        clientSel.value = analyticsClient;
+    }
+    document.getElementById('viz-onboard').hidden = d.everActive !== false;
+    renderQuality(d);
 
     const low = (n) => n > 0 && n < MIN_SAMPLE ? `<span class="viz-kpi-warn">n=${n}: too few for a reliable rate</span>` : '';
     const tiles = [
@@ -2160,54 +2198,59 @@ function bucketLabel(t, bucket, long = false) {
     return bucket === 'week' && long ? `Week of ${s}` : s;
 }
 
-// ── Trend: single-series area chart with crosshair tooltip
+// ── Trend: this period (blue, solid) against the previous period (grey, dashed) on one axis
 function renderTrend(d) {
     const el = document.getElementById('viz-trend');
     const tableEl = document.getElementById('viz-trend-table');
     const title = document.getElementById('viz-trend-title');
+    const legend = document.getElementById('viz-legend');
     if (!el) return;
     const m = analyticsMetric;
     const names = { leads: 'Leads', conversations: 'Conversations', rate: 'Chat → lead rate' };
     if (title) title.textContent = `${names[m]} per ${d.bucket}`;
-    const pts = d.series.map(s => ({ t: s.t, v: m === 'rate' ? (s.conversations ? s.leads / s.conversations : null) : s[m], s }));
+    const val = (s, prev) => {
+        const L = prev ? s.prevLeads : s.leads, C = prev ? s.prevConversations : s.conversations;
+        if (prev && L == null) return null;
+        return m === 'rate' ? (C ? L / C : null) : (m === 'leads' ? L : C);
+    };
+    const hasPrev = !!d.previous;
+    const pts = d.series.map(s => ({ t: s.t, v: val(s, false), pv: hasPrev ? val(s, true) : null, s }));
     const fmtV = (v) => v == null ? '—' : m === 'rate' ? fmtPct(v) : fmtInt(v);
+    if (legend) legend.innerHTML = hasPrev
+        ? `<span><i class="viz-key viz-key-cur"></i>This period</span><span><i class="viz-key viz-key-prev"></i>Previous ${d.days} days</span>`
+        : '';
 
-    if (tableEl) tableEl.innerHTML = `<div class="viz-table-scroll"><table><thead><tr><th>${d.bucket === 'week' ? 'Week of' : 'Day'}</th><th>Conversations</th><th>Leads</th><th>Chat → lead</th></tr></thead><tbody>${
-        d.series.map(s => `<tr><td>${bucketLabel(s.t, d.bucket)}</td><td>${s.conversations}</td><td>${s.leads}</td><td>${fmtPct(s.conversations ? s.leads / s.conversations : null)}</td></tr>`).join('')
+    if (tableEl) tableEl.innerHTML = `<div class="viz-table-scroll"><table><thead><tr><th>${d.bucket === 'week' ? 'Week of' : 'Day'}</th><th>Conversations</th><th>Leads</th><th>Chat → lead</th>${hasPrev ? '<th>Prev. conversations</th><th>Prev. leads</th>' : ''}</tr></thead><tbody>${
+        d.series.map(s => `<tr><td>${bucketLabel(s.t, d.bucket)}</td><td>${s.conversations}</td><td>${s.leads}</td><td>${fmtPct(s.conversations ? s.leads / s.conversations : null)}</td>${hasPrev ? `<td>${s.prevConversations}</td><td>${s.prevLeads}</td>` : ''}</tr>`).join('')
     }</tbody></table></div>`;
 
-    if (!pts.some(p => p.v)) { el.innerHTML = `<div class="viz-empty">No ${names[m].toLowerCase()} in this period yet.</div>`; return; }
+    if (!pts.some(p => p.v || p.pv)) { el.innerHTML = `<div class="viz-empty">No ${names[m].toLowerCase()} in this period yet.</div>`; return; }
 
     const W = el.clientWidth || 600, H = el.clientHeight || 220;
-    const pad = { l: 34, r: 8, t: 12, b: 22 };
+    const pad = { l: 34, r: 8, t: 14, b: 22 };
     const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
-    const rawMax = Math.max(...pts.map(p => p.v || 0));
+    const rawMax = Math.max(...pts.map(p => Math.max(p.v || 0, p.pv || 0)));
     const max = m === 'rate' ? Math.min(1, Math.max(0.05, Math.ceil(rawMax * 10) / 10)) : Math.max(1, niceMax(rawMax));
     const x = (i) => pad.l + (pts.length === 1 ? iw / 2 : (i / (pts.length - 1)) * iw);
     const y = (v) => pad.t + ih - (v / max) * ih;
     const ticks = [0, max / 2, max];
-
-    let line = '', area = '', started = false;
-    pts.forEach((p, i) => {
-        if (p.v == null) { started = false; return; }
-        line += `${started ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.v).toFixed(1)}`;
-        started = true;
-    });
+    const pathOf = (key) => { let dPath = '', on = false; pts.forEach((p, i) => { if (p[key] == null) { on = false; return; } dPath += `${on ? 'L' : 'M'}${x(i).toFixed(1)},${y(p[key]).toFixed(1)}`; on = true; }); return dPath; };
     const valid = pts.map((p, i) => ({ ...p, i })).filter(p => p.v != null);
-    if (valid.length) area = `M${x(valid[0].i)},${y(0)} ` + valid.map(p => `L${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ') + ` L${x(valid[valid.length - 1].i)},${y(0)} Z`;
+    const area = valid.length ? `M${x(valid[0].i)},${y(0)} ` + valid.map(p => `L${x(p.i).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ') + ` L${x(valid[valid.length - 1].i)},${y(0)} Z` : '';
 
     const step = Math.max(1, Math.ceil(pts.length / Math.max(2, Math.floor(iw / 70))));
     const xlabels = pts.map((p, i) => (i % step === 0 || i === pts.length - 1) && !(i !== pts.length - 1 && pts.length - 1 - i < step / 2)
         ? `<text x="${x(i)}" y="${H - 6}" text-anchor="middle">${bucketLabel(p.t, d.bucket)}</text>` : '').join('');
-    const peak = valid.reduce((a, b) => (b.v > a.v ? b : a), valid[0]);
+    const peak = valid.length ? valid.reduce((a, b) => (b.v > a.v ? b : a), valid[0]) : null;
 
-    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${names[m]} per ${d.bucket}, peak ${fmtV(peak.v)} on ${bucketLabel(peak.t, d.bucket)}">
-        <defs><linearGradient id="viz-area" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--viz-1)" stop-opacity="0.28"/><stop offset="1" stop-color="var(--viz-1)" stop-opacity="0"/></linearGradient></defs>
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${names[m]} per ${d.bucket}${peak ? `, peak ${fmtV(peak.v)} on ${bucketLabel(peak.t, d.bucket)}` : ''}${hasPrev ? ', with the previous period dashed' : ''}">
+        <defs><linearGradient id="viz-area" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--viz-1)" stop-opacity="0.24"/><stop offset="1" stop-color="var(--viz-1)" stop-opacity="0"/></linearGradient></defs>
         <g class="viz-axis">${ticks.map(t => `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y(t)}" y2="${y(t)}"/><text x="${pad.l - 6}" y="${y(t) + 3}" text-anchor="end">${m === 'rate' ? fmtPct(t) : fmtInt(Math.round(t))}</text>`).join('')}${xlabels}</g>
+        ${hasPrev ? `<path d="${pathOf('pv')}" fill="none" stroke="var(--viz-prev)" stroke-width="1.5" stroke-dasharray="4 4" stroke-linejoin="round"/>` : ''}
         <path d="${area}" fill="url(#viz-area)"/>
-        <path d="${line}" fill="none" stroke="var(--viz-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-        <circle cx="${x(peak.i)}" cy="${y(peak.v)}" r="4" fill="var(--viz-1)" stroke="var(--bg-secondary)" stroke-width="2"/>
-        <text x="${Math.min(W - pad.r - 4, Math.max(pad.l + 4, x(peak.i)))}" y="${Math.max(10, y(peak.v) - 9)}" text-anchor="middle" font-size="10" fill="var(--text-primary)">${fmtV(peak.v)}</text>
+        <path d="${pathOf('v')}" fill="none" stroke="var(--viz-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        ${peak ? `<circle cx="${x(peak.i)}" cy="${y(peak.v)}" r="4" fill="var(--viz-1)" stroke="var(--bg-secondary)" stroke-width="2"/>
+        <text x="${Math.min(W - pad.r - 4, Math.max(pad.l + 4, x(peak.i)))}" y="${Math.max(10, y(peak.v) - 9)}" text-anchor="middle" font-size="10" fill="var(--text-primary)">${fmtV(peak.v)}</text>` : ''}
         <line id="viz-cross" y1="${pad.t}" y2="${pad.t + ih}" stroke="var(--text-secondary)" stroke-dasharray="3 3" visibility="hidden"/>
         <circle id="viz-dot" r="5" fill="var(--viz-1)" stroke="var(--bg-secondary)" stroke-width="2" visibility="hidden"/>
         <rect x="${pad.l}" y="0" width="${iw}" height="${H}" fill="transparent" id="viz-hit"/>
@@ -2222,9 +2265,44 @@ function renderTrend(d) {
         const p = pts[i];
         cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.setAttribute('visibility', 'visible');
         if (p.v != null) { dot.setAttribute('cx', x(i)); dot.setAttribute('cy', y(p.v)); dot.setAttribute('visibility', 'visible'); } else dot.setAttribute('visibility', 'hidden');
-        showTip(`<b>${bucketLabel(p.t, d.bucket, true)}</b><br>${names[m]}: <b>${fmtV(p.v)}</b><br><span style="color:var(--text-secondary)">${p.s.conversations} conversations · ${p.s.leads} leads</span>`, e.clientX, e.clientY);
+        showTip(`<b>${bucketLabel(p.t, d.bucket, true)}</b><br>${names[m]}: <b>${fmtV(p.v)}</b>${hasPrev ? `<br><span style="color:var(--text-secondary)">Previous period: ${fmtV(p.pv)}</span>` : ''}<br><span style="color:var(--text-secondary)">${p.s.conversations} conversations · ${p.s.leads} leads</span>`, e.clientX, e.clientY);
     });
     hit.addEventListener('pointerleave', () => { cross.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); hideTip(); });
+}
+
+// ── Chatbot quality: how deep conversations go and whether the bot is stuck on one reply
+function renderQuality(d) {
+    const el = document.getElementById('viz-quality');
+    if (!el) return;
+    const c = d.current, p = d.previous || {};
+    if (!c.conversations) { el.hidden = true; return; }
+    el.hidden = false;
+    const item = (label, value, delta, help, warn) => `<div class="viz-q-item${warn ? ' viz-q-warn' : ''}"><span class="viz-kpi-label">${label}</span><span class="viz-q-num">${value}</span><span class="viz-kpi-delta">${delta}</span><span class="viz-kpi-help">${help}</span></div>`;
+    const avgDelta = d.previous && p.avgMessages != null && c.avgMessages != null
+        ? (Math.abs(c.avgMessages - p.avgMessages) < 0.05 ? `<span>no change vs ${periodName(d.days)}</span>` : `<span class="${c.avgMessages > p.avgMessages ? 'up' : 'down'}">${c.avgMessages > p.avgMessages ? '▲' : '▼'} ${Math.abs(c.avgMessages - p.avgMessages).toFixed(1)}</span> vs ${periodName(d.days)}`)
+        : deltaHtml(null, null, d);
+    el.innerHTML = `<h3>Chatbot quality</h3>` +
+        item('Messages per conversation', c.avgMessages == null ? '—' : c.avgMessages.toFixed(1), avgDelta, 'Deeper chats usually mean more engaged visitors') +
+        item('One-message chats', fmtPct(c.singleMessageRate), deltaHtml(c.singleMessageRate, p.singleMessageRate, { ...d, isRate: true, lowerIsBetter: true }), 'Visitor left after the first reply', c.singleMessageRate > 0.5) +
+        item('Same reply every time', fmtPct(c.repeatedRate), deltaHtml(c.repeatedRate, p.repeatedRate, { ...d, isRate: true, lowerIsBetter: true }), c.repeatedRate > 0 ? 'Bot repeated one canned answer: check its mode and AI model' : 'No canned-reply loops', c.repeatedRate > 0);
+}
+
+function exportAnalyticsCsv() {
+    const d = analyticsData; if (!d) return;
+    const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const c = d.current, p = d.previous || {};
+    const rows = [['metric', 'this_period', 'previous_period'],
+        ...[['conversations', c.conversations, p.conversations], ['leads', c.leads, p.leads], ['chat_to_lead_rate', c.chatToLead, p.chatToLead], ['verified_rate', c.verifiedRate, p.verifiedRate],
+            ['lead_to_opportunity_rate', c.qualifiedRate, p.qualifiedRate], ['pipeline_value_gbp', c.pipelineValue, p.pipelineValue], ['avg_messages_per_conversation', c.avgMessages, p.avgMessages],
+            ['one_message_chat_rate', c.singleMessageRate, p.singleMessageRate], ['same_reply_rate', c.repeatedRate, p.repeatedRate], ['emails_sent', c.emailsSent, p.emailsSent]],
+        [], [d.bucket === 'week' ? 'week_of' : 'date', 'conversations', 'leads', 'prev_conversations', 'prev_leads'],
+        ...d.series.map(s => [new Date(s.t).toISOString().slice(0, 10), s.conversations, s.leads, s.prevConversations ?? '', s.prevLeads ?? ''])];
+    const blob = new Blob(['﻿' + rows.map(r => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `analytics-${new Date(d.from).toISOString().slice(0, 10)}-to-${new Date(d.to).toISOString().slice(0, 10)}${d.clientId ? `-${d.clientId}` : ''}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 function niceMax(v) {
@@ -2310,9 +2388,13 @@ function renderWaiting(d) {
     if (!w.count) { el.innerHTML = '<div class="viz-wait-head"><b>0</b><span>leads waiting. Nice work.</span></div><p class="viz-wait-note">Replying within an hour makes a lead far more likely to convert than replying the next day.</p>'; return; }
     const age = (ts) => { const h = Math.floor((Date.now() - ts) / 3600000); return h < 48 ? `${h}h` : `${Math.floor(h / 24)}d`; };
     el.innerHTML = `<div class="viz-wait-head"><b>${w.count}</b><span>lead${w.count === 1 ? '' : 's'} still in Inbox/Priority after 24h</span></div>` +
-        w.oldest.map(l => `<button type="button" class="viz-wait-item" data-goto-leads><span>${escapeHtml(l.name || 'Unknown')}${l.service ? ` · <span style="color:var(--text-secondary)">${escapeHtml(l.service)}</span>` : ''}</span><span>${age(l.timestamp)} waiting</span></button>`).join('') +
+        w.oldest.map(l => `<button type="button" class="viz-wait-item" data-lead-id="${escapeHtml(String(l.id))}" aria-label="Open ${escapeHtml(l.name || 'lead')}"><span>${escapeHtml(l.name || 'Unknown')}${l.service ? ` · <span style="color:var(--text-secondary)">${escapeHtml(l.service)}</span>` : ''}</span><span>${age(l.timestamp)} waiting</span></button>`).join('') +
         '<p class="viz-wait-note">Replying within an hour makes a lead far more likely to convert than replying the next day.</p>';
-    el.querySelectorAll('[data-goto-leads]').forEach(b => b.addEventListener('click', () => switchView('leads')));
+    el.querySelectorAll('[data-lead-id]').forEach(b => b.addEventListener('click', async () => {
+        switchView('leads');
+        await loadLeads();
+        if (typeof openLeadDrawer === 'function') openLeadDrawer(b.dataset.leadId);
+    }));
 }
 
 // ─── Bytes website settings (admin only) ──────────────────────────────────────

@@ -1067,17 +1067,6 @@ function parseBudget(str) {
     return Math.round(parseFloat(m[1]) * (m[2] === 'k' ? 1e3 : m[2] === 'm' ? 1e6 : 1));
 }
 
-function sessionStarts(logs) {
-    // logs sorted by client_id, timestamp
-    const starts = [];
-    let prevClient = null, prevTs = -Infinity;
-    for (const l of logs) {
-        if (l.client_id !== prevClient || l.timestamp - prevTs > SESSION_GAP_MS) starts.push(l.timestamp);
-        prevClient = l.client_id; prevTs = l.timestamp;
-    }
-    return starts;
-}
-
 function periodStats(leads, starts, sent, from, to) {
     const inP = (ts) => ts >= from && ts < to;
     const ls = leads.filter(l => inP(l.timestamp));
@@ -1100,54 +1089,105 @@ function periodStats(leads, starts, sent, from, to) {
     };
 }
 
+// Conversations with their size and whether the bot repeated one canned reply (logs sorted by client, time)
+function sessionsOf(logs) {
+    const out = [];
+    let cur = null;
+    for (const l of logs) {
+        if (!cur || l.client_id !== cur.client || l.timestamp - cur.end > SESSION_GAP_MS) {
+            cur = { client: l.client_id, start: l.timestamp, end: l.timestamp, n: 0, bots: new Set() };
+            out.push(cur);
+        }
+        cur.end = l.timestamp; cur.n++;
+        if (l.bot) cur.bots.add(l.bot);
+    }
+    return out.map(c => ({ start: c.start, n: c.n, repeated: c.n > 1 && c.bots.size === 1 }));
+}
+
 app.get('/api/analytics', requireAuth, async (c) => {
     const user = c.get('user') || {};
     const isAdmin = user.role === 'admin';
-    const days = Math.max(0, Math.min(365, parseInt(c.req.query('days') || '30', 10) || 0));
-    const tzOffset = Math.max(-840, Math.min(840, parseInt(c.req.query('tz') || '0', 10) || 0)); // Date#getTimezoneOffset()
+    const q = (k) => c.req.query(k);
+    const num = (v) => { const n = parseInt(v ?? '', 10); return Number.isFinite(n) ? n : null; };
+    const tzOffset = Math.max(-840, Math.min(840, num(q('tz')) ?? 0)); // Date#getTimezoneOffset()
     const now = Date.now();
-    const scope = isAdmin ? '' : ' WHERE client_id = ?';
-    const bind = (stmt) => (isAdmin ? stmt : stmt.bind(user.clientId || ''));
+    // Period: a custom from/to (ms) or the last N days (0 = all time)
+    let days = Math.max(0, Math.min(365, num(q('days')) ?? 30));
+    let customFrom = num(q('from')), customTo = num(q('to'));
+    const custom = customFrom != null && customTo != null && customTo > customFrom;
+    // Admins may narrow to one client; everyone else is always their own client
+    const clientId = isAdmin ? (q('clientId') || '').trim() : (user.clientId || '');
+    if (!isAdmin && !clientId) return c.json({ error: 'No client is linked to this account' }, 403);
+    const scope = clientId ? ' WHERE client_id = ?' : '';
+    const bind = (stmt) => (clientId ? stmt.bind(clientId) : stmt);
 
     try {
-        const [leadsRes, logsRes, sentRes] = await Promise.all([
+        const [leadsRes, logsRes, sentRes, clientsRes] = await Promise.all([
             bind(c.env.DB.prepare(`SELECT id, name, service, budget, timestamp, pipeline_stage, is_verified FROM leads${scope} ORDER BY timestamp ASC`)).all(),
-            bind(c.env.DB.prepare(`SELECT client_id, timestamp FROM chat_logs${scope} ORDER BY client_id, timestamp ASC LIMIT 100000`)).all(),
+            bind(c.env.DB.prepare(`SELECT client_id, timestamp, substr(bot_response, 1, 160) AS bot FROM chat_logs${scope} ORDER BY client_id, timestamp ASC LIMIT 100000`)).all(),
             bind(c.env.DB.prepare(`SELECT scheduled_for AS ts FROM email_sequences${scope ? scope + " AND status = 'sent'" : " WHERE status = 'sent'"}`)).all(),
+            isAdmin ? c.env.DB.prepare('SELECT client_id FROM chat_logs UNION SELECT client_id FROM leads ORDER BY 1').all() : Promise.resolve({ results: [] }),
         ]);
         const leads = (leadsRes.results || []).filter(l => l.timestamp);
-        const starts = sessionStarts((logsRes.results || []).filter(l => l.timestamp));
+        const sessions = sessionsOf((logsRes.results || []).filter(l => l.timestamp));
+        const starts = sessions.map(s => s.start);
         const sent = (sentRes.results || []).map(r => r.ts).filter(Boolean);
 
         const firstTs = starts.reduce((m, t) => Math.min(m, t), leads[0]?.timestamp ?? now);
-        const from = days ? now - days * DAY_MS : firstTs;
-        const current = periodStats(leads, starts, sent, from, now + 1);
-        const previous = days ? periodStats(leads, starts, sent, from - days * DAY_MS, from) : null;
+        const to = custom ? Math.min(customTo, now) + 1 : now + 1;
+        const from = custom ? customFrom : days ? now - days * DAY_MS : firstTs;
+        const len = to - from;
+        if (custom) days = Math.max(1, Math.round(len / DAY_MS));
+        const hasPrev = custom || days > 0;
+        const current = periodStats(leads, starts, sent, from, to);
+        const previous = hasPrev ? periodStats(leads, starts, sent, from - len, from) : null;
 
-        // Time series in the viewer's local days (weekly buckets past 90 days)
+        // Chatbot quality for the period: depth of conversations and canned-reply loops
+        const inPeriod = sessions.filter(s => s.start >= from && s.start < to);
+        const prevSessions = hasPrev ? sessions.filter(s => s.start >= from - len && s.start < from) : [];
+        const quality = (list) => list.length ? {
+            avgMessages: list.reduce((t, s) => t + s.n, 0) / list.length,
+            singleMessageRate: list.filter(s => s.n === 1).length / list.length,
+            repeatedRate: list.filter(s => s.repeated).length / list.length,
+        } : { avgMessages: null, singleMessageRate: null, repeatedRate: null };
+        Object.assign(current, quality(inPeriod));
+        if (previous) Object.assign(previous, quality(prevSessions));
+
+        // Time series in the viewer's local days (weekly past 90 days), with the previous period aligned by index
         const toLocal = (ts) => ts - tzOffset * 60000;
-        const bucketMs = (days === 0 && now - firstTs > 90 * DAY_MS) || days > 90 ? 7 * DAY_MS : DAY_MS;
+        const spanDays = (to - from) / DAY_MS;
+        const bucketMs = spanDays > 92 ? 7 * DAY_MS : DAY_MS;
         const startLocal = Math.floor(toLocal(from) / DAY_MS) * DAY_MS;
-        const nBuckets = Math.max(1, Math.ceil((toLocal(now) - startLocal + 1) / bucketMs));
-        const series = Array.from({ length: nBuckets }, (_, i) => ({ t: startLocal + i * bucketMs + tzOffset * 60000, leads: 0, conversations: 0 }));
+        const nBuckets = Math.max(1, Math.ceil((toLocal(to - 1) - startLocal + 1) / bucketMs));
+        const series = Array.from({ length: nBuckets }, (_, i) => ({ t: startLocal + i * bucketMs + tzOffset * 60000, leads: 0, conversations: 0, prevLeads: hasPrev ? 0 : null, prevConversations: hasPrev ? 0 : null }));
         const idx = (ts) => Math.floor((toLocal(ts) - startLocal) / bucketMs);
-        leads.forEach(l => { const i = idx(l.timestamp); if (l.timestamp >= from && series[i]) series[i].leads++; });
-        starts.forEach(ts => { const i = idx(ts); if (ts >= from && series[i]) series[i].conversations++; });
+        const pidx = (ts) => Math.floor((toLocal(ts + len) - startLocal) / bucketMs);
+        leads.forEach(l => {
+            if (l.timestamp >= from && l.timestamp < to) { const i = idx(l.timestamp); if (series[i]) series[i].leads++; }
+            else if (hasPrev && l.timestamp >= from - len && l.timestamp < from) { const i = pidx(l.timestamp); if (series[i]) series[i].prevLeads++; }
+        });
+        starts.forEach(ts => {
+            if (ts >= from && ts < to) { const i = idx(ts); if (series[i]) series[i].conversations++; }
+            else if (hasPrev && ts >= from - len && ts < from) { const i = pidx(ts); if (series[i]) series[i].prevConversations++; }
+        });
 
         // When conversations start: weekday (Mon=0) × hour, local time
         const heatmap = Array.from({ length: 7 }, () => Array(24).fill(0));
-        starts.filter(ts => ts >= from).forEach(ts => {
+        starts.filter(ts => ts >= from && ts < to).forEach(ts => {
             const d = new Date(toLocal(ts));
             heatmap[(d.getUTCDay() + 6) % 7][d.getUTCHours()]++;
         });
 
-        // Leads by service
-        const svc = {};
-        leads.filter(l => l.timestamp >= from).forEach(l => {
-            const k = (l.service || 'Not specified').trim().slice(0, 40) || 'Not specified';
-            svc[k] = (svc[k] || 0) + 1;
+        // Leads by service (case-insensitive, first spelling wins)
+        const svc = new Map();
+        leads.filter(l => l.timestamp >= from && l.timestamp < to).forEach(l => {
+            const name = (l.service || '').trim().slice(0, 40) || 'Not specified';
+            const k = name.toLowerCase();
+            const e = svc.get(k) || { name, count: 0 };
+            if (/^[a-z]/.test(e.name) && /^[A-Z]/.test(name)) e.name = name; // prefer the capitalised spelling
+            e.count++; svc.set(k, e);
         });
-        let services = Object.entries(svc).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+        let services = [...svc.values()].sort((a, b) => b.count - a.count);
         if (services.length > 6) {
             const other = services.slice(5).reduce((s, x) => s + x.count, 0);
             services = [...services.slice(0, 5), { name: 'Other', count: other }];
@@ -1160,7 +1200,13 @@ app.get('/api/analytics', requireAuth, async (c) => {
             oldest: waitingAll.slice(0, 5).map(l => ({ id: l.id, name: l.name, service: l.service, timestamp: l.timestamp, stage: l.pipeline_stage || 'lead' })),
         };
 
-        return c.json({ days, from, to: now, current, previous, series, bucket: bucketMs === DAY_MS ? 'day' : 'week', heatmap, services, waiting });
+        return c.json({
+            days, custom, from, to: to - 1, current, previous, series,
+            bucket: bucketMs === DAY_MS ? 'day' : 'week', heatmap, services, waiting,
+            everActive: sessions.length > 0 || leads.length > 0,
+            clientId: clientId || null,
+            clients: (clientsRes.results || []).map(r => r.client_id).filter(Boolean),
+        });
     } catch (err) {
         console.error('[Analytics] Error:', err);
         return c.json({ error: 'Failed to load analytics' }, 500);

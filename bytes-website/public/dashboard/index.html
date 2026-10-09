@@ -782,16 +782,28 @@
 
                 <!-- Time Period Filter -->
                 <div class="analytics-time-filter">
-                    <button class="time-btn active" data-days="7">Last 7 Days</button>
-                    <button class="time-btn" data-days="30">Last 30 Days</button>
+                    <button class="time-btn" data-days="7">Last 7 Days</button>
+                    <button class="time-btn active" data-days="30">Last 30 Days</button>
                     <button class="time-btn" data-days="90">Last 90 Days</button>
                     <button class="time-btn" data-days="0">All Time</button>
+                    <button class="time-btn" data-days="custom">Custom</button>
+                    <span class="viz-custom" id="viz-custom" hidden>
+                        <input type="date" id="viz-from" aria-label="From date"> <span aria-hidden="true">–</span> <input type="date" id="viz-to" aria-label="To date">
+                    </span>
+                    <select id="viz-client" aria-label="Client" hidden><option value="">All clients</option></select>
+                    <button type="button" class="time-btn viz-export" id="viz-export">Export CSV</button>
+                </div>
+                <div id="viz-onboard" class="viz-onboard" hidden>
+                    <strong>No data yet.</strong> Analytics fill in once your chatbot has its first conversation.
+                    <button type="button" class="cl-btn" id="viz-onboard-btn">Install the chatbot</button>
                 </div>
 
                 <p class="viz-scope" id="viz-scope">Compared with the previous period of the same length.</p>
 
                 <!-- KPI tiles: filled by renderAnalytics() -->
                 <div class="viz-kpis" id="viz-kpis" aria-live="polite"></div>
+
+                <div class="viz-quality glass-panel" id="viz-quality" aria-live="polite"></div>
 
                 <div class="viz-row viz-row-main">
                     <div class="chart-card glass-panel viz-card">
@@ -803,6 +815,7 @@
                                 <button class="viz-seg-btn" data-metric="rate" role="tab" aria-selected="false">Chat → lead %</button>
                             </div>
                         </div>
+                        <div class="viz-legend" id="viz-legend"></div>
                         <div id="viz-trend" class="viz-trend"></div>
                         <details class="viz-table"><summary>View as table</summary><div id="viz-trend-table"></div></details>
                     </div>
