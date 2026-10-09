@@ -13,6 +13,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
 
+  <!-- Consent Mode v2 defaults: must run before any analytics/ads tag -->
+  <script src="/consent.js"></script>
+
   <!-- Styles -->
   <link rel="stylesheet" href="/style.css">
 
@@ -97,6 +100,7 @@
           <li><a href="/privacy-policy.html">Privacy Policy</a></li>
           <li><a href="/terms-of-service.html">Terms of Service</a></li>
           <li><a href="/cookie-policy.html">Cookie Policy</a></li>
+          <li><a href="/cookie-policy.html" data-cookie-settings>Cookie Settings</a></li>
         </ul>
       </div>
 
@@ -120,20 +124,6 @@
     <div class="modal-content glass-panel">
       <button id="btnCloseModal" class="btn-close-modal">&times;</button>
       <div id="modalFormContainer"></div>
-    </div>
-  </div>
-
-  <!-- Floating Cookie Consent Banner -->
-  <div id="cookieConsentBanner" class="cookie-banner glass-panel">
-    <div class="cookie-content">
-      <div class="cookie-text">
-        <h4>We Value Your Privacy</h4>
-        <p>Bytes Enterprises uses cookies to enhance your browsing experience, serve personalized content, and analyze our traffic. By clicking "Accept All", you consent to our use of cookies as described in our <a href="/privacy-policy.html" class="highlight">Privacy Policy</a>.</p>
-      </div>
-      <div class="cookie-actions">
-        <button id="btnAcceptCookies" class="btn btn-primary">Accept All</button>
-        <button id="btnDeclineCookies" class="btn btn-outline">Decline</button>
-      </div>
     </div>
   </div>
 
