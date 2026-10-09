@@ -880,11 +880,131 @@ app.put('/api/leads/:id/stage', requireAuth, async (c) => {
 // Chat logs (read-only)
 app.get('/api/logs', requireAuth, async (c) => {
     try {
-        const { results } = await c.env.DB.prepare('SELECT * FROM chat_logs ORDER BY timestamp DESC LIMIT 200').all();
+        // Admins see every client's logs; others only their own (was unscoped for everyone)
+        const user = c.get('user') || {};
+        const { results } = user.role === 'admin'
+            ? await c.env.DB.prepare('SELECT * FROM chat_logs ORDER BY timestamp DESC LIMIT 200').all()
+            : await c.env.DB.prepare('SELECT * FROM chat_logs WHERE client_id = ? ORDER BY timestamp DESC LIMIT 200').bind(user.clientId || '').all();
         return c.json(results);
     } catch (err) {
         console.error('[Logs] Error:', err);
         return c.json({ error: 'Failed to fetch logs' }, 500);
+    }
+});
+
+// ─── Analytics ───────────────────────────────────────────────────────────────
+// One call returns the current period, the previous period of equal length (for deltas),
+// a time series, an hour×weekday heatmap and the funnel. Conversations are estimated with the
+// standard 30-minute inactivity rule because chat_logs has no session id.
+const SESSION_GAP_MS = 30 * 60 * 1000;
+const DAY_MS = 86400000;
+const QUALIFIED_STAGES = ['opportunity', 'campaign', 'drafting', 'sequence_generated', 'active'];
+const CAMPAIGN_STAGES = ['campaign', 'drafting', 'sequence_generated', 'active'];
+
+function parseBudget(str) {
+    if (!str) return 0;
+    const m = String(str).replace(/[£€$,\s]/g, '').toLowerCase().match(/(\d+(?:\.\d+)?)([km]?)/);
+    if (!m) return 0;
+    return Math.round(parseFloat(m[1]) * (m[2] === 'k' ? 1e3 : m[2] === 'm' ? 1e6 : 1));
+}
+
+function sessionStarts(logs) {
+    // logs sorted by client_id, timestamp
+    const starts = [];
+    let prevClient = null, prevTs = -Infinity;
+    for (const l of logs) {
+        if (l.client_id !== prevClient || l.timestamp - prevTs > SESSION_GAP_MS) starts.push(l.timestamp);
+        prevClient = l.client_id; prevTs = l.timestamp;
+    }
+    return starts;
+}
+
+function periodStats(leads, starts, sent, from, to) {
+    const inP = (ts) => ts >= from && ts < to;
+    const ls = leads.filter(l => inP(l.timestamp));
+    const conversations = starts.filter(inP).length;
+    const verified = ls.filter(l => l.is_verified).length;
+    const qualified = ls.filter(l => QUALIFIED_STAGES.includes(l.pipeline_stage)).length;
+    const pipelineValue = ls.reduce((s, l) => s + parseBudget(l.budget), 0);
+    return {
+        conversations,
+        leads: ls.length,
+        verified,
+        qualified,
+        campaigns: ls.filter(l => CAMPAIGN_STAGES.includes(l.pipeline_stage)).length,
+        pipelineValue,
+        withBudget: ls.filter(l => parseBudget(l.budget) > 0).length,
+        emailsSent: sent.filter(inP).length,
+        chatToLead: conversations ? ls.length / conversations : null,
+        verifiedRate: ls.length ? verified / ls.length : null,
+        qualifiedRate: ls.length ? qualified / ls.length : null,
+    };
+}
+
+app.get('/api/analytics', requireAuth, async (c) => {
+    const user = c.get('user') || {};
+    const isAdmin = user.role === 'admin';
+    const days = Math.max(0, Math.min(365, parseInt(c.req.query('days') || '30', 10) || 0));
+    const tzOffset = Math.max(-840, Math.min(840, parseInt(c.req.query('tz') || '0', 10) || 0)); // Date#getTimezoneOffset()
+    const now = Date.now();
+    const scope = isAdmin ? '' : ' WHERE client_id = ?';
+    const bind = (stmt) => (isAdmin ? stmt : stmt.bind(user.clientId || ''));
+
+    try {
+        const [leadsRes, logsRes, sentRes] = await Promise.all([
+            bind(c.env.DB.prepare(`SELECT id, name, service, budget, timestamp, pipeline_stage, is_verified FROM leads${scope} ORDER BY timestamp ASC`)).all(),
+            bind(c.env.DB.prepare(`SELECT client_id, timestamp FROM chat_logs${scope} ORDER BY client_id, timestamp ASC LIMIT 100000`)).all(),
+            bind(c.env.DB.prepare(`SELECT scheduled_for AS ts FROM email_sequences${scope ? scope + " AND status = 'sent'" : " WHERE status = 'sent'"}`)).all(),
+        ]);
+        const leads = (leadsRes.results || []).filter(l => l.timestamp);
+        const starts = sessionStarts((logsRes.results || []).filter(l => l.timestamp));
+        const sent = (sentRes.results || []).map(r => r.ts).filter(Boolean);
+
+        const firstTs = starts.reduce((m, t) => Math.min(m, t), leads[0]?.timestamp ?? now);
+        const from = days ? now - days * DAY_MS : firstTs;
+        const current = periodStats(leads, starts, sent, from, now + 1);
+        const previous = days ? periodStats(leads, starts, sent, from - days * DAY_MS, from) : null;
+
+        // Time series in the viewer's local days (weekly buckets past 90 days)
+        const toLocal = (ts) => ts - tzOffset * 60000;
+        const bucketMs = (days === 0 && now - firstTs > 90 * DAY_MS) || days > 90 ? 7 * DAY_MS : DAY_MS;
+        const startLocal = Math.floor(toLocal(from) / DAY_MS) * DAY_MS;
+        const nBuckets = Math.max(1, Math.ceil((toLocal(now) - startLocal + 1) / bucketMs));
+        const series = Array.from({ length: nBuckets }, (_, i) => ({ t: startLocal + i * bucketMs + tzOffset * 60000, leads: 0, conversations: 0 }));
+        const idx = (ts) => Math.floor((toLocal(ts) - startLocal) / bucketMs);
+        leads.forEach(l => { const i = idx(l.timestamp); if (l.timestamp >= from && series[i]) series[i].leads++; });
+        starts.forEach(ts => { const i = idx(ts); if (ts >= from && series[i]) series[i].conversations++; });
+
+        // When conversations start: weekday (Mon=0) × hour, local time
+        const heatmap = Array.from({ length: 7 }, () => Array(24).fill(0));
+        starts.filter(ts => ts >= from).forEach(ts => {
+            const d = new Date(toLocal(ts));
+            heatmap[(d.getUTCDay() + 6) % 7][d.getUTCHours()]++;
+        });
+
+        // Leads by service
+        const svc = {};
+        leads.filter(l => l.timestamp >= from).forEach(l => {
+            const k = (l.service || 'Not specified').trim().slice(0, 40) || 'Not specified';
+            svc[k] = (svc[k] || 0) + 1;
+        });
+        let services = Object.entries(svc).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
+        if (services.length > 6) {
+            const other = services.slice(5).reduce((s, x) => s + x.count, 0);
+            services = [...services.slice(0, 5), { name: 'Other', count: other }];
+        }
+
+        // Speed-to-lead backlog: open leads nobody has moved on for 24h+ (all time)
+        const waitingAll = leads.filter(l => ['lead', 'priority'].includes(l.pipeline_stage || 'lead') && now - l.timestamp > DAY_MS);
+        const waiting = {
+            count: waitingAll.length,
+            oldest: waitingAll.slice(0, 5).map(l => ({ id: l.id, name: l.name, service: l.service, timestamp: l.timestamp, stage: l.pipeline_stage || 'lead' })),
+        };
+
+        return c.json({ days, from, to: now, current, previous, series, bucket: bucketMs === DAY_MS ? 'day' : 'week', heatmap, services, waiting });
+    } catch (err) {
+        console.error('[Analytics] Error:', err);
+        return c.json({ error: 'Failed to load analytics' }, 500);
     }
 });
 
