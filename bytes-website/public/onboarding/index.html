@@ -6,8 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="/consent.js"></script>
     <title>Get Started | BytesAI</title>
-    <link rel="stylesheet" href="style.css?v=5">
-    <link rel="stylesheet" href="theme.css?v=1">
+    <link rel="stylesheet" href="style.css?v=6">
+    <link rel="stylesheet" href="theme.css?v=2">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -81,10 +81,13 @@
                             </div>
                             <div class="form-group">
                                 <label for="client-email">Business email</label>
-                                <input type="email" id="client-email" placeholder="jane@company.com" autocomplete="email" required>
+                                <input type="email" id="client-email" placeholder="jane@company.com" autocomplete="email" required aria-describedby="email-hint">
+                                <p class="ob-hint" id="email-hint">You'll sign in to your dashboard with a Google, Facebook or LinkedIn account that uses this email.</p>
                             </div>
+                            <p class="ob-error" id="err-1" role="alert" hidden></p>
                             <button id="btn-next-1" class="btn btn-primary">Start my free trial</button>
                         </div>
+                        <p class="ob-fineprint">Already set up? <a href="/dashboard/">Sign in to your dashboard</a></p>
                         <p class="ob-fineprint">By continuing you agree to our <a href="/terms-of-service.html">Terms</a> and <a href="/privacy-policy.html">Privacy Policy</a>.</p>
                     </div>
                 </div>
@@ -116,20 +119,21 @@
 
                 <div class="form-card glass">
                     <div class="form-group">
-                        <label for="company-name">Company/Brand Name</label>
-                        <input type="text" id="company-name" placeholder="e.g. Acme Solutions">
+                        <label for="company-name">Company or brand name</label>
+                        <input type="text" id="company-name" placeholder="e.g. Acme Solutions" autocomplete="organization" maxlength="80">
                     </div>
                     <div class="form-group">
-                        <label>Bot Tone</label>
-                        <div class="tone-picker" id="bot-tone">
+                        <label id="bot-tone-label">Bot tone</label>
+                        <div class="tone-picker" id="bot-tone" role="group" aria-labelledby="bot-tone-label">
                             <button type="button" class="tone-option selected" data-value="Professional & Authoritative">Professional &amp; Authoritative</button>
                             <button type="button" class="tone-option" data-value="Friendly & Helpful">Friendly &amp; Helpful</button>
                             <button type="button" class="tone-option" data-value="High-Energy & Salesy">High-Energy &amp; Salesy</button>
                         </div>
                     </div>
+                    <p class="ob-error" id="err-2" role="alert" hidden></p>
                     <div class="button-group">
                         <button id="btn-back-2" class="btn btn-outline">Back</button>
-                        <button id="btn-next-2" class="btn btn-primary">Initialize My Bot</button>
+                        <button id="btn-next-2" class="btn btn-primary">Create my chatbot</button>
                     </div>
                 </div>
             </section>
@@ -137,14 +141,24 @@
             <!-- Step 3: Delivery Center -->
             <section id="step-3" class="slide">
                 <div class="success-icon">🚀</div>
-                <h1>Your Bot is Live!</h1>
-                <p class="subtitle">Copy the code below and paste it before the <code>&lt;/body&gt;</code> tag of your
-                    website.</p>
+                <h1>Your bot is ready.</h1>
+                <p class="subtitle">Paste this code just before the <code>&lt;/body&gt;</code> tag of your website and the chat bubble appears.</p>
 
                 <div class="code-card glass">
                     <pre id="embed-code">Loading script...</pre>
                     <button id="btn-copy" class="btn btn-primary">Copy Embed Code</button>
                 </div>
+
+                <details class="ob-platforms">
+                    <summary>Where do I paste it?</summary>
+                    <ul>
+                        <li><strong>WordPress:</strong> Appearance → Theme File Editor → footer.php, before <code>&lt;/body&gt;</code> (or use a “header and footer scripts” plugin).</li>
+                        <li><strong>Shopify:</strong> Online Store → Themes → Edit code → theme.liquid, before <code>&lt;/body&gt;</code>.</li>
+                        <li><strong>Wix:</strong> Settings → Custom code → Add custom code → Body – end, all pages.</li>
+                        <li><strong>Squarespace:</strong> Settings → Advanced → Code injection → Footer.</li>
+                        <li><strong>Webflow:</strong> Site settings → Custom code → Footer code, then publish.</li>
+                    </ul>
+                </details>
 
                 <!-- Installation Limits Info -->
                 <div id="install-limits-card" class="glass" style="margin-top:1.5rem;padding:1.25rem 1.5rem;border-radius:20px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);">
@@ -163,38 +177,40 @@
                             <div style="font-size:0.75rem;color:#64748b;margin-top:0.2rem;">Domain(s)</div>
                         </div>
                     </div>
-                    <p style="font-size:0.78rem;color:#475569;line-height:1.5;margin:0;">Manage your allowed domains from the <strong style="color:#94a3b8;">Dashboard → Chatbot</strong> tab after setup. <a href="#" onclick="event.preventDefault()" style="color:#6366f1;text-decoration:none;">Upgrade for more →</a></p>
+                    <p style="font-size:0.78rem;color:#475569;line-height:1.5;margin:0;">Manage your allowed domains from the <strong style="color:#94a3b8;">Dashboard → Chatbot</strong> tab after setup. <a href="/?upgrade=free#pricing" style="color:#6366f1;text-decoration:none;">Upgrade for more →</a></p>
                 </div>
 
                 <div class="next-steps">
-                    <button id="btn-email-dev" class="btn btn-outline">Send to Developer</button>
-                    <button id="btn-more-settings" class="btn btn-link">More Settings &rarr;</button>
+                    <button id="btn-email-dev" class="btn btn-outline">Email to my developer</button>
+                    <button id="btn-more-settings" class="btn btn-primary">Fine-tune my bot &rarr;</button>
+                    <a href="/dashboard/" class="btn btn-link" id="btn-skip-dash">Skip to my dashboard</a>
                 </div>
             </section>
 
             <!-- Step 4: More Settings -->
             <section id="step-4" class="slide">
-                <h1>Fine-Tune Your Bot.</h1>
-                <p class="subtitle">Customize how your bot talks and behaves.</p>
+                <h1>Fine-tune your bot.</h1>
+                <p class="subtitle">Fill in the [brackets] so it answers like your best team member. You can edit this later.</p>
 
                 <div class="form-card glass">
                     <div class="form-group">
-                        <label for="settings-prompt">Bot Personality / System Prompt</label>
-                        <textarea id="settings-prompt" rows="5" placeholder="Describe how your bot should behave, what it should focus on, and what to avoid..."
+                        <label for="settings-prompt">What your bot should know and do</label>
+                        <textarea id="settings-prompt" rows="9" maxlength="20000" placeholder="Describe how your bot should behave, what it should focus on, and what to avoid..."
                             style="width:100%;padding:1.2rem 1.5rem;background:rgba(0,0,0,0.4);border:1px solid rgba(255,255,255,0.1);border-radius:16px;color:white;font-size:1rem;outline:none;resize:vertical;font-family:inherit;line-height:1.6;"></textarea>
                     </div>
                     <div class="form-group">
-                        <label>Auto-Approve AI Campaigns</label>
-                        <div class="tone-picker" id="auto-approve-picker">
-                            <button type="button" class="tone-option" data-value="0">Manual review first</button>
-                            <button type="button" class="tone-option selected" data-value="1">Auto-approve</button>
+                        <label id="auto-approve-label">Follow-up emails to new leads</label>
+                        <div class="tone-picker" id="auto-approve-picker" role="group" aria-labelledby="auto-approve-label">
+                            <button type="button" class="tone-option selected" data-value="0">I review them first</button>
+                            <button type="button" class="tone-option" data-value="1">Send automatically</button>
                         </div>
+                        <p class="ob-hint">The AI drafts a short email sequence for each verified lead. You can change this any time on the Chatbot page.</p>
                     </div>
                     <div class="form-group">
-                        <label>Show "Powered by BytesAI" Badge</label>
-                        <div class="tone-picker" id="branding-picker">
+                        <label id="branding-label">Show "Powered by BytesAI" badge</label>
+                        <div class="tone-picker" id="branding-picker" role="group" aria-labelledby="branding-label">
                             <button type="button" class="tone-option selected" data-value="true">Show badge</button>
-                            <button type="button" class="tone-option" data-value="false" data-locked="true" style="opacity:0.4;cursor:not-allowed;" title="Available on Starter plan and above after your trial">Hide badge <span style="font-size:0.72rem;">🔒 Starter+</span></button>
+                            <button type="button" class="tone-option" data-value="false" data-locked="true" aria-disabled="true" style="opacity:0.4;cursor:not-allowed;" title="Available on Starter plan and above after your trial">Hide badge <span style="font-size:0.72rem;">🔒 Starter+</span></button>
                         </div>
                         <p style="font-size:0.78rem;color:#64748b;margin-top:0.6rem;line-height:1.4;">Badge is required during your 7-day trial. Remove it on <strong style="color:#94a3b8;">Starter</strong> plan and above.</p>
                     </div>
@@ -202,13 +218,13 @@
                         <button id="btn-back-4" class="btn btn-outline">Back</button>
                         <button id="btn-save-settings" class="btn btn-primary">Save &amp; Finish</button>
                     </div>
-                    <p id="settings-status" style="text-align:center;margin-top:1rem;font-size:0.9rem;color:#34d399;opacity:0;transition:opacity 0.3s;"></p>
+                    <p id="settings-status" role="status" aria-live="polite" style="text-align:center;margin-top:1rem;font-size:0.9rem;color:#34d399;opacity:0;transition:opacity 0.3s;"></p>
                 </div>
             </section>
         </main>
     </div>
 
-    <script src="main.js"></script>
+    <script src="main.js?v=2"></script>
 </body>
 
 </html>

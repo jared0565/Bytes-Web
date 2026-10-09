@@ -243,6 +243,12 @@ app.post('/api/register', async (c) => {
     if (!settings || typeof settings !== 'object') return c.json({ error: 'settings is required' }, 400);
     if (!/^[a-z0-9][a-z0-9\-]{2,60}$/.test(clientId)) return c.json({ error: 'Invalid clientId format' }, 400);
 
+    // One account per email — an existing owner signs in instead (and their login can't be re-pointed)
+    const safeEmail = typeof ownerEmail === 'string' ? ownerEmail.toLowerCase().trim() : '';
+    if (safeEmail && await c.env.OAUTH_TOKENS.get(`email_client:${safeEmail}`)) {
+        return c.json({ error: 'This email already has a chatbot. Sign in to your dashboard instead.', hasSetup: true }, 409);
+    }
+
     // Don't overwrite an existing client
     const existing = await c.env.DB.prepare('SELECT client_id FROM crm_settings WHERE client_id = ?').bind(clientId).first();
     if (existing) return c.json({ error: 'Client already registered' }, 409);
@@ -264,11 +270,9 @@ app.post('/api/register', async (c) => {
     await c.env.OAUTH_TOKENS.put(`setup:${setupToken}`, JSON.stringify({ clientId }), { expirationTtl: 86400 }); // 24h
 
     // Store email→clientId mapping for returning-user detection
-    if (ownerEmail && typeof ownerEmail === 'string') {
-        const safeEmail = ownerEmail.toLowerCase().trim();
-        if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(safeEmail)) {
-            await c.env.OAUTH_TOKENS.put(`email_client:${safeEmail}`, clientId, { expirationTtl: 365 * 24 * 3600 });
-        }
+    // Store email→clientId mapping: returning-user detection and client dashboard login
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(safeEmail)) {
+        await c.env.OAUTH_TOKENS.put(`email_client:${safeEmail}`, clientId);
     }
 
     return c.json({ success: true, clientId, setupToken, trialEndsAt, trialDaysLeft: 7 });
@@ -287,9 +291,15 @@ app.post('/api/register-settings', async (c) => {
 
     const kvData = await c.env.CLIENT_SETTINGS.get(`client:${clientId}`);
     const existing = kvData ? JSON.parse(kvData) : {};
-    // Badge is mandatory during the 7-day trial — override any showBranding:false
-    const sanitized = { ...settings, showBranding: true };
+    // Only the onboarding fields — never mode, domains or badge settings. Badge stays on during the trial.
+    const sanitized = { showBranding: true };
+    if (typeof settings.systemPrompt === 'string') sanitized.systemPrompt = settings.systemPrompt.trim().slice(0, 20000);
     await c.env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify({ ...existing, ...sanitized }));
+    // Campaign auto-approve lives in crm_settings (that's what the campaign engine reads)
+    if (typeof settings.autoApproveCampaigns === 'boolean') {
+        await c.env.DB.prepare('UPDATE crm_settings SET auto_approve_campaigns = ? WHERE client_id = ?')
+            .bind(settings.autoApproveCampaigns ? 1 : 0, clientId).run();
+    }
 
     return c.json({ success: true });
 });
@@ -742,16 +752,21 @@ app.get('/api/auth/:provider/callback', async (c) => {
         }
 
         if (dest === 'dashboard') {
-            // Dashboard sessions are admin, so only allowlisted emails may sign in (fail closed)
+            // Allowlisted emails get an admin session (with 2FA); anyone else needs an onboarded client
             const adminEmails = (c.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
             const email = (userData.email || '').trim().toLowerCase();
-            if (!email || !adminEmails.includes(email)) {
-                console.warn(`[OAuth] Dashboard login refused for ${provider} user ${userRecord.id}`);
-                return c.redirect(`${dashUrl}?social_error=not_authorized`);
-            }
-
             const userId = userRecord.id;
             const thirtyDays = 30 * 24 * 3600;
+            if (!email || !adminEmails.includes(email)) {
+                // Clients sign in with the email they onboarded with and only ever see their own client
+                const clientId = email && userData.emailVerified !== false ? await c.env.OAUTH_TOKENS.get(`email_client:${email}`) : null;
+                if (!clientId || clientId === 'agency_demo' || clientId === HOUSE_CLIENT_ID) {
+                    console.warn(`[OAuth] Dashboard login refused for ${provider} user ${userId}`);
+                    return c.redirect(`${dashUrl}?social_error=not_authorized`);
+                }
+                const grant = await issueSessionGrant(c, { role: 'client', clientId, provider, userId }, thirtyDays);
+                return c.redirect(`${dashUrl}?session_grant=${grant}`);
+            }
 
             // Check if this user has 2FA configured (opt-in, never forced)
             const hasTotp = await c.env.OAUTH_TOKENS.get(`totp:secret:${userId}`);
@@ -1362,6 +1377,10 @@ app.post('/api/config', requireAuth, async (c) => {
     if (planStatus.inTrial || planStatus.plan === 'free' || planStatus.plan === 'starter') {
         settings.showBranding = true;
     }
+    // Domains go through /api/installations (plan-limited); the badge link and referral are ours to set
+    if ((c.get('user') || {}).role !== 'admin') {
+        for (const k of ['allowedDomains', 'badgeUrl', 'referralId']) delete settings[k];
+    }
     // Merge into the stored record so fields this form doesn't send (allowedDomains, badgeUrl, referralId…) survive
     const prev = JSON.parse(await c.env.CLIENT_SETTINGS.get(`client:${clientId}`) || '{}');
     const merged = { ...prev, ...settings };
@@ -1667,6 +1686,14 @@ async function generateRuleSequence(env, leadId, shouldApprove = false) {
     return { success: true, count: steps.length };
 }
 
+// Admins reach every lead; a client only its own. Returns the lead row or null.
+async function accessibleLead(c, leadId) {
+    const user = c.get('user') || {};
+    const lead = await c.env.DB.prepare('SELECT id, client_id, is_verified FROM leads WHERE id = ?').bind(leadId).first();
+    if (!lead || (user.role !== 'admin' && lead.client_id !== user.clientId)) return null;
+    return lead;
+}
+
 app.post('/api/generate-sequence', requireAuth, async (c) => {
     let body;
     try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
@@ -1674,6 +1701,7 @@ app.post('/api/generate-sequence', requireAuth, async (c) => {
     if (!leadId || typeof leadId !== 'number') return c.json({ error: 'leadId is required and must be a number' }, 400);
 
     const user = c.get('user');
+    if (!await accessibleLead(c, leadId)) return c.json({ error: 'Lead not found' }, 404);
     const planStatus = await getPlanStatus(c.env, user?.clientId || 'agency_demo');
     if (!planStatus.inTrial && planStatus.plan === 'free') {
         return c.json({ error: 'AI features are not available on the Free tier. Upgrade your plan to unlock AI campaign generation.', planLimited: true }, 403);
@@ -1697,9 +1725,11 @@ app.put('/api/sequences', requireAuth, async (c) => {
     try {
         if (id) {
             if (typeof id !== 'number') return c.json({ error: 'Invalid sequence id' }, 400);
+            const seq = await c.env.DB.prepare('SELECT lead_id FROM email_sequences WHERE id = ?').bind(id).first();
+            if (!seq || !await accessibleLead(c, seq.lead_id)) return c.json({ error: 'Sequence not found' }, 404);
             await c.env.DB.prepare('UPDATE email_sequences SET subject = ?, body = ? WHERE id = ?').bind(subject, emailBody, id).run();
         } else if (leadId && email_number) {
-            const lead = await c.env.DB.prepare('SELECT client_id FROM leads WHERE id = ?').bind(leadId).first();
+            const lead = await accessibleLead(c, leadId);
             if (!lead) return c.json({ error: 'Lead not found' }, 404);
             await c.env.DB.prepare("INSERT INTO email_sequences (lead_id, client_id, email_number, subject, body, status, scheduled_for) VALUES (?, ?, ?, ?, ?, 'draft', ?)")
                 .bind(leadId, lead.client_id, email_number, subject, emailBody, Date.now() + email_number * 24 * 60 * 60 * 1000).run();
@@ -1716,6 +1746,7 @@ app.put('/api/sequences', requireAuth, async (c) => {
 app.get('/api/sequences', requireAuth, async (c) => {
     const leadId = parseInt(c.req.query('leadId'), 10);
     if (!leadId || isNaN(leadId)) return c.json({ error: 'Missing or invalid leadId' }, 400);
+    if (!await accessibleLead(c, leadId)) return c.json({ error: 'Lead not found' }, 404);
 
     try {
         const { results } = await c.env.DB.prepare('SELECT * FROM email_sequences WHERE lead_id = ? ORDER BY email_number ASC').bind(leadId).all();
@@ -1743,7 +1774,7 @@ app.post('/api/sequences/approve', requireAuth, async (c) => {
     if (!leadId || typeof leadId !== 'number') return c.json({ error: 'leadId is required and must be a number' }, 400);
 
     try {
-        const lead = await c.env.DB.prepare('SELECT is_verified FROM leads WHERE id = ?').bind(leadId).first();
+        const lead = await accessibleLead(c, leadId);
         if (!lead) return c.json({ error: 'Lead not found' }, 404);
         if (lead.is_verified === 0) return c.json({ error: 'Cannot approve sequence: lead email is not verified.' }, 400);
 

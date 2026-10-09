@@ -28,7 +28,7 @@ export class AuthProvider {
                 headers: { Authorization: `Bearer ${access_token}` }
             });
             const u = await userRes.json();
-            return { id: u.id, email: u.email, name: u.name, picture: u.picture, provider: 'google' };
+            return { id: u.id, email: u.email, name: u.name, picture: u.picture, provider: 'google', emailVerified: u.verified_email !== false };
         }
     };
 
@@ -78,7 +78,7 @@ export class AuthProvider {
                 headers: { Authorization: `Bearer ${access_token}` }
             });
             const u = await userRes.json();
-            return { id: u.sub, email: u.email, name: u.name, picture: u.picture, provider: 'linkedin' };
+            return { id: u.sub, email: u.email, name: u.name, picture: u.picture, provider: 'linkedin', emailVerified: u.email_verified !== false };
         }
     };
 }

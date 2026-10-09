@@ -99,10 +99,15 @@ const simStatus = document.getElementById('sim-status');
     const pid  = params.get('pid');
 
     if (params.has('social_error')) {
-        const errMap = { invalid_state: 'Security check failed. Please try again.', auth_failed: 'Authentication failed. Please try again.', no_code: 'Login was cancelled.', not_authorized: 'This account is not authorized to access the dashboard.' };
+        const errMap = { invalid_state: 'Security check failed. Please try again.', auth_failed: 'Authentication failed. Please try again.', no_code: 'Login was cancelled.', not_authorized: 'No chatbot is linked to this account. Sign in with the account you signed up with, or start for free below.' };
         loginError.innerText = errMap[params.get('social_error')] || 'Social login failed. Please try again.';
         history.replaceState(null, '', window.location.pathname);
         return;
+    }
+    if (params.get('signin') === 'existing') {
+        // Sent here from onboarding: this email already has a chatbot
+        loginError.innerText = 'You already have a chatbot. Sign in with the same account you signed up with.';
+        history.replaceState(null, '', window.location.pathname);
     }
 
     // Redeem session grant from OAuth redirect (mobile-safe cookie establishment).
