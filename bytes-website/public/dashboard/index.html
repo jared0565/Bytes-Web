@@ -113,6 +113,7 @@
                         <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"></path>
                     </svg>
                     Chat Logs
+                    <span class="nav-badge" id="logs-badge" hidden></span>
                 </button>
                 <button class="nav-item" data-view="clients">
                     <svg viewBox="0 0 24 24">
@@ -264,21 +265,53 @@
             </section><!-- close leads-view -->
 
             <section id="logs-view" class="view hidden">
-                <div class="table-container glass-panel">
-                    <table id="logs-table">
-                        <thead>
-                            <tr>
-                                <th>Timestamp</th>
-                                <th>Client</th>
-                                <th>User Message</th>
-                                <th>Bot Response</th>
-                            </tr>
-                        </thead>
-                        <tbody id="logs-body">
-                            <!-- Injected by JS -->
-                        </tbody>
-                    </table>
+                <!-- Filters: one row above everything they control -->
+                <div class="cl-toolbar" role="search">
+                    <label class="cl-search">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+                        <input type="search" id="cl-q" placeholder="Search messages, names, emails…" aria-label="Search conversations">
+                    </label>
+                    <div class="cl-seg" role="group" aria-label="Date range">
+                        <button type="button" class="cl-seg-btn" data-range="1">Today</button>
+                        <button type="button" class="cl-seg-btn active" data-range="7">7 days</button>
+                        <button type="button" class="cl-seg-btn" data-range="30">30 days</button>
+                        <button type="button" class="cl-seg-btn" data-range="90">90 days</button>
+                        <button type="button" class="cl-seg-btn" data-range="custom">Custom</button>
+                    </div>
+                    <div class="cl-custom" id="cl-custom" hidden>
+                        <input type="date" id="cl-from" aria-label="From date">
+                        <span aria-hidden="true">–</span>
+                        <input type="date" id="cl-to" aria-label="To date">
+                    </div>
+                    <select id="cl-client" aria-label="Client" hidden><option value="">All clients</option></select>
+                    <label class="cl-check"><input type="checkbox" id="cl-leads-only"> Became a lead</label>
+                    <div class="cl-toolbar-end">
+                        <button type="button" class="cl-btn" id="cl-mark-read">Mark all read</button>
+                        <button type="button" class="cl-btn" id="cl-export">Export CSV</button>
+                    </div>
                 </div>
+
+                <div class="cl-summary">
+                    <div class="cl-stats" id="cl-stats" aria-live="polite"></div>
+                    <div class="cl-chart-card glass-panel">
+                        <div class="cl-chart-head"><h3>Conversations per day</h3><span id="cl-chart-note"></span></div>
+                        <div id="cl-chart" class="cl-chart"></div>
+                    </div>
+                </div>
+
+                <div id="cl-alert" class="cl-alert" role="status" hidden></div>
+
+                <div class="cl-inbox glass-panel" id="cl-inbox">
+                    <div class="cl-list-pane">
+                        <div class="cl-list-head"><span id="cl-count">Loading…</span></div>
+                        <ul class="cl-list" id="cl-list" aria-label="Conversations"></ul>
+                        <button type="button" class="cl-btn cl-more" id="cl-more" hidden>Load more</button>
+                    </div>
+                    <div class="cl-thread-pane" id="cl-thread" aria-live="polite">
+                        <div class="cl-empty">Select a conversation to read it.</div>
+                    </div>
+                </div>
+                <div id="cl-tip" class="viz-tooltip" hidden></div>
             </section>
 
             <section id="clients-view" class="view hidden">

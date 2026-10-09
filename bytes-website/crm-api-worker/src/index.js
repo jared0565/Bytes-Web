@@ -892,6 +892,104 @@ app.get('/api/logs', requireAuth, async (c) => {
     }
 });
 
+// ─── Conversations (Chat Logs view) ───────────────────────────────────────────
+// Groups chat_logs into conversations (same client, <30 min between messages; there is no
+// session id), links each to a lead captured during it, and returns filters, a daily series
+// and summary stats for the selected range. ?countOnly=1&since=<ms> powers the "new" badge.
+const CONV_PAGE = 50;
+
+app.get('/api/conversations', requireAuth, async (c) => {
+    const user = c.get('user') || {};
+    const isAdmin = user.role === 'admin';
+    const q = c.req.query.bind(c.req);
+    const now = Date.now();
+    const num = (v, d) => { const n = parseInt(v ?? '', 10); return Number.isFinite(n) ? n : d; };
+    const to = Math.min(num(q('to'), now), now + 60000);
+    const from = Math.max(0, num(q('from'), to - 30 * 86400000));
+    const tz = Math.max(-840, Math.min(840, num(q('tz'), 0)));
+    const search = (q('q') || '').trim().toLowerCase().slice(0, 100);
+    const leadsOnly = q('leadsOnly') === '1';
+    const offset = Math.max(0, num(q('offset'), 0));
+    const since = num(q('since'), 0);
+    const clientFilter = isAdmin ? (q('clientId') || '').trim() : (user.clientId || '');
+    if (!isAdmin && !clientFilter) return c.json({ error: 'No client is linked to this account' }, 403);
+
+    // Pull a little either side of the range so conversations crossing the edges stay whole
+    const where = ['timestamp >= ?', 'timestamp <= ?'], args = [from - SESSION_GAP_MS, to + SESSION_GAP_MS];
+    if (clientFilter) { where.push('client_id = ?'); args.push(clientFilter); }
+    try {
+        const [logsRes, leadsRes, clientsRes] = await Promise.all([
+            c.env.DB.prepare(`SELECT id, client_id, user_message, bot_response, timestamp FROM chat_logs WHERE ${where.join(' AND ')} ORDER BY client_id, timestamp ASC LIMIT 20000`).bind(...args).all(),
+            c.env.DB.prepare(`SELECT id, client_id, name, email, service, budget, pipeline_stage, timestamp FROM leads WHERE ${where.join(' AND ')}`).bind(...args).all(),
+            isAdmin ? c.env.DB.prepare('SELECT DISTINCT client_id FROM chat_logs ORDER BY client_id').all() : Promise.resolve({ results: [] }),
+        ]);
+
+        // Group into conversations
+        const convs = [];
+        let cur = null;
+        for (const m of logsRes.results || []) {
+            if (!cur || cur.clientId !== m.client_id || m.timestamp - cur.end > SESSION_GAP_MS) {
+                cur = { id: `${m.client_id}:${m.timestamp}`, clientId: m.client_id, start: m.timestamp, end: m.timestamp, messages: [] };
+                convs.push(cur);
+            }
+            cur.end = m.timestamp;
+            cur.messages.push({ id: m.id, t: m.timestamp, user: m.user_message || '', bot: m.bot_response || '' });
+        }
+        // Keep conversations that overlap the range
+        let list = convs.filter(cv => cv.end >= from && cv.start <= to);
+
+        // Link leads (captured during the conversation or up to 30 min after its last message)
+        const leads = leadsRes.results || [];
+        for (const cv of list) {
+            const lead = leads.find(l => l.client_id === cv.clientId && l.timestamp >= cv.start - 60000 && l.timestamp <= cv.end + SESSION_GAP_MS);
+            if (lead) cv.lead = { id: lead.id, name: lead.name, email: lead.email, service: lead.service, budget: lead.budget, stage: lead.pipeline_stage || 'lead' };
+            const bots = cv.messages.map(x => x.bot.trim()).filter(Boolean);
+            cv.repeatedReply = bots.length > 1 && new Set(bots).size === 1; // bot gave the same answer to everything
+            cv.messageCount = cv.messages.length;
+            cv.preview = (cv.messages.find(x => x.user.trim())?.user || '').slice(0, 140);
+        }
+
+        if (q('countOnly') === '1') {
+            return c.json({ newCount: list.filter(cv => cv.end > since).length });
+        }
+
+        // Daily series (viewer's local days) and stats are for the whole range, before search
+        const DAY = 86400000, toLocal = (ts) => ts - tz * 60000;
+        const startDay = Math.floor(toLocal(from) / DAY) * DAY;
+        const days = Math.min(400, Math.max(1, Math.ceil((toLocal(to) - startDay + 1) / DAY)));
+        const daily = Array.from({ length: days }, (_, i) => ({ t: startDay + i * DAY + tz * 60000, conversations: 0, leads: 0 }));
+        for (const cv of list) {
+            const i = Math.floor((toLocal(cv.start) - startDay) / DAY);
+            if (daily[i]) { daily[i].conversations++; if (cv.lead) daily[i].leads++; }
+        }
+        const messages = list.reduce((s, cv) => s + cv.messageCount, 0);
+        const withLead = list.filter(cv => cv.lead).length;
+        const stats = {
+            conversations: list.length,
+            messages,
+            avgMessages: list.length ? messages / list.length : null,
+            withLead,
+            leadRate: list.length ? withLead / list.length : null,
+            repeated: list.filter(cv => cv.repeatedReply).length,
+        };
+
+        if (leadsOnly) list = list.filter(cv => cv.lead);
+        if (search) list = list.filter(cv => cv.messages.some(x => x.user.toLowerCase().includes(search) || x.bot.toLowerCase().includes(search))
+            || (cv.lead && `${cv.lead.name || ''} ${cv.lead.email || ''}`.toLowerCase().includes(search)));
+        list.sort((a, b) => b.end - a.end);
+
+        return c.json({
+            from, to, total: list.length, offset, pageSize: CONV_PAGE,
+            conversations: list.slice(offset, offset + CONV_PAGE),
+            stats, daily,
+            clients: (clientsRes.results || []).map(r => r.client_id),
+        });
+    } catch (err) {
+        console.error('[Conversations] Error:', err);
+        return c.json({ error: 'Failed to load conversations' }, 500);
+    }
+});
+
 // ─── Analytics ───────────────────────────────────────────────────────────────
 // One call returns the current period, the previous period of equal length (for deltas),
 // a time series, an hour×weekday heatmap and the funnel. Conversations are estimated with the
