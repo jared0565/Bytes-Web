@@ -1173,14 +1173,25 @@ function parseBudget(str) {
     return Math.round(parseFloat(m[1]) * (m[2] === 'k' ? 1e3 : m[2] === 'm' ? 1e6 : 1));
 }
 
+// Currency of a stated budget ('£' when none is given)
+function budgetCurrency(str) {
+    const m = String(str || '').match(/[£$€]|\b(usd|eur|gbp)\b/i);
+    return m ? ({ usd: '$', eur: '€', gbp: '£' })[m[0].toLowerCase()] || m[0] : '£';
+}
+
 function periodStats(leads, starts, sent, from, to) {
     const inP = (ts) => ts >= from && ts < to;
     const ls = leads.filter(l => inP(l.timestamp));
     const conversations = starts.filter(inP).length;
     const verified = ls.filter(l => l.is_verified).length;
     const qualified = ls.filter(l => QUALIFIED_STAGES.includes(l.pipeline_stage)).length;
-    const pipelineValue = ls.reduce((s, l) => s + parseBudget(l.budget), 0);
+    // Never add £ and $ together: the headline is £, anything else is listed alongside
+    const byCur = {};
+    ls.forEach(l => { const v = parseBudget(l.budget); if (v) { const k = budgetCurrency(l.budget); byCur[k] = (byCur[k] || 0) + v; } });
+    const pipelineValue = byCur['£'] || 0;
+    delete byCur['£'];
     return {
+        pipelineOther: byCur,
         conversations,
         leads: ls.length,
         verified,
@@ -1196,6 +1207,11 @@ function periodStats(leads, starts, sent, from, to) {
 }
 
 // Conversations with their size and whether the bot repeated one canned reply (logs sorted by client, time)
+// Capped reads come back newest-first; conversation grouping needs client, then time order
+function byClientThenTime(rows) {
+    return rows.sort((a, b) => (a.client_id < b.client_id ? -1 : a.client_id > b.client_id ? 1 : a.timestamp - b.timestamp));
+}
+
 function sessionsOf(logs) {
     const out = [];
     let cur = null;
@@ -1230,12 +1246,12 @@ app.get('/api/analytics', requireAuth, async (c) => {
     try {
         const [leadsRes, logsRes, sentRes, clientsRes] = await Promise.all([
             bind(c.env.DB.prepare(`SELECT id, name, service, budget, timestamp, pipeline_stage, is_verified FROM leads${scope} ORDER BY timestamp ASC`)).all(),
-            bind(c.env.DB.prepare(`SELECT client_id, timestamp, substr(bot_response, 1, 160) AS bot FROM chat_logs${scope} ORDER BY client_id, timestamp ASC LIMIT 100000`)).all(),
+            bind(c.env.DB.prepare(`SELECT client_id, timestamp, substr(bot_response, 1, 160) AS bot FROM chat_logs${scope} ORDER BY timestamp DESC LIMIT 100000`)).all(),
             bind(c.env.DB.prepare(`SELECT scheduled_for AS ts FROM email_sequences${scope ? scope + " AND status = 'sent'" : " WHERE status = 'sent'"}`)).all(),
             isAdmin ? c.env.DB.prepare('SELECT client_id FROM chat_logs UNION SELECT client_id FROM leads ORDER BY 1').all() : Promise.resolve({ results: [] }),
         ]);
         const leads = (leadsRes.results || []).filter(l => l.timestamp);
-        const sessions = sessionsOf((logsRes.results || []).filter(l => l.timestamp));
+        const sessions = sessionsOf(byClientThenTime((logsRes.results || []).filter(l => l.timestamp)));
         const starts = sessions.map(s => s.start);
         const sent = (sentRes.results || []).map(r => r.ts).filter(Boolean);
 
@@ -1316,6 +1332,159 @@ app.get('/api/analytics', requireAuth, async (c) => {
     } catch (err) {
         console.error('[Analytics] Error:', err);
         return c.json({ error: 'Failed to load analytics' }, 500);
+    }
+});
+
+// ─── Website visitor analytics (cookieless) ─────────────────────────────────
+// /track.js on the Bytes website sends one beacon per page view. Nothing is stored in the
+// browser: a visitor is a salted hash of IP + browser that changes every day, so people
+// can't be followed across days and no consent banner is needed for it. IPs are never stored.
+let pageViewsReady = false;
+async function ensurePageViews(env) {
+    if (pageViewsReady) return;
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS page_views (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, site TEXT NOT NULL, ts INTEGER NOT NULL, day TEXT NOT NULL,
+            visitor TEXT NOT NULL, path TEXT, entry INTEGER DEFAULT 0, source TEXT, campaign TEXT,
+            country TEXT, device TEXT, browser TEXT)`).run();
+    await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_page_views_site_ts ON page_views (site, ts)').run();
+    pageViewsReady = true;
+}
+
+const BOT_UA = /bot|crawl|spider|slurp|headless|lighthouse|pagespeed|preview|monitor|curl|wget|python|scrapy|httpclient|facebookexternalhit|embedly|whatsapp|telegram/i;
+const SOURCE_NAMES = [
+    [/(^|\.)google\./, 'Google'], [/(^|\.)bing\.com$/, 'Bing'], [/(^|\.)duckduckgo\.com$/, 'DuckDuckGo'], [/(^|\.)yahoo\./, 'Yahoo'],
+    [/(^|\.)(facebook\.com|fb\.com|fb\.me)$/, 'Facebook'], [/(^|\.)instagram\.com$/, 'Instagram'], [/(^|\.)(linkedin\.com|lnkd\.in)$/, 'LinkedIn'],
+    [/(^|\.)(t\.co|twitter\.com|x\.com)$/, 'X (Twitter)'], [/(^|\.)(pinterest\.|pin\.it)/, 'Pinterest'], [/(^|\.)youtube\.com$/, 'YouTube'],
+    [/(^|\.)reddit\.com$/, 'Reddit'], [/(^|\.)(chatgpt\.com|openai\.com)$/, 'ChatGPT'], [/(^|\.)perplexity\.ai$/, 'Perplexity'], [/(^|\.)claude\.ai$/, 'Claude'],
+];
+function sourceName(host) {
+    const h = String(host || '').toLowerCase().replace(/^www\./, '');
+    if (!h) return '';
+    const hit = SOURCE_NAMES.find(([re]) => re.test(h));
+    return hit ? hit[1] : h.slice(0, 80);
+}
+// utm_source=linkedin / fb / google.com → the same names referrers get
+const UTM_NAMES = { fb: 'Facebook', facebook: 'Facebook', ig: 'Instagram', instagram: 'Instagram', li: 'LinkedIn', linkedin: 'LinkedIn', google: 'Google', bing: 'Bing',
+    youtube: 'YouTube', yt: 'YouTube', x: 'X (Twitter)', twitter: 'X (Twitter)', pinterest: 'Pinterest', reddit: 'Reddit', chatgpt: 'ChatGPT', tiktok: 'TikTok', email: 'Email', newsletter: 'Email' };
+function utmSourceName(src) {
+    const k = src.toLowerCase().replace(/[^a-z0-9.]/g, '');
+    if (UTM_NAMES[k]) return UTM_NAMES[k];
+    if (k.includes('.')) return sourceName(k);
+    return src.charAt(0).toUpperCase() + src.slice(1);
+}
+function uaParts(ua) {
+    const device = /ipad|tablet|kindle|silk|(android(?!.*mobile))/i.test(ua) ? 'Tablet' : /mobi|iphone|ipod|android/i.test(ua) ? 'Mobile' : 'Desktop';
+    const browser = /edg\//i.test(ua) ? 'Edge' : /opr\/|opera/i.test(ua) ? 'Opera' : /samsungbrowser/i.test(ua) ? 'Samsung Internet'
+        : /firefox|fxios/i.test(ua) ? 'Firefox' : /chrome|crios/i.test(ua) ? 'Chrome' : /safari/i.test(ua) ? 'Safari' : 'Other';
+    return { device, browser };
+}
+
+app.post('/api/public/pageview', async (c) => {
+    // Only pages on our own https origins (keeps dev/localhost and other sites out)
+    const origin = c.req.header('Origin') || '';
+    const allowed = (c.env.ALLOWED_ORIGINS || '').split(',').map(o => o.trim()).filter(o => o.startsWith('https://'));
+    if (!allowed.includes(origin)) return c.body(null, 204);
+    const ua = c.req.header('User-Agent') || '';
+    if (!ua || BOT_UA.test(ua)) return c.body(null, 204);
+    let b;
+    try { b = JSON.parse(await c.req.text()); } catch { return c.body(null, 204); }
+
+    const path = String(b.p || '/').split(/[?#]/)[0].slice(0, 200) || '/';
+    if (path.startsWith('/dashboard')) return c.body(null, 204);
+    const entry = b.e ? 1 : 0;
+    let source = null, campaign = null;
+    if (entry) {
+        source = String(b.us || '').trim().slice(0, 60) || null; // utm_source wins
+        if (source) source = utmSourceName(source);
+        else { try { source = b.r ? sourceName(new URL(String(b.r)).hostname) || null : null; } catch (_) { source = null; } }
+        campaign = String(b.uc || '').trim().slice(0, 80) || null;
+    }
+
+    const now = Date.now();
+    const day = new Date(now).toISOString().slice(0, 10);
+    const ip = c.req.header('CF-Connecting-IP') || '';
+    const visitor = (await signHmac(`${day}|${ip}|${ua}`, `${c.env.JWT_SECRET || ''}|pageviews`)).slice(0, 16);
+    const { device, browser } = uaParts(ua);
+    const country = (c.req.raw.cf && c.req.raw.cf.country) || null;
+    try {
+        await ensurePageViews(c.env);
+        await c.env.DB.prepare('INSERT INTO page_views (site, ts, day, visitor, path, entry, source, campaign, country, device, browser) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+            .bind(HOUSE_CLIENT_ID, now, day, visitor, path, entry, source, campaign, country, device, browser).run();
+    } catch (err) { console.error('[Pageview]', err); }
+    return c.body(null, 204);
+});
+
+// GET /api/analytics/visitors — Bytes website traffic (admin only), same period rules as /api/analytics
+app.get('/api/analytics/visitors', requireAuth, async (c) => {
+    if ((c.get('user') || {}).role !== 'admin') return c.json({ error: 'Admins only' }, 403);
+    const q = (k) => c.req.query(k);
+    const num = (v) => { const n = parseInt(v ?? '', 10); return Number.isFinite(n) ? n : null; };
+    const tz = Math.max(-840, Math.min(840, num(q('tz')) ?? 0));
+    const now = Date.now();
+    let days = Math.max(0, Math.min(365, num(q('days')) ?? 30));
+    const cf = num(q('from')), ct = num(q('to'));
+    const custom = cf != null && ct != null && ct > cf;
+    try {
+        await ensurePageViews(c.env);
+        const site = HOUSE_CLIENT_ID;
+        const first = (await c.env.DB.prepare('SELECT MIN(ts) AS t FROM page_views WHERE site = ?').bind(site).first())?.t || now;
+        const to = custom ? Math.min(ct, now) + 1 : now + 1;
+        const from = custom ? cf : days ? now - days * DAY_MS : first;
+        const len = to - from;
+        if (custom) days = Math.max(1, Math.round(len / DAY_MS));
+        const hasPrev = custom || days > 0;
+        const W = 'site = ? AND ts >= ? AND ts < ?';
+        const all = (sql, ...a) => c.env.DB.prepare(sql).bind(...a).all().then(r => r.results || []);
+        const totals = async (f, t) => {
+            const [tot, bounce] = await Promise.all([
+                c.env.DB.prepare(`SELECT COUNT(*) AS views, COUNT(DISTINCT day || visitor) AS visitors FROM page_views WHERE ${W}`).bind(site, f, t).first(),
+                c.env.DB.prepare(`SELECT COUNT(*) AS n FROM (SELECT 1 FROM page_views WHERE ${W} GROUP BY day, visitor HAVING COUNT(*) = 1)`).bind(site, f, t).first(),
+            ]);
+            const visitors = tot?.visitors || 0, views = tot?.views || 0;
+            return { visitors, views, pagesPerVisit: visitors ? views / visitors : null, bounceRate: visitors ? (bounce?.n || 0) / visitors : null };
+        };
+        const top = (col, extra = '') => all(`SELECT COALESCE(${col}, '') AS name, COUNT(*) AS views, COUNT(DISTINCT day || visitor) AS visitors FROM page_views WHERE ${W}${extra} GROUP BY 1 ORDER BY visitors DESC, views DESC LIMIT 10`, site, from, to);
+        const bucketMs = (to - from) / DAY_MS > 92 ? 7 * DAY_MS : DAY_MS;
+        const shift = -tz * 60000;
+        const startLocal = Math.floor((from + shift) / DAY_MS) * DAY_MS;
+
+        const [current, previous, pages, sources, countries, devices, browsers, campaigns, seriesRows, live, logs, leadRow] = await Promise.all([
+            totals(from, to),
+            hasPrev ? totals(from - len, from) : Promise.resolve(null),
+            top('path'),
+            top(`CASE WHEN source IS NULL OR source = '' THEN 'Direct' ELSE source END`, ' AND entry = 1'),
+            top('country'),
+            top('device'),
+            top('browser'),
+            top('campaign', " AND entry = 1 AND campaign IS NOT NULL AND campaign != ''"),
+            all(`SELECT CAST((ts + ? - ?) / ? AS INTEGER) AS b, COUNT(*) AS views, COUNT(DISTINCT day || visitor) AS visitors FROM page_views WHERE ${W} GROUP BY b`, shift, startLocal, bucketMs, site, from, to),
+            c.env.DB.prepare('SELECT COUNT(DISTINCT visitor) AS n FROM page_views WHERE site = ? AND ts >= ?').bind(site, now - 5 * 60000).first(),
+            all('SELECT client_id, timestamp FROM chat_logs WHERE client_id = ? AND timestamp >= ? AND timestamp < ? ORDER BY timestamp ASC LIMIT 50000', site, from, to),
+            c.env.DB.prepare('SELECT COUNT(*) AS n FROM leads WHERE client_id = ? AND timestamp >= ? AND timestamp < ?').bind(site, from, to).first(),
+        ]);
+        const nBuckets = Math.max(1, Math.min(400, Math.ceil((to - 1 + shift - startLocal + 1) / bucketMs)));
+        const series = Array.from({ length: nBuckets }, (_, i) => ({ t: startLocal + i * bucketMs - shift, visitors: 0, views: 0 }));
+        seriesRows.forEach(r => { if (series[r.b]) { series[r.b].visitors = r.visitors; series[r.b].views = r.views; } });
+        const conversations = sessionsOf(logs).length;
+        const leads = leadRow?.n || 0;
+        current.conversations = conversations;
+        current.leads = leads;
+        current.chatRate = current.visitors ? Math.min(1, conversations / current.visitors) : null;
+        current.leadRate = current.visitors ? leads / current.visitors : null;
+        const label = (rows, map = (x) => x) => rows.map(r => ({ name: map(r.name), views: r.views, visitors: r.visitors }));
+        return c.json({
+            days, custom, from, to: to - 1, bucket: bucketMs === DAY_MS ? 'day' : 'week',
+            current, previous, series, live: live?.n || 0, everTracked: first < now,
+            pages: label(pages, n => n || '/'),
+            sources: label(sources),
+            campaigns: label(campaigns),
+            countries: label(countries, n => n || 'Unknown'),
+            devices: label(devices, n => n || 'Unknown'),
+            browsers: label(browsers, n => n || 'Unknown'),
+        });
+    } catch (err) {
+        console.error('[Visitors] Error:', err);
+        return c.json({ error: 'Failed to load website analytics' }, 500);
     }
 });
 
@@ -2113,5 +2282,8 @@ export default {
     async scheduled(event, env, ctx) {
         ctx.waitUntil(handleVerificationCron(env));
         ctx.waitUntil(handleDripCron(env));
+        if (new Date(event.scheduledTime || Date.now()).getUTCMinutes() === 7) {
+            ctx.waitUntil(ensurePageViews(env).then(() => env.DB.prepare('DELETE FROM page_views WHERE ts < ?').bind(Date.now() - 400 * DAY_MS).run()).catch(e => console.error('[Pageview retention]', e)));
+        }
     }
 };

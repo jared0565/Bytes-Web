@@ -829,6 +829,12 @@
 
             <section id="analytics-view" class="view hidden">
 
+                <!-- Admins: switch between chatbot analytics and Bytes website traffic -->
+                <div class="viz-mode" id="viz-mode" role="group" aria-label="Analytics type" hidden>
+                    <button type="button" class="viz-mode-btn active" data-mode="chatbot" aria-pressed="true">Chatbot &amp; leads</button>
+                    <button type="button" class="viz-mode-btn" data-mode="web" aria-pressed="false">Website visitors</button>
+                </div>
+
                 <!-- Time Period Filter -->
                 <div class="analytics-time-filter">
                     <button class="time-btn" data-days="7">Last 7 Days</button>
@@ -842,6 +848,7 @@
                     <select id="viz-client" aria-label="Client" hidden><option value="">All clients</option></select>
                     <button type="button" class="time-btn viz-export" id="viz-export">Export CSV</button>
                 </div>
+                <div id="viz-chatbot">
                 <div id="viz-onboard" class="viz-onboard" hidden>
                     <strong>No data yet.</strong> Analytics fill in once your chatbot has its first conversation.
                     <button type="button" class="cl-btn" id="viz-onboard-btn">Install the chatbot</button>
@@ -899,6 +906,62 @@
                         <div id="viz-waiting"></div>
                     </div>
                 </div>
+                </div><!-- /viz-chatbot -->
+
+                <!-- Bytes website traffic (cookieless page views from /track.js) -->
+                <div id="viz-web" hidden>
+                    <p class="viz-scope" id="vw-scope"></p>
+                    <div id="vw-empty" class="viz-onboard" hidden>
+                        <strong>No visits recorded yet.</strong> Counting started with this update. Visits to the Bytes website appear here within a minute (people with Do Not Track or Global Privacy Control switched on aren't counted).
+                    </div>
+                    <div class="viz-kpis" id="vw-kpis" aria-live="polite"></div>
+                    <div class="viz-row viz-row-main">
+                        <div class="chart-card glass-panel viz-card">
+                            <div class="chart-header">
+                                <h3 id="vw-trend-title">Visitors per day</h3>
+                                <div class="viz-seg" role="group" aria-label="Trend metric">
+                                    <button type="button" class="viz-seg-btn vw-seg-btn active" data-vw="visitors" aria-pressed="true">Visitors</button>
+                                    <button type="button" class="viz-seg-btn vw-seg-btn" data-vw="views" aria-pressed="false">Page views</button>
+                                </div>
+                            </div>
+                            <div class="viz-legend"><span class="vw-live" id="vw-live"></span></div>
+                            <div id="vw-trend" class="viz-trend"></div>
+                            <details class="viz-table"><summary>View as table</summary><div id="vw-trend-table"></div></details>
+                        </div>
+                        <div class="chart-card glass-panel viz-card">
+                            <div class="chart-header">
+                                <h3>Visitors to leads</h3>
+                                <span class="chart-period">Bytes website</span>
+                            </div>
+                            <div id="vw-funnel" class="viz-funnel"></div>
+                        </div>
+                    </div>
+                    <div class="viz-row vw-row-3">
+                        <div class="chart-card glass-panel viz-card">
+                            <div class="chart-header"><h3>Top pages</h3><span class="chart-period">visitors · views</span></div>
+                            <div id="vw-pages" class="viz-hbars"></div>
+                        </div>
+                        <div class="chart-card glass-panel viz-card">
+                            <div class="chart-header"><h3>Where visitors come from</h3><span class="chart-period">first page of each visit</span></div>
+                            <div id="vw-sources" class="viz-hbars"></div>
+                            <div id="vw-campaigns" class="viz-hbars vw-sub"></div>
+                        </div>
+                        <div class="chart-card glass-panel viz-card">
+                            <div class="chart-header"><h3>Countries</h3></div>
+                            <div id="vw-countries" class="viz-hbars"></div>
+                        </div>
+                    </div>
+                    <div class="viz-row vw-row-2">
+                        <div class="chart-card glass-panel viz-card">
+                            <div class="chart-header"><h3>Devices</h3></div>
+                            <div id="vw-devices" class="viz-hbars"></div>
+                        </div>
+                        <div class="chart-card glass-panel viz-card">
+                            <div class="chart-header"><h3>Browsers</h3></div>
+                            <div id="vw-browsers" class="viz-hbars"></div>
+                        </div>
+                    </div>
+                </div><!-- /viz-web -->
                 <div id="viz-tooltip" class="viz-tooltip" role="status" hidden></div>
 
             </section>

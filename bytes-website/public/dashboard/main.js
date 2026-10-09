@@ -2138,6 +2138,10 @@ const MIN_SAMPLE = 30; // below this a rate is shown with a low-sample note
 
 let analyticsRange = '30';      // '7' | '30' | '90' | '0' | 'custom'
 let analyticsClient = '';       // admin only
+let analyticsMode = 'chatbot';  // admin only: 'chatbot' | 'web' (Bytes website visitors)
+try { if (localStorage.getItem('viz_mode') === 'web') analyticsMode = 'web'; } catch (_) {}
+let visitorsData = null;
+let vwMetric = 'visitors';
 
 function vizIso(d) { return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10); }
 
@@ -2162,7 +2166,17 @@ async function loadAnalytics(force = false) {
         });
         ['viz-from', 'viz-to'].forEach(id => document.getElementById(id).addEventListener('change', () => loadAnalytics(true)));
         document.getElementById('viz-client').addEventListener('change', (e) => { analyticsClient = e.target.value; loadAnalytics(true); });
-        document.getElementById('viz-export').addEventListener('click', exportAnalyticsCsv);
+        document.getElementById('viz-export').addEventListener('click', () => (analyticsMode === 'web' ? exportVisitorsCsv() : exportAnalyticsCsv()));
+        document.querySelectorAll('.viz-mode-btn').forEach(btn => btn.addEventListener('click', () => {
+            analyticsMode = btn.dataset.mode;
+            try { localStorage.setItem('viz_mode', analyticsMode); } catch (_) {}
+            loadAnalytics();
+        }));
+        document.querySelectorAll('.vw-seg-btn').forEach(btn => btn.addEventListener('click', () => {
+            vwMetric = btn.dataset.vw;
+            document.querySelectorAll('.vw-seg-btn').forEach(b => { b.classList.toggle('active', b === btn); b.setAttribute('aria-pressed', b === btn); });
+            if (visitorsData) renderVisitorsTrend(visitorsData);
+        }));
         document.getElementById('viz-onboard-btn').addEventListener('click', () => switchView('chatbot'));
         document.querySelectorAll('.viz-seg-btn').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -2174,8 +2188,25 @@ async function loadAnalytics(force = false) {
                 if (analyticsData) renderTrend(analyticsData);
             });
         });
-        window.addEventListener('resize', () => { if (analyticsData && !document.getElementById('analytics-view').classList.contains('hidden')) renderTrend(analyticsData); });
+        window.addEventListener('resize', () => {
+            if (document.getElementById('analytics-view').classList.contains('hidden')) return;
+            if (analyticsMode === 'web') { if (visitorsData) renderVisitorsTrend(visitorsData); }
+            else if (analyticsData) renderTrend(analyticsData);
+        });
     }
+    // A forced reload means the period or filter changed: the other view's cached data is now stale
+    if (force) { if (analyticsMode === 'web') analyticsData = null; else visitorsData = null; }
+    // Website visitors are the Bytes website's own traffic, so only admins get the switch
+    if (userRole !== 'admin') analyticsMode = 'chatbot';
+    const modeBox = document.getElementById('viz-mode');
+    if (modeBox) modeBox.hidden = userRole !== 'admin';
+    document.querySelectorAll('.viz-mode-btn').forEach(b => { b.classList.toggle('active', b.dataset.mode === analyticsMode); b.setAttribute('aria-pressed', b.dataset.mode === analyticsMode); });
+    document.getElementById('viz-chatbot').hidden = analyticsMode === 'web';
+    document.getElementById('viz-web').hidden = analyticsMode !== 'web';
+    const clientSel = document.getElementById('viz-client');
+    if (clientSel && analyticsMode === 'web') clientSel.hidden = true;
+    if (analyticsMode === 'web') return loadVisitors(force);
+
     if (analyticsData && !force) { renderAnalytics(analyticsData); return; }
 
     const params = new URLSearchParams({ tz: new Date().getTimezoneOffset() });
@@ -2197,7 +2228,10 @@ async function loadAnalytics(force = false) {
         renderAnalytics(analyticsData);
     } catch (err) {
         console.error('[Analytics]', err);
-        if (kpis) kpis.innerHTML = '<div class="viz-kpi"><span class="viz-kpi-label">Could not load analytics</span><span class="viz-kpi-help">Check your connection and try again.</span></div>';
+        if (kpis) {
+            kpis.innerHTML = '<div class="viz-kpi"><span class="viz-kpi-label">Could not load analytics</span><span class="viz-kpi-help">Check your connection and try again.</span><button type="button" class="cl-btn viz-retry">Retry</button></div>';
+            kpis.querySelector('.viz-retry').onclick = () => loadAnalytics(true);
+        }
     } finally {
         document.getElementById('analytics-view')?.removeAttribute('aria-busy');
     }
@@ -2254,7 +2288,7 @@ function renderAnalytics(d) {
         { label: 'Chat → lead', value: fmtPct(c.chatToLead), delta: deltaHtml(c.chatToLead, p.chatToLead, { ...d, isRate: true }), help: 'Leads ÷ conversations', extra: low(c.conversations) },
         { label: 'Verified email', value: fmtPct(c.verifiedRate), delta: deltaHtml(c.verifiedRate, p.verifiedRate, { ...d, isRate: true }), help: 'Leads who confirmed their email', extra: low(c.leads) },
         { label: 'Lead → opportunity', value: fmtPct(c.qualifiedRate), delta: deltaHtml(c.qualifiedRate, p.qualifiedRate, { ...d, isRate: true }), help: 'Moved to Opportunity or later', extra: low(c.leads) },
-        { label: 'Pipeline value', value: fmtMoney(c.pipelineValue), delta: deltaHtml(c.pipelineValue, p.pipelineValue, d), help: `Stated budgets, ${c.withBudget} of ${c.leads} leads` },
+        { label: 'Pipeline value', value: fmtMoney(c.pipelineValue), delta: deltaHtml(c.pipelineValue, p.pipelineValue, d), help: `Stated budgets, ${c.withBudget} of ${c.leads} leads${Object.keys(c.pipelineOther || {}).length ? ` · plus ${Object.entries(c.pipelineOther).map(([cur, v]) => fmtMoney(v).replace('£', cur)).join(' + ')}` : ''}` },
     ];
     document.getElementById('viz-kpis').innerHTML = tiles.map(t => `
         <div class="viz-kpi">
@@ -2482,11 +2516,149 @@ function renderWaiting(d) {
     el.innerHTML = `<div class="viz-wait-head"><b>${w.count}</b><span>lead${w.count === 1 ? '' : 's'} still in Inbox/Priority after 24h</span></div>` +
         w.oldest.map(l => `<button type="button" class="viz-wait-item" data-lead-id="${escapeHtml(String(l.id))}" aria-label="Open ${escapeHtml(l.name || 'lead')}"><span>${escapeHtml(l.name || 'Unknown')}${l.service ? ` · <span style="color:var(--text-secondary)">${escapeHtml(l.service)}</span>` : ''}</span><span>${age(l.timestamp)} waiting</span></button>`).join('') +
         '<p class="viz-wait-note">Replying within an hour makes a lead far more likely to convert than replying the next day.</p>';
-    el.querySelectorAll('[data-lead-id]').forEach(b => b.addEventListener('click', async () => {
+    el.querySelectorAll('[data-lead-id]').forEach(b => b.addEventListener('click', () => {
+        window.ldOpenAfterLoad = b.dataset.leadId; // the Leads page opens it once loaded
         switchView('leads');
-        await loadLeads();
-        if (typeof openLeadDrawer === 'function') openLeadDrawer(b.dataset.leadId);
     }));
+}
+
+// ─── Website visitors (admin only): cookieless page views of the Bytes website ────
+async function loadVisitors(force = false) {
+    if (visitorsData && !force) { renderVisitors(visitorsData); return; }
+    const params = new URLSearchParams({ tz: new Date().getTimezoneOffset() });
+    if (analyticsRange === 'custom') {
+        const f = document.getElementById('viz-from').value, t = document.getElementById('viz-to').value;
+        if (!f || !t) return;
+        const from = new Date(`${f}T00:00:00`).getTime(), to = new Date(`${t}T23:59:59.999`).getTime();
+        params.set('from', Math.min(from, to)); params.set('to', Math.max(from, to));
+    } else params.set('days', analyticsRange);
+    const kpis = document.getElementById('vw-kpis');
+    if (!visitorsData) kpis.innerHTML = '<div class="viz-kpi"><span class="viz-kpi-label">Loading…</span></div>';
+    document.getElementById('analytics-view')?.setAttribute('aria-busy', 'true');
+    try {
+        const res = await apiFetch(`${API_BASE}/api/analytics/visitors?${params}`);
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+        visitorsData = await res.json();
+        renderVisitors(visitorsData);
+    } catch (err) {
+        console.error('[Visitors]', err);
+        kpis.innerHTML = `<div class="viz-kpi"><span class="viz-kpi-label">Could not load website visitors</span><span class="viz-kpi-help">${escapeHtml(err.message)}</span><button type="button" class="cl-btn viz-retry">Retry</button></div>`;
+        kpis.querySelector('.viz-retry').onclick = () => loadVisitors(true);
+    } finally {
+        document.getElementById('analytics-view')?.removeAttribute('aria-busy');
+    }
+}
+
+const vwCountry = (() => { let dn = null; try { dn = new Intl.DisplayNames(['en-GB'], { type: 'region' }); } catch (_) {} return (code) => { if (!code || code === 'Unknown' || code === 'XX' || code === 'T1') return code === 'T1' ? 'Tor network' : 'Unknown'; try { return dn ? dn.of(code) : code; } catch (_) { return code; } }; })();
+
+function renderVisitors(d) {
+    const c = d.current, p = d.previous || {};
+    document.getElementById('vw-scope').textContent = `${d.previous ? `${vizRangeLabel(d)}, compared with the ${d.days} days before` : `All time (${vizRangeLabel(d)})`} · Bytes website. Counted without cookies; a visitor is counted once per day.`;
+    document.getElementById('vw-empty').hidden = d.everTracked !== false;
+    const low = (n) => n > 0 && n < MIN_SAMPLE ? `<span class="viz-kpi-warn">n=${n}: too few for a reliable rate</span>` : '';
+    const tiles = [
+        { label: 'Visitors', value: fmtInt(c.visitors), delta: deltaHtml(c.visitors, p.visitors, d), help: 'Unique visitors per day, added up' },
+        { label: 'Page views', value: fmtInt(c.views), delta: deltaHtml(c.views, p.views, d), help: 'Every page opened' },
+        { label: 'Pages per visit', value: c.pagesPerVisit == null ? '—' : c.pagesPerVisit.toFixed(1), delta: d.previous && p.pagesPerVisit != null && c.pagesPerVisit != null ? (Math.abs(c.pagesPerVisit - p.pagesPerVisit) < 0.05 ? `<span>no change vs ${periodName(d.days)}</span>` : `<span class="${c.pagesPerVisit > p.pagesPerVisit ? 'up' : 'down'}">${c.pagesPerVisit > p.pagesPerVisit ? '▲' : '▼'} ${Math.abs(c.pagesPerVisit - p.pagesPerVisit).toFixed(1)}</span> vs ${periodName(d.days)}`) : deltaHtml(null, null, d), help: 'Page views ÷ visitors' },
+        { label: 'Bounce rate', value: fmtPct(c.bounceRate), delta: deltaHtml(c.bounceRate, p.bounceRate, { ...d, isRate: true, lowerIsBetter: true }), help: 'Left after one page', extra: low(c.visitors) },
+        { label: 'Chatted', value: fmtPct(c.chatRate), delta: '', help: `${fmtInt(c.conversations)} conversations ÷ visitors`, extra: low(c.visitors) },
+        { label: 'Became leads', value: fmtPct(c.leadRate), delta: '', help: `${fmtInt(c.leads)} leads (chat + contact form) ÷ visitors`, extra: low(c.visitors) },
+    ];
+    document.getElementById('vw-kpis').innerHTML = tiles.map(t => `
+        <div class="viz-kpi">
+            <span class="viz-kpi-label">${t.label}</span>
+            <span class="viz-kpi-num">${t.value}</span>
+            <span class="viz-kpi-delta">${t.delta}</span>
+            <span class="viz-kpi-help">${t.help}</span>
+            ${t.extra || ''}
+        </div>`).join('');
+    document.getElementById('vw-live').innerHTML = `<i class="vw-live-dot${d.live ? ' on' : ''}" aria-hidden="true"></i>${d.live} visitor${d.live === 1 ? '' : 's'} in the last 5 minutes`;
+
+    renderVisitorsTrend(d);
+    // Funnel: visitors → chatted → leads (each a share of visitors)
+    const steps = [{ label: 'Visitors', n: c.visitors }, { label: 'Started a chat', n: c.conversations }, { label: 'Became leads', n: c.leads }];
+    const topN = Math.max(1, c.visitors);
+    document.getElementById('vw-funnel').innerHTML = steps.map((s, i) => `<div>
+        <div class="viz-fstep-top"><span>${s.label}</span><b>${fmtInt(s.n)}</b></div>
+        <div class="viz-ftrack" role="img" aria-label="${s.label}: ${s.n}"><div class="viz-fbar" style="width:${s.n ? Math.max(2, Math.min(100, (s.n / topN) * 100)) : 0}%;animation-delay:${i * 60}ms"></div></div>
+        <div class="viz-fconv">${i ? (c.visitors ? `${fmtPct(Math.min(1, s.n / c.visitors))} of visitors` : '—') : 'Start of funnel'}</div>
+    </div>`).join('') + '<p class="viz-wait-note">Leads include contact-form enquiries; conversations can\'t be matched to individual visitors, so these are period totals.</p>';
+
+    const bars = (id, rows, empty, nameFn = (x) => x, title) => {
+        const el = document.getElementById(id);
+        if (!rows.length) { el.innerHTML = empty ? `<div class="viz-empty">${empty}</div>` : ''; return; }
+        const top = Math.max(1, ...rows.map(r => r.visitors));
+        el.innerHTML = (title ? `<p class="vw-subhead">${title}</p>` : '') + rows.map((r, i) => `<div>
+            <div class="viz-hbar-top"><span title="${escapeHtml(nameFn(r.name))}">${escapeHtml(nameFn(r.name))}</span><span>${fmtInt(r.visitors)} · ${fmtInt(r.views)}</span></div>
+            <div class="viz-ftrack"><div class="viz-fbar" style="width:${(r.visitors / top) * 100}%;animation-delay:${i * 40}ms"></div></div>
+        </div>`).join('');
+    };
+    const pageName = (pth) => ({ '/': 'Home', '/onboarding/': 'Sign-up (onboarding)', '/privacy-policy.html': 'Privacy policy', '/cookie-policy.html': 'Cookie policy', '/terms-of-service.html': 'Terms of service', '/data-deletion.html': 'Data deletion' })[pth] || pth;
+    bars('vw-pages', d.pages, 'No page views in this period yet.', pageName);
+    bars('vw-sources', d.sources, 'No visits in this period yet.');
+    bars('vw-campaigns', d.campaigns, '', (x) => x, 'Campaigns (utm_campaign)');
+    bars('vw-countries', d.countries, 'No visits in this period yet.', vwCountry);
+    bars('vw-devices', d.devices, 'No visits in this period yet.');
+    bars('vw-browsers', d.browsers, 'No visits in this period yet.');
+}
+
+function renderVisitorsTrend(d) {
+    const el = document.getElementById('vw-trend');
+    const m = vwMetric, name = m === 'views' ? 'Page views' : 'Visitors';
+    document.getElementById('vw-trend-title').textContent = `${name} per ${d.bucket}`;
+    document.getElementById('vw-trend-table').innerHTML = `<div class="viz-table-scroll"><table><thead><tr><th>${d.bucket === 'week' ? 'Week of' : 'Day'}</th><th>Visitors</th><th>Page views</th></tr></thead><tbody>${d.series.map(s => `<tr><td>${bucketLabel(s.t, d.bucket)}</td><td>${s.visitors}</td><td>${s.views}</td></tr>`).join('')}</tbody></table></div>`;
+    const pts = d.series.map(s => ({ t: s.t, v: s[m] }));
+    if (!pts.some(p => p.v)) { el.innerHTML = `<div class="viz-empty">No ${name.toLowerCase()} in this period yet.</div>`; return; }
+    const W = el.clientWidth || 600, H = el.clientHeight || 220, pad = { l: 34, r: 8, t: 14, b: 22 };
+    const iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+    const max = Math.max(1, niceMax(Math.max(...pts.map(p => p.v))));
+    const x = (i) => pad.l + (pts.length === 1 ? iw / 2 : (i / (pts.length - 1)) * iw);
+    const y = (v) => pad.t + ih - (v / max) * ih;
+    const line = pts.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.v).toFixed(1)}`).join('');
+    const area = `M${x(0)},${y(0)} ` + pts.map((p, i) => `L${x(i).toFixed(1)},${y(p.v).toFixed(1)}`).join(' ') + ` L${x(pts.length - 1)},${y(0)} Z`;
+    const step = Math.max(1, Math.ceil(pts.length / Math.max(2, Math.floor(iw / 70))));
+    const xl = pts.map((p, i) => (i % step === 0 || i === pts.length - 1) && !(i !== pts.length - 1 && pts.length - 1 - i < step / 2) ? `<text x="${x(i)}" y="${H - 6}" text-anchor="middle">${bucketLabel(p.t, d.bucket)}</text>` : '').join('');
+    const peak = pts.reduce((a, b, i) => (b.v > a.v ? { ...b, i } : a), { ...pts[0], i: 0 });
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${name} per ${d.bucket}, peak ${fmtInt(peak.v)} on ${bucketLabel(peak.t, d.bucket)}">
+        <defs><linearGradient id="vw-area" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--viz-1)" stop-opacity="0.24"/><stop offset="1" stop-color="var(--viz-1)" stop-opacity="0"/></linearGradient></defs>
+        <g class="viz-axis">${[0, max / 2, max].map(t => `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y(t)}" y2="${y(t)}"/><text x="${pad.l - 6}" y="${y(t) + 3}" text-anchor="end">${fmtInt(Math.round(t))}</text>`).join('')}${xl}</g>
+        <path d="${area}" fill="url(#vw-area)"/>
+        <path d="${line}" fill="none" stroke="var(--viz-1)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+        <circle cx="${x(peak.i)}" cy="${y(peak.v)}" r="4" fill="var(--viz-1)" stroke="var(--bg-secondary)" stroke-width="2"/>
+        <text x="${Math.min(W - pad.r - 4, Math.max(pad.l + 4, x(peak.i)))}" y="${Math.max(10, y(peak.v) - 9)}" text-anchor="middle" font-size="10" fill="var(--text-primary)">${fmtInt(peak.v)}</text>
+        <line class="vw-cross" y1="${pad.t}" y2="${pad.t + ih}" stroke="var(--text-secondary)" stroke-dasharray="3 3" visibility="hidden"/>
+        <circle class="vw-dot" r="5" fill="var(--viz-1)" stroke="var(--bg-secondary)" stroke-width="2" visibility="hidden"/>
+        <rect class="vw-hit" x="${pad.l}" y="0" width="${iw}" height="${H}" fill="transparent"/>
+    </svg>`;
+    const svg = el.querySelector('svg'), cross = el.querySelector('.vw-cross'), dot = el.querySelector('.vw-dot'), hit = el.querySelector('.vw-hit');
+    hit.addEventListener('pointermove', (e) => {
+        const box = svg.getBoundingClientRect();
+        const px = (e.clientX - box.left) * (W / box.width);
+        const i = Math.max(0, Math.min(pts.length - 1, Math.round(pts.length === 1 ? 0 : ((px - pad.l) / iw) * (pts.length - 1))));
+        cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.setAttribute('visibility', 'visible');
+        dot.setAttribute('cx', x(i)); dot.setAttribute('cy', y(pts[i].v)); dot.setAttribute('visibility', 'visible');
+        const s = d.series[i];
+        showTip(`<b>${bucketLabel(s.t, d.bucket, true)}</b><br>${fmtInt(s.visitors)} visitors · ${fmtInt(s.views)} page views`, e.clientX, e.clientY);
+    });
+    hit.addEventListener('pointerleave', () => { cross.setAttribute('visibility', 'hidden'); dot.setAttribute('visibility', 'hidden'); hideTip(); });
+}
+
+function exportVisitorsCsv() {
+    const d = visitorsData; if (!d) return;
+    const c = d.current, p = d.previous || {};
+    const rows = [['metric', 'this_period', 'previous_period'],
+        ['visitors', c.visitors, p.visitors], ['page_views', c.views, p.views], ['pages_per_visit', c.pagesPerVisit, p.pagesPerVisit], ['bounce_rate', c.bounceRate, p.bounceRate],
+        ['conversations', c.conversations, ''], ['leads', c.leads, ''],
+        [], [d.bucket === 'week' ? 'week_of' : 'date', 'visitors', 'page_views'], ...d.series.map(s => [new Date(s.t).toISOString().slice(0, 10), s.visitors, s.views]),
+        [], ['top_page', 'visitors', 'views'], ...d.pages.map(r => [r.name, r.visitors, r.views]),
+        [], ['source', 'visitors', 'views'], ...d.sources.map(r => [r.name, r.visitors, r.views]),
+        [], ['country', 'visitors', 'views'], ...d.countries.map(r => [vwCountry(r.name), r.visitors, r.views])];
+    const blob = new Blob(['﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `website-visitors-${new Date(d.from).toISOString().slice(0, 10)}-to-${new Date(d.to).toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 // ─── Bytes website settings (admin only) ──────────────────────────────────────
