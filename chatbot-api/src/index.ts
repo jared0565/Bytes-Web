@@ -1,3 +1,4 @@
+import { WorkerEntrypoint } from 'cloudflare:workers';
 import { callChosenModel, publicCatalog, DEFAULT_MODEL } from './llm';
 
 export interface Env {
@@ -405,3 +406,29 @@ export default {
 	async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {}
 };
 // Verification Push: CI/CD stabilized via GitHub Actions.
+
+// ─── LLM service for the CRM (Workers RPC over a service binding) ──────────────
+// crm-api calls env.LLM.complete(...) to draft follow-up emails and read leads' replies with the
+// model chosen in settings. Only reachable through the binding: it has no public URL.
+export const SALES_DEFAULT_MODEL = 'gpt-6-luna';
+export const SALES_FALLBACK_MODEL = 'gemini-2.5-flash';
+
+export class LlmService extends WorkerEntrypoint<Env> {
+	/** Returns { text, model } from the chosen model, falling back to Gemini. Throws only if every model fails. */
+	async complete(args: { model?: string; effort?: string; system: string; prompt: string; maxChars?: number }): Promise<{ text: string; model: string }> {
+		const env = this.env;
+		const system = String(args?.system || '').slice(0, 20000);
+		const prompt = String(args?.prompt || '').slice(0, args?.maxChars || 60000);
+		const contents = [{ role: 'user', parts: [{ text: prompt }] }];
+		// Default: GPT-6 Luna directly with an OpenAI key, else the same model through OpenRouter
+		let wanted = typeof args?.model === 'string' && args.model ? args.model : '';
+		if (!wanted) wanted = env.OPENAI_API_KEY ? SALES_DEFAULT_MODEL : env.OPENROUTER_API_KEY ? `openrouter:openai/${SALES_DEFAULT_MODEL}` : SALES_FALLBACK_MODEL;
+		const tries = [wanted, ...(wanted === SALES_FALLBACK_MODEL ? [] : [SALES_FALLBACK_MODEL])];
+		let lastErr: unknown = null;
+		for (const model of tries) {
+			try { return await callChosenModel(env, model, args?.effort || 'medium', system, contents); }
+			catch (err: any) { lastErr = err; console.error(`[LlmService] ${model} failed:`, err?.message || err); }
+		}
+		throw new Error(`No model could answer: ${(lastErr as any)?.message || 'unknown error'}`);
+	}
+}

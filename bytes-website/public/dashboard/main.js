@@ -58,6 +58,7 @@ const colLead = document.getElementById('col-lead');
 const colPriority = document.getElementById('col-priority');
 const colOpportunity = document.getElementById('col-opportunity');
 const colCampaign = document.getElementById('col-campaign');
+const colClosed = document.getElementById('col-closed');
 
 
 const configClientId = document.getElementById('config-client-id');
@@ -683,9 +684,11 @@ window.allLeads = [];
 
 // ─── Leads board ──────────────────────────────────────────────────────────────
 const LD_STAGES = ['lead', 'priority', 'opportunity', 'campaign'];
-const LD_STAGE_NAMES = { lead: 'Inbox', priority: 'Priority', opportunity: 'Opportunity', campaign: 'Campaigns' };
+const LD_STAGE_NAMES = { lead: 'Inbox', priority: 'Priority', opportunity: 'Opportunity', campaign: 'Campaigns', closed: 'Closed' };
+// Board columns: the four working stages, plus Closed for won and lost deals (set from the lead drawer)
+const LD_COLS = [...LD_STAGES, 'closed'];
 const LD_SUB = { drafting: 'Drafting', sequence_generated: 'Sequence ready', active: 'Campaign live', campaign: 'Sequence drafted' };
-const ldCol = (stage) => (['drafting', 'active', 'sequence_generated', 'campaign'].includes(stage) ? 'campaign' : (LD_STAGES.includes(stage) ? stage : 'lead'));
+const ldCol = (stage) => (['won', 'lost'].includes(stage) ? 'closed' : ['drafting', 'active', 'sequence_generated', 'campaign'].includes(stage) ? 'campaign' : (LD_STAGES.includes(stage) ? stage : 'lead'));
 
 function ldBudget(str) {
     if (!str) return 0;
@@ -760,7 +763,7 @@ function ldAttach() {
         if (e.key === 'Escape') return closeLeadDrawer();
         if (e.key !== 'Tab') return;
         // Keep focus inside the open drawer (it's a modal dialog)
-        const f = [...drawer.querySelectorAll('a[href], button:not([disabled]), select, input, [tabindex]:not([tabindex="-1"])')].filter(x => x.offsetParent);
+        const f = [...drawer.querySelectorAll('a[href], button:not([disabled]), select, input, textarea, summary, [tabindex]:not([tabindex="-1"])')].filter(x => x.offsetParent);
         if (!f.length) return;
         if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
         else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
@@ -816,19 +819,20 @@ function renderLeads(leads) {
     ];
     document.getElementById('ld-stats').innerHTML = tiles.map(t => `<div class="cl-stat${t.warn ? ' ld-stat-warn' : ''}"><span class="cl-stat-label">${t.label}</span><span class="cl-stat-num">${t.value}</span><span class="cl-stat-help">${t.help}</span></div>`).join('');
 
-    const cols = { lead: colLead, priority: colPriority, opportunity: colOpportunity, campaign: colCampaign };
+    const cols = { lead: colLead, priority: colPriority, opportunity: colOpportunity, campaign: colCampaign, closed: colClosed };
     Object.values(cols).forEach(c => { c.innerHTML = ''; });
-    const counts = { lead: 0, priority: 0, opportunity: 0, campaign: 0 }, values = { lead: [], priority: [], opportunity: [], campaign: [] };
+    const counts = {}, values = {};
+    LD_COLS.forEach(st => { counts[st] = 0; values[st] = []; });
     const locked = isFreeLocked();
 
     shown.forEach(l => {
         const stage = l.pipeline_stage || 'lead';
-        const col = ldCol(stage);
+        const col = l.outcome ? 'closed' : ldCol(stage);
         counts[col]++; values[col].push(l);
         const wait = ldIsWaiting(l);
         const card = document.createElement('div');
         card.className = `lead-card${wait ? ' ld-waiting' : ''}`;
-        card.draggable = true;
+        card.draggable = col !== 'closed';
         card.tabIndex = 0;
         card.dataset.id = l.id;
         card.setAttribute('aria-label', `${l.name || 'Lead'}, ${LD_STAGE_NAMES[col]}. Press Enter for details.`);
@@ -843,15 +847,16 @@ function renderLeads(leads) {
                 ${l.service ? `<span class="ld-chip">${escapeHtml(l.service)}</span>` : ''}
                 ${l.is_verified === 1 ? '<span class="ld-chip ld-chip-ok">✓ Verified</span>' : '<span class="ld-chip ld-chip-muted">Unverified</span>'}
                 ${col === 'campaign' && LD_SUB[stage] ? `<span class="ld-chip ld-chip-info">${LD_SUB[stage]}</span>` : ''}
+                ${ldSalesChips(l)}
                 ${isAdmin && clients.length > 1 ? `<span class="ld-chip ld-chip-muted">${escapeHtml(l.client_id === 'default' ? 'Bytes website' : l.client_id)}</span>` : ''}
             </div>
             ${l.summary ? `<p class="ld-summary">${escapeHtml(l.summary)}</p>` : ''}
             ${l.next_best_action ? `<p class="ld-nba"><strong>Next step:</strong> ${escapeHtml(l.next_best_action)}</p>` : ''}
             <div class="ld-card-foot">
-                <select data-move="${l.id}" aria-label="Move ${escapeHtml(l.name || 'lead')} to stage">
+                ${col === 'closed' ? '' : `<select data-move="${l.id}" aria-label="Move ${escapeHtml(l.name || 'lead')} to stage">
                     <option value="">Move to…</option>
                     ${LD_STAGES.filter(s2 => s2 !== col).map(s2 => `<option value="${s2}">${LD_STAGE_NAMES[s2]}</option>`).join('')}
-                </select>
+                </select>`}
                 <button type="button" class="cl-btn manage-campaign-btn" data-id="${escapeHtml(String(l.id))}">${locked ? '🔒 ' : ''}Campaign</button>
             </div>`;
         card.addEventListener('dragstart', (e) => {
@@ -863,8 +868,16 @@ function renderLeads(leads) {
         cols[col].appendChild(card);
     });
 
-    LD_STAGES.forEach(st => {
+    LD_COLS.forEach(st => {
         document.getElementById(`count-${st}`).innerText = counts[st];
+        if (st === 'closed') {
+            const won = values.closed.filter(l => l.outcome === 'won'), lost = values.closed.length - won.length;
+            const meta = document.getElementById('value-closed');
+            meta.title = '';
+            meta.textContent = values.closed.length ? `${won.length} won · ${lost} lost${won.some(l => ldBudget(l.deal_value)) ? ` · ${ldMoneyMix(won.map(l => ({ budget: l.deal_value })))} won` : ''}` : 'Won and lost deals';
+            if (!counts.closed) cols.closed.innerHTML = `<div class="ld-empty">${window.allLeads.length && filtered ? 'No leads match the filters.' : 'Mark a lead won or lost from its details.'}</div>`;
+            return;
+        }
         const mix = ldMoneyMix(values[st]);
         // Say whose budgets make up the total, so it can't read as a figure from nowhere
         const withBudget = values[st].filter(l => ldBudget(l.budget) > 0);
@@ -886,7 +899,9 @@ function renderLeads(leads) {
 
     document.querySelectorAll('.manage-campaign-btn').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); openSequenceModal(btn.getAttribute('data-id')); }));
     const open = document.getElementById('ld-drawer').dataset.leadId;
-    if (open && !document.getElementById('ld-drawer').hidden) openLeadDrawer(open, true);
+    // Don't redraw the open lead while the owner is writing a reply in it
+    const ta = document.getElementById('ld-compose-text');
+    if (open && !document.getElementById('ld-drawer').hidden && !(ta && (ta.value.trim() || document.activeElement === ta))) openLeadDrawer(open, true);
 }
 
 async function moveLead(id, toStage) {
@@ -919,7 +934,7 @@ async function moveLead(id, toStage) {
 });
 
 function updateKanbanCounts() {
-    LD_STAGES.forEach(st => { document.getElementById(`count-${st}`).innerText = document.getElementById(`col-${st}`).querySelectorAll('.lead-card').length; });
+    LD_COLS.forEach(st => { document.getElementById(`count-${st}`).innerText = document.getElementById(`col-${st}`).querySelectorAll('.lead-card').length; });
 }
 
 // ─── Lead detail drawer ───────────────────────────────────────────────────────
@@ -930,7 +945,7 @@ function openLeadDrawer(id, keepFocus = false) {
     if (!l) return closeLeadDrawer();
     if (!keepFocus) ldLastFocus = document.activeElement;
     drawer.dataset.leadId = l.id;
-    const col = ldCol(l.pipeline_stage || 'lead');
+    const col = l.outcome ? 'closed' : ldCol(l.pipeline_stage || 'lead');
     document.getElementById('ld-d-name').textContent = l.name || 'Unnamed lead';
     document.getElementById('ld-d-sub').textContent = `${LD_STAGE_NAMES[col]}${LD_SUB[l.pipeline_stage] && col === 'campaign' ? ` · ${LD_SUB[l.pipeline_stage]}` : ''} · captured ${new Date(l.timestamp).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`;
     const row = (k, v) => v ? `<div class="ld-row"><dt>${k}</dt><dd>${v}</dd></div>` : '';
@@ -946,16 +961,20 @@ function openLeadDrawer(id, keepFocus = false) {
         </dl>
         ${l.summary ? `<h4>Conversation summary</h4><p class="ld-d-summary">${escapeHtml(l.summary)}</p>` : ''}
         ${l.next_best_action ? `<h4>Suggested next step</h4><p class="ld-d-summary">${escapeHtml(l.next_best_action)}</p>` : ''}
-        <h4>Stage</h4>
+        ${ldBriefHtml(l)}
+        ${col === 'closed' ? '' : `<h4>Stage</h4>
         <div class="ld-stage-pick" role="group" aria-label="Stage">
             ${LD_STAGES.map(st => `<button type="button" class="cl-seg-btn${st === col ? ' active' : ''}" data-stage-pick="${st}" aria-pressed="${st === col}">${LD_STAGE_NAMES[st]}</button>`).join('')}
-        </div>
+        </div>`}
+        ${ldOutcomeHtml(l)}
         <div class="ld-actions">
             ${l.email ? `<a class="cl-btn ld-primary" href="mailto:${encodeURIComponent(l.email)}?subject=${encodeURIComponent(`Following up on your enquiry${l.service ? ` about ${l.service}` : ''}`)}">Email ${escapeHtml((l.name || '').split(' ')[0] || 'lead')}</a>` : ''}
             <button type="button" class="cl-btn" data-d-chat>View chat</button>
             <button type="button" class="cl-btn" data-d-campaign>Campaign</button>
             <button type="button" class="cl-btn ld-danger" data-d-delete>Delete lead</button>
-        </div>`;
+        </div>
+        <h4>Conversation</h4>
+        <div id="ld-thread"><p class="cb-hint">Loading…</p></div>`;
     const body = document.getElementById('ld-d-body');
     body.querySelectorAll('[data-stage-pick]').forEach(b => b.addEventListener('click', () => moveLead(l.id, b.dataset.stagePick)));
     body.querySelector('[data-copy]')?.addEventListener('click', (e) => { navigator.clipboard?.writeText(e.target.dataset.copy).then(() => { e.target.textContent = 'Copied'; setTimeout(() => (e.target.textContent = 'Copy'), 1200); }); });
@@ -968,6 +987,7 @@ function openLeadDrawer(id, keepFocus = false) {
         switchView('logs');
     });
     body.querySelector('[data-d-campaign]').addEventListener('click', () => { closeLeadDrawer(); openSequenceModal(String(l.id)); });
+    ldWireSales(l, body);
     body.querySelector('[data-d-delete]').addEventListener('click', async (e) => {
         if (!confirm(`Delete ${l.name || 'this lead'} and their email sequence? This can't be undone.`)) return;
         e.target.disabled = true;
@@ -1004,7 +1024,7 @@ function csvCell(v) {
 
 function ldExport() {
     const rows = [['id', 'name', 'email', 'service', 'budget', 'stage', 'verified', 'captured', 'client_id', 'summary', 'next_step']];
-    ldFiltered(window.allLeads || []).forEach(l => rows.push([l.id, l.name, l.email, l.service, l.budget, LD_STAGE_NAMES[ldCol(l.pipeline_stage || 'lead')], l.is_verified === 1 ? 'yes' : 'no', new Date(l.timestamp).toISOString(), l.client_id, l.summary, l.next_best_action]));
+    ldFiltered(window.allLeads || []).forEach(l => rows.push([l.id, l.name, l.email, l.service, l.budget, l.outcome ? LD_OUTCOME[l.outcome] : LD_STAGE_NAMES[ldCol(l.pipeline_stage || 'lead')], l.is_verified === 1 ? 'yes' : 'no', new Date(l.timestamp).toISOString(), l.client_id, l.summary, l.next_best_action]));
     const cell = csvCell;
     const blob = new Blob(['﻿' + rows.map(r => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
@@ -1138,6 +1158,8 @@ async function mcbLoad(cid) {
 
         configCampaignMode.value = ['ai', 'rule', 'manual'].includes(crm.default_campaign_mode) ? crm.default_campaign_mode : 'ai';
         configAutoApprove.checked = crm.auto_approve_campaigns === 1;
+        await salesFill('mc-sales', data);
+        if (MCB.cid !== cid) return;
 
         MCB.loaded = true;
         mcbRefreshUI();
@@ -1170,6 +1192,9 @@ saveConfigBtn.addEventListener('click', async () => {
         referralId: configReferral.value.trim(),
     };
     if (!configBranding.disabled) settings.showBranding = configBranding.checked;
+    const sales = salesCollect('mc-sales');
+    if (sales.error) { mcbStatus(sales.error, 'bad'); sales.field.focus(); return; }
+    Object.assign(settings, sales.values);
     // Only send the model once the list loaded, so a failed load can't wipe the saved choice
     if (mcbEl('config-llm-model').dataset.filled) settings.llmModel = mcbEl('config-llm-model').value || '';
     if (whiteLabelSection.style.display !== 'none') {
@@ -1751,7 +1776,9 @@ async function loadChatbotView() {
     ]);
 
     if (configResult.status === 'fulfilled' && configResult.value.ok) {
-        populateChatbotSettings(await configResult.value.json());
+        const cfg = await configResult.value.json();
+        populateChatbotSettings(cfg);
+        salesFill('cb-sales', cfg).then(() => document.getElementById('cb-campaigns')?.classList.remove('cb-dirty'));
     }
     if (crmResult.status === 'fulfilled' && crmResult.value.ok) {
         populateCampaignSettings(await crmResult.value.json());
@@ -2170,15 +2197,27 @@ document.getElementById('settings-save-campaign-btn').addEventListener('click', 
 
     const mode = document.getElementById('settings-campaign-mode')?.value || 'ai';
     const autoApprove = document.getElementById('settings-auto-approve')?.checked || false;
+    const sales = salesCollect('cb-sales');
+    if (sales.error) { statusEl.textContent = sales.error; statusEl.style.color = 'var(--error)'; sales.field.focus(); return; }
 
     statusEl.textContent = 'Saving…'; statusEl.style.color = 'var(--text-secondary)';
     try {
-        const res = await apiFetch(`${API_BASE}/api/crm-settings`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ clientId: cid, default_campaign_mode: mode, auto_approve_campaigns: autoApprove }),
-        });
-        if (res.ok) {
+        const [res, salesRes] = await Promise.all([
+            apiFetch(`${API_BASE}/api/crm-settings`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clientId: cid, default_campaign_mode: mode, auto_approve_campaigns: autoApprove }),
+            }),
+            apiFetch(`${API_BASE}/api/config`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ clientId: cid, settings: sales.values }),
+            }),
+        ]);
+        if (res.ok && !salesRes.ok) {
+            const err = await salesRes.json().catch(() => ({}));
+            statusEl.textContent = `Campaign mode saved, but the follow-up settings weren't: ${err.error || 'save failed'}`; statusEl.style.color = 'var(--error)';
+        } else if (res.ok) {
             statusEl.textContent = '✓ Saved!'; statusEl.style.color = 'var(--success)';
             setTimeout(() => { if (statusEl.textContent.startsWith('✓')) statusEl.textContent = ''; }, 3000);
         } else {
@@ -2415,6 +2454,7 @@ function renderAnalytics(d) {
     }
     document.getElementById('viz-onboard').hidden = d.everActive !== false;
     renderQuality(d);
+    renderSales(d);
 
     const low = (n) => n > 0 && n < MIN_SAMPLE ? `<span class="viz-kpi-warn">n=${n}: too few for a reliable rate</span>` : '';
     const tiles = [
@@ -2556,7 +2596,9 @@ function exportAnalyticsCsv() {
     const rows = [['metric', 'this_period', 'previous_period'],
         ...[['conversations', c.conversations, p.conversations], ['leads', c.leads, p.leads], ['chat_to_lead_rate', c.chatToLead, p.chatToLead], ['verified_rate', c.verifiedRate, p.verifiedRate],
             ['lead_to_opportunity_rate', c.qualifiedRate, p.qualifiedRate], ['pipeline_value_gbp', c.pipelineValue, p.pipelineValue], ['avg_messages_per_conversation', c.avgMessages, p.avgMessages],
-            ['one_message_chat_rate', c.singleMessageRate, p.singleMessageRate], ['same_reply_rate', c.repeatedRate, p.repeatedRate], ['emails_sent', c.emailsSent, p.emailsSent]],
+            ['one_message_chat_rate', c.singleMessageRate, p.singleMessageRate], ['same_reply_rate', c.repeatedRate, p.repeatedRate], ['emails_sent', c.emailsSent, p.emailsSent],
+            ['replied_to_questions', c.replied, p.replied], ['reply_rate', c.replyRate, p.replyRate], ['won', c.won, p.won], ['lost', c.lost, p.lost],
+            ['win_rate', c.winRate, p.winRate], ['revenue_won_gbp', c.revenueWon, p.revenueWon], ['avg_days_to_close', c.avgDaysToClose, p.avgDaysToClose]],
         [], [d.bucket === 'week' ? 'week_of' : 'date', 'conversations', 'leads', 'prev_conversations', 'prev_leads'],
         ...d.series.map(s => [new Date(s.t).toISOString().slice(0, 10), s.conversations, s.leads, s.prevConversations ?? '', s.prevLeads ?? ''])];
     const blob = new Blob(['﻿' + rows.map(r => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
@@ -2827,6 +2869,7 @@ async function loadSiteSettings() {
         if (modelCatalog) populateModelSelect(modelSel, d.llmModel || '');
         else modelSel.innerHTML = '<option value="">Default model (could not load the model list)</option>';
         document.getElementById('site-llm-cost').innerHTML = modelCostHtml(modelSel.value);
+        await salesFill('site-sales', d);
         status.textContent = '';
         siteRefreshUI();
         document.getElementById('site-card')?.classList.remove('cb-dirty');
@@ -2855,6 +2898,9 @@ document.getElementById('site-save-btn')?.addEventListener('click', async () => 
     document.querySelectorAll('#site-settings-view [data-social]').forEach(el => el.removeAttribute('aria-invalid'));
     // Only send the model once the list loaded, so a failed load can't wipe the saved choice
     if (modelSel.dataset.filled) body.llmModel = modelSel.value || '';
+    const sales = salesCollect('site-sales');
+    if (sales.error) { status.textContent = sales.error; status.style.color = 'var(--error)'; sales.field.focus(); return; }
+    Object.assign(body, sales.values);
     btn.disabled = true;
     status.textContent = 'Saving…';
     status.style.color = 'var(--text-secondary)';
@@ -3753,3 +3799,254 @@ document.getElementById('site-prompt-template')?.addEventListener('click', () =>
         .observe(st, { childList: true, characterData: true, subtree: true });
     window.addEventListener('beforeunload', (e) => { if (card.classList.contains('cb-dirty')) { e.preventDefault(); e.returnValue = ''; } });
 })();
+
+// ─── Sales follow-up settings (website Settings, client drawer, client Chatbot page) ───
+// Same fields everywhere: ask questions, booking link, alerts email, drafting + reading models.
+const SALES_DEFAULT_LABEL = 'Default — GPT-6 Luna (falls back to Gemini 2.5 Flash)';
+function salesFieldsHtml(p) {
+    return `
+        <div class="sett-toggle-row">
+            <div>
+                <p class="sett-label" id="${p}-ask-label">Email verified leads four questions</p>
+                <p class="sett-note">What they need, goals, budget and timeline. Their reply comes back into the lead's conversation, and automatic emails stop.</p>
+            </div>
+            <label class="sett-toggle"><input type="checkbox" id="${p}-ask" aria-labelledby="${p}-ask-label" checked><span class="sett-toggle-thumb"></span></label>
+        </div>
+        <div class="sales-grid">
+            <div class="form-group">
+                <label for="${p}-booking">Booking link <span class="site-hint">— Calendly, Cal.com… used in closing emails</span></label>
+                <input type="url" id="${p}-booking" maxlength="300" placeholder="https://cal.com/your-name/intro" autocomplete="off">
+            </div>
+            <div class="form-group">
+                <label for="${p}-alert">Lead alerts email <span class="site-hint">— where hot-lead alerts go</span></label>
+                <input type="email" id="${p}-alert" maxlength="200" placeholder="Defaults to the sender address" autocomplete="off">
+            </div>
+        </div>
+        <div class="sales-grid">
+            <div class="form-group">
+                <label for="${p}-draft-model">Email drafting model <span class="site-hint">— writes questions and closing emails</span></label>
+                <select id="${p}-draft-model"><option value="">${SALES_DEFAULT_LABEL}</option></select>
+            </div>
+            <div class="form-group">
+                <label for="${p}-read-model">Reply reading model <span class="site-hint">— reads need, budget and timeline from replies</span></label>
+                <select id="${p}-read-model"><option value="">${SALES_DEFAULT_LABEL}</option></select>
+            </div>
+        </div>
+        <p class="cb-hint sales-tracking" id="${p}-tracking"></p>`;
+}
+document.querySelectorAll('[data-sales]').forEach(el => { el.innerHTML = salesFieldsHtml(el.dataset.sales); });
+
+async function salesFill(p, d = {}) {
+    const q = (s) => document.getElementById(`${p}-${s}`);
+    if (!q('ask')) return;
+    q('ask').checked = d.askQuestions !== false;
+    q('booking').value = d.bookingUrl || '';
+    q('alert').value = d.alertEmail || '';
+    try { await ensureModelCatalog(); } catch (_) {}
+    for (const [key, id] of [['draftModel', 'draft-model'], ['readModel', 'read-model']]) {
+        const sel = q(id);
+        if (modelCatalog) { populateModelSelect(sel, d[key] || ''); sel.options[0].textContent = SALES_DEFAULT_LABEL; }
+        else { sel.innerHTML = `<option value="">${SALES_DEFAULT_LABEL}</option>`; delete sel.dataset.filled; }
+    }
+    salesTrackingNote(p);
+}
+
+// Values to save; null + message when something is invalid
+function salesCollect(p) {
+    const q = (s) => document.getElementById(`${p}-${s}`);
+    if (!q('ask')) return { values: {} };
+    const booking = q('booking').value.trim(), alertTo = q('alert').value.trim();
+    if (booking && !/^https:\/\/\S{4,}$/i.test(booking)) return { error: 'The booking link must start with https://', field: q('booking') };
+    if (alertTo && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(alertTo)) return { error: 'The lead alerts email isn\'t a valid address.', field: q('alert') };
+    const values = { askQuestions: q('ask').checked, bookingUrl: booking, alertEmail: alertTo };
+    // Only send models once the list loaded, so a failed load can't wipe saved choices
+    if (q('draft-model').dataset.filled) values.draftModel = q('draft-model').value;
+    if (q('read-model').dataset.filled) values.readModel = q('read-model').value;
+    return { values };
+}
+
+let salesStatusCache = null;
+async function salesTrackingNote(p) {
+    const el = document.getElementById(`${p}-tracking`);
+    if (!el) return;
+    try {
+        if (!salesStatusCache) { const r = await apiFetch(`${API_BASE}/api/sales/status`); if (r.ok) salesStatusCache = await r.json(); }
+    } catch (_) {}
+    const s = salesStatusCache;
+    if (!s) { el.textContent = ''; return; }
+    el.classList.toggle('cb-warn', !s.replyTracking);
+    el.textContent = s.replyTracking
+        ? `✓ Reply tracking is on: leads' replies come back into each lead's conversation (via ${s.replyDomain}).`
+        : `Reply tracking isn't set up yet, so replies go straight to your alerts email and won't appear in the dashboard. Turn on Email Routing for ${s.replyDomain || 'the reply domain'} to record them.`;
+}
+
+// ─── Leads: conversation thread, brief, won / lost ────────────────────────────
+const LD_OUTCOME = { won: 'Won', lost: 'Lost' };
+const ldFmtWhen = (ts) => new Date(ts).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+const LD_KIND = { questions: 'Questions', reminder: 'Reminder', followup: 'Follow-up', manual: 'You', reply: 'Reply' };
+
+function ldSalesChips(l) {
+    if (l.outcome === 'won') return `<span class="ld-chip ld-chip-ok">Won${l.deal_value ? ` · ${escapeHtml(l.deal_value)}` : ''}</span>`;
+    if (l.outcome === 'lost') return '<span class="ld-chip ld-chip-muted">Lost</span>';
+    return (l.replied_at ? '<span class="ld-chip ld-chip-reply">Replied: follow up now</span>' : l.thread_token ? '<span class="ld-chip ld-chip-info">Questions sent</span>' : '')
+        + (l.unsubscribed ? '<span class="ld-chip ld-chip-muted">Unsubscribed</span>' : '');
+}
+
+function ldBriefHtml(l) {
+    let b = null; try { b = JSON.parse(l.brief || 'null'); } catch (_) {}
+    if (!b) return '';
+    const r = (k, v) => v ? `<div class="ld-row"><dt>${k}</dt><dd>${escapeHtml(v)}</dd></div>` : '';
+    return `<h4>Their answers</h4><dl class="ld-dl ld-brief">${r('Need', b.need)}${r('Goals', b.goals)}${r('Budget', b.budget)}${r('Timeline', b.timeline)}${b.wantsCall ? r('Call', 'Open to a call') : ''}</dl>`;
+}
+
+function ldOutcomeHtml(l) {
+    if (l.outcome) {
+        return `<h4>Result</h4><div class="ld-outcome ld-outcome-${l.outcome}">
+            <strong>${LD_OUTCOME[l.outcome]}</strong>${l.outcome === 'won' && l.deal_value ? ` · ${escapeHtml(l.deal_value)}` : ''}${l.outcome === 'lost' && l.lost_reason ? ` · ${escapeHtml(l.lost_reason)}` : ''}${l.closed_at ? ` <span class="ld-muted">on ${new Date(l.closed_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>` : ''}
+            <button type="button" class="cl-btn" data-outcome="open">Reopen</button></div>`;
+    }
+    return `<h4>Result</h4>
+        <div class="ld-actions ld-outcome-actions">
+            <button type="button" class="cl-btn ld-win" data-outcome-form="won">Mark won</button>
+            <button type="button" class="cl-btn" data-outcome-form="lost">Mark lost</button>
+            ${l.replied_at ? '' : '<button type="button" class="cl-btn" data-replied title="Use this when they answered by phone or straight to your inbox">They replied</button>'}
+        </div>
+        <form class="ld-outcome-form" data-outcome-kind="" hidden>
+            <label class="ld-outcome-label"></label>
+            <div class="ld-row-inline"><input type="text" maxlength="300"><button type="submit" class="cl-btn ld-primary">Save</button><button type="button" class="cl-btn" data-outcome-cancel>Cancel</button></div>
+        </form>`;
+}
+
+async function ldPost(path, payload) {
+    const res = await apiFetch(`${API_BASE}${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload || {}) });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+    return d;
+}
+
+function ldWireSales(l, body) {
+    const form = body.querySelector('.ld-outcome-form');
+    body.querySelectorAll('[data-outcome-form]').forEach(b => b.addEventListener('click', () => {
+        const kind = b.dataset.outcomeForm;
+        form.dataset.outcomeKind = kind;
+        form.querySelector('.ld-outcome-label').textContent = kind === 'won' ? 'Deal amount (optional, e.g. £4,500)' : 'Reason (optional, e.g. went with a cheaper quote)';
+        form.hidden = false;
+        form.querySelector('input').value = '';
+        form.querySelector('input').focus();
+    }));
+    body.querySelector('[data-outcome-cancel]')?.addEventListener('click', () => { form.hidden = true; });
+    form?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const kind = form.dataset.outcomeKind, v = form.querySelector('input').value.trim();
+        try { await ldPost(`/api/leads/${l.id}/outcome`, kind === 'won' ? { outcome: 'won', dealValue: v } : { outcome: 'lost', reason: v }); await loadLeads(); }
+        catch (err) { alert(`Could not save: ${err.message}`); }
+    });
+    body.querySelector('[data-outcome="open"]')?.addEventListener('click', async () => {
+        try { await ldPost(`/api/leads/${l.id}/outcome`, { outcome: 'open' }); await loadLeads(); } catch (err) { alert(`Could not reopen: ${err.message}`); }
+    });
+    body.querySelector('[data-replied]')?.addEventListener('click', async () => {
+        if (!confirm('Mark that this lead replied? Automatic emails to them will stop.')) return;
+        try { await ldPost(`/api/leads/${l.id}/replied`); await loadLeads(); } catch (err) { alert(`Could not save: ${err.message}`); }
+    });
+    ldLoadThread(l);
+}
+
+async function ldLoadThread(l) {
+    const box = document.getElementById('ld-thread');
+    if (!box) return;
+    let d;
+    try {
+        const res = await apiFetch(`${API_BASE}/api/leads/${l.id}/messages`);
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+        d = await res.json();
+    } catch (err) { box.innerHTML = `<p class="cb-hint">Couldn't load the conversation: ${escapeHtml(err.message)}</p>`; return; }
+    if (String(document.getElementById('ld-drawer').dataset.leadId) !== String(l.id)) return;
+    const msgs = d.messages || [];
+    const notes = [];
+    if (!d.replyTracking) notes.push('Reply tracking isn\'t set up, so the lead\'s replies go to your inbox and won\'t show here. Use "They replied" when they answer.');
+    if (d.unsubscribed) notes.push('This lead unsubscribed: no more automatic emails.');
+    if (d.pending?.task) notes.push(`Next automatic step: ${d.pending.task.kind === 'reminder' ? 'a reminder' : 'closing emails if there\'s still no reply'} on ${ldFmtWhen(d.pending.task.scheduled_for)}.`);
+    const seq = d.pending?.sequence || [];
+    if (seq.length) notes.push(seq.some(s => s.status === 'draft') ? `${seq.length} closing email${seq.length === 1 ? '' : 's'} drafted and waiting for your approval (Campaign button).` : `${seq.length} closing email${seq.length === 1 ? '' : 's'} scheduled; the next goes out ${ldFmtWhen(Math.max(Date.now(), seq[0].scheduled_for))}.`);
+    box.innerHTML = `
+        ${notes.map(n => `<p class="ld-thread-note">${escapeHtml(n)}</p>`).join('')}
+        ${msgs.length ? `<ol class="ld-thread">${msgs.map(m => `
+            <li class="ld-msg ld-msg-${m.direction === 'in' ? 'in' : 'out'}${m.status === 'failed' ? ' ld-msg-failed' : ''}">
+                <div class="ld-msg-meta"><strong>${m.direction === 'in' ? escapeHtml(l.name || 'Lead') : escapeHtml(LD_KIND[m.kind] || 'Email')}</strong><span>${ldFmtWhen(m.ts)}${m.status === 'failed' ? ` · not sent: ${escapeHtml(m.error || 'error')}` : ''}</span></div>
+                <div class="ld-msg-body">${escapeHtml(m.direction === 'in' ? ldFreshPart(m.body) : (m.body || ''))}</div>
+                ${m.direction === 'in' && ldFreshPart(m.body) !== String(m.body || '').trim() ? '<details class="ld-msg-quoted"><summary>Show full email</summary><div class="ld-msg-body">' + escapeHtml(m.body || '') + '</div></details>' : ''}
+            </li>`).join('')}</ol>` : '<p class="cb-hint">No emails in this conversation yet. It starts when the lead confirms their email.</p>'}
+        ${d.unsubscribed || !l.email ? '' : `<form class="ld-compose" id="ld-compose">
+            <label for="ld-compose-text">Reply to ${escapeHtml(firstNameOf(l.name))} in this conversation</label>
+            <textarea id="ld-compose-text" rows="4" maxlength="8000" placeholder="Write your reply…"></textarea>
+            <div class="ld-row-inline"><button type="submit" class="cl-btn ld-primary">Send</button><span class="cb-hint" id="ld-compose-status" role="status"></span></div>
+        </form>`}
+        ${msgs.length ? '<div class="ld-actions"><button type="button" class="cl-btn" data-thread-download>Download conversation</button><button type="button" class="cl-btn" data-thread-print>Print / save as PDF</button></div>' : ''}`;
+    box.querySelector('#ld-compose')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const ta = box.querySelector('#ld-compose-text'), st = box.querySelector('#ld-compose-status'), btn = e.submitter || box.querySelector('#ld-compose button');
+        if (ta.value.trim().length < 2) { st.textContent = 'Write a message first.'; return; }
+        btn.disabled = true; st.textContent = 'Sending…';
+        try { await ldPost(`/api/leads/${l.id}/messages`, { body: ta.value }); ta.value = ''; await ldLoadThread(l); const st2 = document.getElementById('ld-compose-status'); if (st2) st2.textContent = '✓ Sent'; }
+        catch (err) { st.textContent = `Not sent: ${err.message}`; }
+        finally { btn.disabled = false; }
+    });
+    box.querySelector('[data-thread-download]')?.addEventListener('click', () => ldThreadDownload(l, msgs));
+    box.querySelector('[data-thread-print]')?.addEventListener('click', () => ldThreadPrint(l, msgs));
+}
+
+const firstNameOf = (n) => String(n || '').trim().split(/\s+/)[0] || 'the lead';
+// The new part of a reply (quoted history folded away), same rules as the server
+function ldFreshPart(text) {
+    const lines = String(text || '').replace(/\r\n/g, '\n').split('\n'), out = [];
+    for (let i = 0; i < lines.length; i++) {
+        const t = lines[i].trim();
+        if (/^>/.test(t)) continue;
+        if (/^On\b.{0,200}\bwrote:$/i.test(t) || (/^On\b/i.test(t) && /wrote:$/i.test((lines[i + 1] || '').trim())) || /^-{2,}\s*Original Message/i.test(t) || /^_{10,}$/.test(t)) break;
+        if (/^From:\s/i.test(t) && /^(Sent|Date):\s/i.test((lines[i + 1] || '').trim())) break;
+        out.push(lines[i]);
+    }
+    return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+function ldThreadText(l, msgs) {
+    const head = `Conversation with ${l.name || 'lead'} <${l.email || ''}>\nExported ${new Date().toLocaleString('en-GB')}\n${'='.repeat(60)}`;
+    return [head, ...msgs.map(m => `${new Date(m.ts).toLocaleString('en-GB')} · ${m.direction === 'in' ? `FROM ${m.from_addr || l.email}` : `TO ${m.to_addr || l.email}`}${m.status === 'failed' ? ' (NOT SENT)' : ''}\nSubject: ${m.subject || ''}\n\n${m.body || ''}\n${'-'.repeat(60)}`)].join('\n\n');
+}
+function ldThreadDownload(l, msgs) {
+    const blob = new Blob([ldThreadText(l, msgs)], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `conversation-${(l.name || 'lead').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+// Printable copy of the whole thread; the browser's print dialog can save it as a PDF
+function ldThreadPrint(l, msgs) {
+    let el = document.getElementById('ld-print');
+    if (!el) { el = document.createElement('div'); el.id = 'ld-print'; document.body.appendChild(el); }
+    el.innerHTML = `<h1>Conversation with ${escapeHtml(l.name || 'lead')}</h1><p>${escapeHtml(l.email || '')} · exported ${escapeHtml(new Date().toLocaleString('en-GB'))}</p>` +
+        msgs.map(m => `<section><p class="p-meta"><strong>${m.direction === 'in' ? `From ${escapeHtml(m.from_addr || l.email || '')}` : `To ${escapeHtml(m.to_addr || l.email || '')}`}</strong> · ${escapeHtml(new Date(m.ts).toLocaleString('en-GB'))}${m.status === 'failed' ? ' · NOT SENT' : ''}</p><p class="p-meta">Subject: ${escapeHtml(m.subject || '')}</p><pre>${escapeHtml(m.body || '')}</pre></section>`).join('');
+    document.body.classList.add('printing-thread');
+    const done = () => { document.body.classList.remove('printing-thread'); window.removeEventListener('afterprint', done); };
+    window.addEventListener('afterprint', done);
+    window.print();
+    setTimeout(done, 1000);
+}
+
+// ─── Analytics: sales results panel ───────────────────────────────────────────
+function renderSales(d) {
+    const el = document.getElementById('viz-sales');
+    if (!el) return;
+    const c = d.current, p = d.previous || {};
+    if (!c.leads) { el.hidden = true; return; }
+    el.hidden = false;
+    const other = Object.entries(c.revenueOther || {}).map(([cur, v]) => fmtMoney(v).replace('£', cur)).join(' + ');
+    const item = (label, value, delta, help) => `<div class="viz-q-item"><span class="viz-kpi-label">${label}</span><span class="viz-q-num">${value}</span><span class="viz-kpi-delta">${delta}</span><span class="viz-kpi-help">${help}</span></div>`;
+    const days = c.avgDaysToClose == null ? '—' : c.avgDaysToClose < 1 ? '<1 day' : `${c.avgDaysToClose.toFixed(c.avgDaysToClose < 10 ? 1 : 0)} days`;
+    el.innerHTML = `<h3>Sales results</h3>` +
+        item('Replied to our questions', fmtPct(c.replyRate), deltaHtml(c.replyRate, p.replyRate, { ...d, isRate: true }), `${c.replied || 0} verified lead${c.replied === 1 ? '' : 's'} replied`) +
+        item('Win rate', fmtPct(c.winRate), deltaHtml(c.winRate, p.winRate, { ...d, isRate: true }), `${c.won || 0} won · ${c.lost || 0} lost`) +
+        item('Revenue won', fmtMoney(c.revenueWon), deltaHtml(c.revenueWon, p.revenueWon, d), other ? `plus ${other}` : 'From deal amounts on won leads') +
+        item('Time to close', days, '', 'From capture to won or lost');
+}

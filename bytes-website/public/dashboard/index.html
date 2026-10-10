@@ -259,6 +259,14 @@
                         <p class="ld-col-meta" id="value-campaign">Email sequences</p>
                         <div class="kanban-column-body" id="col-campaign" data-stage="campaign"></div>
                     </div>
+                    <div class="kanban-column" data-col="closed">
+                        <div class="kanban-column-header">
+                            <h3><span class="ld-stage-dot ld-stage-closed" aria-hidden="true"></span>Closed</h3>
+                            <span class="badge" id="count-closed">0</span>
+                        </div>
+                        <p class="ld-col-meta" id="value-closed">Won and lost deals</p>
+                        <div class="kanban-column-body" id="col-closed"></div>
+                    </div>
                 </div>
 
                 <!-- Lead detail drawer -->
@@ -463,6 +471,7 @@
                                     </div>
                                     <label class="sett-toggle"><input type="checkbox" id="config-auto-approve" aria-labelledby="config-auto-approve-label"><span class="sett-toggle-thumb"></span></label>
                                 </div>
+                                <div class="sales-fields" data-sales="mc-sales"></div>
                             </fieldset>
 
                             <fieldset class="mc-group">
@@ -718,6 +727,8 @@
                             </div>
                         </div>
 
+                        <div class="sales-fields" data-sales="cb-sales"></div>
+
                         <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-top:1.25rem;">
                             <p id="settings-campaign-status" style="font-size:0.82rem;margin:0;min-height:1em;"></p>
                             <button id="settings-save-campaign-btn" class="btn btn-primary">Save Campaign Settings</button>
@@ -852,6 +863,9 @@
                         </div>
                     </div>
 
+                    <h4 class="site-section">Sales follow-up</h4>
+                    <div class="sales-fields" data-sales="site-sales"></div>
+
                     <h4 class="site-section">Who can use it</h4>
                     <div class="form-group">
                         <label for="site-domains">Allowed Domains <span class="site-hint">— one per line; leave empty to allow any site. Full URLs are fine.</span></label>
@@ -973,6 +987,7 @@
                 <div class="viz-kpis" id="viz-kpis" aria-live="polite"></div>
 
                 <div class="viz-quality glass-panel" id="viz-quality" aria-live="polite"></div>
+                <div class="viz-quality glass-panel viz-sales" id="viz-sales" aria-live="polite"></div>
 
                 <div class="viz-row viz-row-main">
                     <div class="chart-card glass-panel viz-card">
