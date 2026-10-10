@@ -3706,8 +3706,14 @@ async function siteHealth() {
     const el = document.getElementById('site-health');
     if (!el) return;
     let d = null;
-    try { const res = await apiFetch(`${API_BASE}/api/chatbot/status?clientId=default`); if (res.ok) d = await res.json(); } catch (_) {}
+    const [chat, sales] = await Promise.allSettled([
+        apiFetch(`${API_BASE}/api/chatbot/status?clientId=default`).then(r => (r.ok ? r.json() : null)),
+        apiFetch(`${API_BASE}/api/sales/status`).then(r => (r.ok ? r.json() : null)),
+    ]);
+    d = chat.status === 'fulfilled' ? chat.value : null;
     if (!d) { el.innerHTML = ''; return; }
+    const s = sales.status === 'fulfilled' ? sales.value : null;
+    if (s) salesStatusCache = s;
     const fresh = d.lastChatAt && Date.now() - d.lastChatAt < 7 * 86400000;
     const ai = ['ai', 'pro', 'elite'].includes(d.mode);
     const item = (state, title, text, target) => `<a class="cb-stat cb-${state}" href="#" data-target="${target}"><span class="cb-stat-dot" aria-hidden="true"></span><span class="cb-stat-text"><strong>${title}</strong><span>${text}</span></span></a>`;
@@ -3717,6 +3723,7 @@ async function siteHealth() {
             : item('warn', 'No website chats yet', 'Open the website and send a test message.', 'site-card'),
         item(ai ? 'ok' : 'bad', ai ? 'AI replies on' : 'Scripted replies only', ai ? `Mode: ${escapeHtml(d.mode)} · ${d.llmModel ? escapeHtml(d.llmModel.replace(/^openrouter:/, '')) : 'default model'}` : `Mode: ${escapeHtml(d.mode)}. Visitors get canned answers. Set Bot Mode to AI below.`, 'site-mode'),
         item(d.mailReady ? 'ok' : 'bad', d.mailReady ? 'Lead emails ready' : 'Lead emails not sending', d.mailReady ? `${d.leads7d} website lead${d.leads7d === 1 ? '' : 's'} this week` : `${escapeHtml(d.mailIssue)}. Set it up in Website email sender below.`, 'site-mail-card'),
+        s ? item(s.replyTracking ? 'ok' : 'warn', s.replyTracking ? 'Reply tracking on' : 'Reply tracking off', s.replyTracking ? 'Lead replies appear in each lead\'s conversation' : `Replies go to your alerts email. Turn on Email Routing for ${escapeHtml(s.replyDomain || 'the reply domain')}.`, 'site-sales-tracking') : '',
     ].join('');
 }
 document.getElementById('site-health')?.addEventListener('click', (e) => {
