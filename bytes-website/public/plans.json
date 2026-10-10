@@ -6,9 +6,13 @@
     "summary": "7-day free trial: AI chatbot replies and AI email follow-ups, on Free limits for websites and branding. No card needed."
   },
   "modes": {
-    "scripted": { "name": "Scripted", "dailyMessages": 400, "chatMessages": 40, "summary": "asks visitors what they need, then their name, email, budget and timeline" },
-    "ai": { "name": "AI", "dailyMessages": 2000, "chatMessages": 40, "summary": "answers questions about your business and qualifies leads" },
-    "ai_plus": { "name": "AI Plus", "dailyMessages": 5000, "chatMessages": 60, "summary": "everything in AI, with longer conversations" }
+    "scripted": { "name": "Scripted", "dailyMessages": 400, "summary": "asks visitors what they need, then their name and email, timeline and budget" },
+    "ai": { "name": "AI", "dailyMessages": 2000, "summary": "answers questions about your business and qualifies leads" },
+    "ai_plus": { "name": "AI Plus", "dailyMessages": 5000, "summary": "everything in AI, with premium AI models" }
+  },
+  "chat": {
+    "_comment": "Limits for one chat and one visitor, the same on every plan. Read by chatbot-api (bundled). The per-minute limit is in chatbot-api/wrangler.jsonc.",
+    "messages": 10, "messageChars": 500, "visitorMessagesPerDay": 30, "visitorLeadsPerHour": 3
   },
   "plans": [
     {

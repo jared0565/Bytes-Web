@@ -362,6 +362,22 @@ function initChatbot() {
     btnOpen.classList.remove('hidden');
   });
 
+  // One message has a character limit (plans.json "chat"; the server enforces it too).
+  // The count appears for the last fifth, so a pasted text that was cut short is not a surprise.
+  const chatCount = document.getElementById('chatCount');
+  const maxChars = PLAN_DATA.chat.messageChars;
+  const showCount = () => {
+    if (!chatInput || !chatCount) return;
+    const left = maxChars - chatInput.value.length;
+    chatCount.hidden = left > maxChars / 5;
+    chatCount.classList.toggle('at-limit', left <= 0);
+    chatCount.textContent = left > 0 ? `${left} character${left === 1 ? '' : 's'} left` : `Limit reached: ${maxChars} characters`;
+  };
+  if (chatInput) {
+    chatInput.maxLength = maxChars;
+    chatInput.addEventListener('input', showCount);
+  }
+
   // Handle form submission
   chatForm?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -371,6 +387,7 @@ function initChatbot() {
     // Add user message
     addChatMessage(message, 'user');
     chatInput.value = '';
+    showCount();
 
     // Block new messages until this reply lands so history stays in order
     chatInput.disabled = true;
@@ -396,8 +413,27 @@ function addChatMessage(text, sender) {
   messageDiv.className = `chat-message ${sender === 'user' ? 'user-message' : 'bot-message'}`;
 
   const p = document.createElement('p');
-  // Show the link, but keep the raw [LINKEDIN_BUTTON] token in history for the API
-  p.textContent = text.replace('[LINKEDIN_BUTTON]', LINKEDIN_URL);
+  // Show the link, but keep the raw [LINKEDIN_BUTTON] token in history for the API.
+  // Built from text nodes and https links only, so a reply can never become HTML.
+  text.replace('[LINKEDIN_BUTTON]', LINKEDIN_URL).split(/(https:\/\/[^\s<>"']+[^\s<>"'.,;:!?)])/).forEach((part) => {
+    if (sender !== 'bot' || !/^https:\/\//.test(part)) { p.appendChild(document.createTextNode(part)); return; }
+    const a = document.createElement('a');
+    a.href = part;
+    a.className = 'chat-link';
+    a.textContent = part.replace(/^https:\/\//, '');
+    if (a.origin === location.origin && a.pathname === location.pathname && a.hash) {
+      // A place on this page (the contact form): close the chat and go there
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        document.getElementById('btnCloseChat')?.click();
+        document.getElementById(a.hash.slice(1))?.scrollIntoView({ behavior: 'smooth' });
+      });
+    } else {
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+    }
+    p.appendChild(a);
+  });
   messageDiv.appendChild(p);
 
   chatMessages.appendChild(messageDiv);

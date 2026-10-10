@@ -55,9 +55,10 @@
 			"migrations_dir": "migrations"
 		}
 	],
-	// Edge-wide rate limits for the public chat endpoint (period must be 10 or 60 seconds)
+	// Edge-wide rate limits for the public chat endpoint (period must be 10 or 60 seconds).
+	// CHAT_LIMITER is one visitor on one chatbot; the other per-chat and per-visitor limits are in plans.json ("chat").
 	"ratelimits": [
-		{ "name": "CHAT_LIMITER", "namespace_id": "4201", "simple": { "limit": 20, "period": 60 } },
+		{ "name": "CHAT_LIMITER", "namespace_id": "4201", "simple": { "limit": 8, "period": 60 } },
 		{ "name": "CLIENT_LIMITER", "namespace_id": "4202", "simple": { "limit": 300, "period": 60 } }
 	],
 	"triggers": {

@@ -211,7 +211,17 @@
 
         .btn-send-chat:disabled { opacity: 0.5; }
 
-        .chat-link { color: inherit; text-decoration: underline; word-break: break-all; }
+        /* Characters left, shown only near the limit; lines up with the text being typed */
+        .chatbot-widget-container .chat-count {
+            margin: 0.5rem 0 0;
+            padding: 0 1rem;
+            font-size: 0.75rem;
+            line-height: 1.2;
+            color: var(--widget-text-secondary);
+        }
+        .chatbot-widget-container .chat-count.at-limit { color: var(--widget-text); }
+
+        .chat-link { color: inherit; text-decoration: underline; overflow-wrap: anywhere; }
         .chat-link:hover { opacity: 0.85; }
         .chat-link:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
         .chat-linkedin-btn {
@@ -330,6 +340,8 @@
         const widgetName = escapeAttr(config.widgetName || 'BytesAI');
         const widgetAccentColor = config.widgetAccentColor || '#6366f1';
         const widgetAvatar = /^https?:\/\//i.test(config.widgetAvatar || '') ? escapeAttr(config.widgetAvatar) : '';
+        // One message has a character limit, set on the server (which enforces it too)
+        const maxChars = Number(config.maxMessageChars) > 0 ? Math.floor(config.maxMessageChars) : 500;
 
         const container = document.createElement('div');
         container.className = 'chatbot-widget-container';
@@ -362,11 +374,12 @@
                 </div>
                 <div class="chatbot-input-area">
                     <form class="chat-form" id="chatbot-form">
-                        <input type="text" class="chat-input" id="chatbot-input" placeholder="Type a message..." autocomplete="off">
+                        <input type="text" class="chat-input" id="chatbot-input" placeholder="Type a message..." autocomplete="off" maxlength="${maxChars}" aria-describedby="chatbot-count">
                         <button type="submit" class="btn-send-chat" id="btn-send-chat">
                             <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path></svg>
                         </button>
                     </form>
+                    <div class="chat-count" id="chatbot-count" hidden></div>
                 </div>
                 <div class="branding-area" id="branding-area" style="display: ${showBranding ? 'block' : 'none'}">
                     Powered by <a href="${brandingUrl}" target="_blank" rel="noopener noreferrer">BytesAI</a>
@@ -401,6 +414,16 @@
             windowEl.classList.add('hidden');
         });
 
+        // The count appears for the last fifth of the limit, so a pasted text that was cut short is not a surprise
+        const count = document.getElementById('chatbot-count');
+        const showCount = () => {
+            const left = input.maxLength - input.value.length;
+            count.hidden = left > input.maxLength / 5;
+            count.classList.toggle('at-limit', left <= 0);
+            count.textContent = left > 0 ? `${left} character${left === 1 ? '' : 's'} left` : `Limit reached: ${input.maxLength} characters`;
+        };
+        input.addEventListener('input', showCount);
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const message = input.value.trim();
@@ -408,6 +431,7 @@
 
             appendMessage(message, 'user-message');
             input.value = '';
+            showCount();
             input.disabled = true;
 
             const typingId = showTypingIndicator();

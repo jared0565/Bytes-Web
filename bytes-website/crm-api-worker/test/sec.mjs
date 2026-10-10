@@ -58,3 +58,9 @@ r = await req('GET', '/api/verify-email?token=tok-abc'); ok('GET shows confirm p
 r = await req('POST', '/api/verify-email', { body: 'token=tok-abc', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, origin: 'https://crm-api.bmorris0565.workers.dev' }); ok('POST verifies', r.status === 200 && db.prepare('select is_verified v from leads where id=3').get().v === 1);
 // generic errors
 r = await req('GET', '/api/auth/exchange?token=11111111-2222-3333-4444-555555555555'); ok('exchange missing → 404', r.status === 404);
+// chat logs: the chatbot's scrambled visitor id (chat_logs.visitor) stays on the server
+db.exec(`CREATE TABLE chat_logs (id INTEGER PRIMARY KEY, client_id TEXT, user_message TEXT, bot_response TEXT, timestamp INTEGER, session_id TEXT, flag TEXT, visitor TEXT);
+INSERT INTO chat_logs (client_id, user_message, bot_response, timestamp, session_id, flag, visitor) VALUES ('c1','hi','hello',${now},'s-1','business','abc123');`);
+r = await req('GET', '/api/logs', { headers: { Authorization: 'Bearer ' + await m.signJWT({ role: 'client', clientId: 'c1' }, 'x') } });
+const logRows = await r.json();
+ok('chat logs never return the visitor id', r.status === 200 && logRows.length === 1 && logRows[0].user_message === 'hi' && logRows[0].flag === 'business' && !('visitor' in logRows[0]), JSON.stringify(logRows));

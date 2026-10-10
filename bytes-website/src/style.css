@@ -1147,6 +1147,42 @@ section {
   background: var(--color-primary-hover);
 }
 
+/* Characters left, shown only near the limit; lines up with the text being typed */
+.chat-count {
+  margin: var(--spacing-xs) 0 0;
+  padding: 0 var(--spacing-md);
+  font-size: 0.8rem;
+  line-height: 1.2;
+  color: var(--text-secondary);
+}
+
+.chat-count.at-limit {
+  color: var(--text-primary);
+}
+
+/* Links in a reply (the contact form, a booking page) */
+.chat-message .chat-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+  transition: opacity var(--transition-fast);
+}
+
+.chat-message .chat-link:hover {
+  opacity: 0.8;
+}
+
+.chat-message .chat-link:active {
+  opacity: 0.6;
+}
+
+.chat-message .chat-link:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
 /* Typing Indicator */
 .typing-indicator {
   display: flex;

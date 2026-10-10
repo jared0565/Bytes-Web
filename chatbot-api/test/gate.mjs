@@ -22,3 +22,5 @@ const u = usablePrompt(tpl);
 ok('unfilled blank lines dropped, LinkedIn tag kept', !u.includes('[one or two') && !u.includes('[your ideal') && u.includes('Goals') && u.includes('[LINKEDIN_BUTTON]'), JSON.stringify(u));
 const d = clientDefaultPrompt('Acme Dental', ['Whitening', 'Implants'], 'https://cal.com/acme');
 ok('client default prompt: own business, services, booking, no Bytes pitch', d.includes('Acme Dental offers: Whitening; Implants') && d.includes('https://cal.com/acme') && !/trial|LinkedIn|Bytes/i.test(d));
+const at = s => { const i = d.indexOf(s); return i < 0 ? NaN : i; };
+ok('client default prompt: need first, then name and email in one question, then timeline, then budget', at('what they need') < at('name and email in one question') && at('name and email in one question') < at('when they would like') && at('when they would like') < at('rough budget'), d);

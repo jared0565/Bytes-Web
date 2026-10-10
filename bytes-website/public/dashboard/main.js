@@ -3376,9 +3376,9 @@ function startLogsBadge() {
 
 // ─── Chatbot page: health strip, mode guidance, prompt helper, unsaved-change guard ───
 const CB_MODE_NOTES = {
-    scripted: 'Guided questions, no AI: what they need (from the services list), name, email, budget and timeline. 400 messages a day. The AI model below is not used.',
+    scripted: 'Guided questions, no AI: what they need (from the services list), name and email, then timeline and budget. 400 messages a day. The AI model below is not used.',
     ai: 'Replies are written by the AI model below. 2,000 messages a day; premium models need AI Plus.',
-    ai_plus: 'AI replies with higher limits (5,000 messages a day, longer conversations) and premium models.',
+    ai_plus: 'AI replies with a higher limit (5,000 messages a day) and premium models.',
 };
 const CB_MODE_NAMES = { scripted: 'Scripted', ai: 'AI', ai_plus: 'AI Plus' };
 // Older saved names: free/standard → scripted, pro → ai, elite → ai_plus
