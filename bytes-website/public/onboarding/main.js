@@ -11,6 +11,9 @@ const next1 = document.getElementById('btn-next-1');
 
 // Step 2 Inputs
 const inputCompany = document.getElementById('company-name');
+const inputWebsite = document.getElementById('company-website');
+// "https://www.shop.com/about" → "shop.com" (the API does the same check)
+const siteDomain = (v) => { try { const h = new URL(/^https?:\/\//i.test(v) ? v : `https://${v}`).hostname.toLowerCase().replace(/^www\./, ''); return h.includes('.') && !/^[\d.]+$/.test(h) ? h : ''; } catch { return ''; } };
 const tonePicker = document.getElementById('bot-tone');
 tonePicker.addEventListener('click', (e) => {
     const btn = e.target.closest('.tone-option');
@@ -241,6 +244,7 @@ inputCompany.addEventListener('keydown', (e) => {
 // Step 2 -> 3 (The Provisioning)
 next2.addEventListener('click', async () => {
     if (!inputCompany.value.trim()) return showError('err-2', 'Please enter your company or brand name.', inputCompany);
+    if (!siteDomain(inputWebsite.value.trim())) return showError('err-2', 'Please enter your website address, e.g. yourbusiness.com.', inputWebsite);
     showError('err-2', '');
     registrationData.company = inputCompany.value.trim();
     registrationData.tone = tonePicker.querySelector('.tone-option.selected')?.dataset.value || 'Professional & Authoritative';
@@ -262,6 +266,7 @@ next2.addEventListener('click', async () => {
                 settings: {
                     companyName: registrationData.company,
                     systemPrompt: prompt,
+                    website: siteDomain(inputWebsite.value.trim()),
                 }
             })
         });

@@ -58,7 +58,7 @@ app.use('*', async (c, next) => {
 // Session cookies are SameSite=None (the API is on another site than the dashboard), so a hostile
 // page could otherwise POST to the API with the user's cookie. Browsers always send Origin on
 // cross-site POST/PUT/DELETE; refuse any that isn't ours. Public beacon/webhook routes are exempt.
-const CSRF_EXEMPT = new Set(['/api/public/pageview', '/api/webhooks/new-lead', '/api/public/website-lead', '/api/verify-email', '/api/unsubscribe']);
+const CSRF_EXEMPT = new Set(['/api/public/pageview', '/api/webhooks/new-lead', '/api/webhooks/domain-adopted', '/api/public/website-lead', '/api/verify-email', '/api/unsubscribe']);
 app.use('/api/*', async (c, next) => {
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(c.req.method) && !CSRF_EXEMPT.has(c.req.path)) {
         const origin = c.req.header('Origin');
@@ -388,8 +388,12 @@ app.post('/api/register', async (c) => {
     const existing = await c.env.DB.prepare('SELECT client_id FROM crm_settings WHERE client_id = ?').bind(clientId).first();
     if (existing) return c.json({ error: 'Client already registered' }, 409);
 
+    // The client's website: the bot only answers there (plus the dashboard preview)
+    const website = siteDomain(settings.website);
+    if (!website) return c.json({ error: 'Enter your website address, e.g. yourbusiness.com', field: 'website' }, 400);
+
     const now = Date.now();
-    const trialEndsAt = now + 7 * 24 * 60 * 60 * 1000; // 7 days
+    const trialEndsAt = now + PLAN_DATA.trial.days * 24 * 60 * 60 * 1000;
 
     // Save chatbot config (mode = 'ai' during trial; badge mandatory with pricing link)
     const badgeUrl = 'https://web.bytesfx.com/?upgrade=free#pricing';
@@ -397,7 +401,7 @@ app.post('/api/register', async (c) => {
     const initial = {};
     if (typeof settings.companyName === 'string') initial.companyName = settings.companyName.trim().slice(0, 80);
     if (typeof settings.systemPrompt === 'string') initial.systemPrompt = settings.systemPrompt.trim().slice(0, 20000);
-    await c.env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify({ ...initial, mode: 'ai', showBranding: true, badgeUrl, allowedDomains: [] }));
+    await c.env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify({ ...initial, mode: 'ai', showBranding: true, badgeUrl, allowedDomains: [website] }));
 
     // Create crm_settings row with trial dates
     await c.env.DB.prepare(
@@ -1859,6 +1863,33 @@ function cleanSocials(input) {
 }
 const SITE_MODES = BOT_MODES;
 const DOMAIN_RE = /^(\*\.)?[a-zA-Z0-9][a-zA-Z0-9\-\.]{0,252}[a-zA-Z0-9]$/;
+// "https://www.Shop.com/about" → "shop.com"; null unless it looks like a public hostname
+function siteDomain(v) {
+    let t = String(v || '').trim().toLowerCase();
+    if (!t) return null;
+    try { t = new URL(/^https?:\/\//.test(t) ? t : `https://${t}`).hostname; } catch { return null; }
+    t = t.replace(/^www\./, '');
+    return t.includes('.') && DOMAIN_RE.test(t) && !/^[\d.]+$/.test(t) && t !== 'web.bytesfx.com' ? t : null;
+}
+
+// chatbot-api adopted the first website an unconnected bot was installed on: tell the owner.
+// Public, so it only acts when the bot's saved list really is that one domain, and once per domain.
+app.post('/api/webhooks/domain-adopted', async (c) => {
+    let body; try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+    const clientId = String(body.clientId || ''), domain = siteDomain(body.domain);
+    if (!/^[a-z0-9][a-z0-9_\-]{0,63}$/i.test(clientId) || !domain || clientId === HOUSE_CLIENT_ID) return c.json({ ok: false }, 400);
+    const cfg = JSON.parse(await c.env.CLIENT_SETTINGS.get(`client:${clientId}`) || '{}');
+    if (!(Array.isArray(cfg.allowedDomains) && cfg.allowedDomains.length === 1 && cfg.allowedDomains[0] === domain)) return c.json({ ok: false }, 409);
+    const flag = `adopted:${clientId}:${domain}`;
+    if (await c.env.OAUTH_TOKENS.get(flag)) return c.json({ ok: true, duplicate: true });
+    await c.env.OAUTH_TOKENS.put(flag, '1', { expirationTtl: 90 * 86400 });
+    const mail = await getMailSettings(c.env, clientId);
+    const to = alertAddress(c.env, clientId, await clientConfig(c.env, clientId), mail);
+    if (to) {
+        await sendMail(mail, to, `Your chatbot is now connected to ${domain}`, emailShell(`<p>Your BytesFX chatbot was installed on <strong>${escapeHtml(domain)}</strong>, so we saved it as your chatbot's website. From now on it only answers there.</p><p>If that isn't your website, remove it in your dashboard under Chatbot → Install, and add the right one.</p><p><a href="${DASH(c.env)}" style="display:inline-block;background:#3987e5;color:#fff;padding:0.6rem 1.1rem;border-radius:8px;text-decoration:none;">Open the dashboard</a></p>`)).catch(e => console.error('[Adopt] mail', e));
+    }
+    return c.json({ ok: true });
+});
 
 function requireAdmin(c) {
     return (c.get('user') || {}).role === 'admin' ? null : c.json({ error: 'Admins only' }, 403);

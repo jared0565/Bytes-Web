@@ -1070,7 +1070,7 @@ function mcbRefreshUI() {
     document.querySelectorAll('#mc-bot .mc-ai-only').forEach(g => { g.classList.toggle('cb-muted', scripted); g.querySelectorAll('select').forEach(x => { x.disabled = scripted; }); });
     mcbEl('config-llm-cost').innerHTML = modelCatalog ? modelCostHtml(mcbEl('config-llm-model').value) : '';
     const len = configPrompt.value.length;
-    mcbEl('config-prompt-count').textContent = `${len.toLocaleString('en-GB')} / 20,000 characters${len ? '' : ' · empty uses the built-in sales prompt'}`;
+    mcbEl('config-prompt-count').textContent = promptCountText(configPrompt.value);
     mcbEl('config-campaign-note').textContent = MCB_CAMPAIGN_NOTES[configCampaignMode.value] || '';
     // Domains against the plan's limit (trials use Free limits)
     const list = domainListOf(mcbEl('config-domains').value);
@@ -1078,7 +1078,7 @@ function mcbRefreshUI() {
     const note = mcbEl('config-domains-note');
     note.classList.toggle('cb-warn', lim !== -1 && list.length > lim);
     note.textContent = !list.length
-        ? 'No list: the chatbot answers on any website that has the install code.'
+        ? 'No website yet: the bot only works in the dashboard preview. The first website it\'s installed on is saved here automatically (the owner is emailed).'
         : `${list.length} domain${list.length === 1 ? '' : 's'}${lim === -1 ? '' : ` of ${lim} on this plan`}. Only these sites can use the bot${lim !== -1 && list.length > lim ? '. Over the plan limit: the client won\'t be able to add more until they upgrade.' : '.'}`;
     // Install code + test link
     const safeId = (MCB.cid || '').replace(/[^a-z0-9_\-]/gi, '');
@@ -2059,7 +2059,7 @@ function renderDomainList(domains, maxDomains) {
 
     list.innerHTML = '';
     if (domains.length === 0) {
-        list.innerHTML = '<p style="color:var(--text-secondary);font-size:0.82rem;font-style:italic;margin:0;">No domains added yet. Add your first domain below.</p>';
+        list.innerHTML = '<p style="color:#f59e0b;font-size:0.82rem;margin:0;"><strong>Add your website to go live.</strong> Until then the chatbot only works in this dashboard\'s preview (the first website you install it on is saved automatically).</p>';
         return;
     }
     domains.forEach((domain, i) => {
@@ -3446,10 +3446,16 @@ function cbModeChanged() {
 }
 document.getElementById('settings-mode')?.addEventListener('change', cbModeChanged);
 
-// Prompt helper
+// Prompt helper. Lines with unfilled [blanks] are skipped by the chatbot, so point them out.
+function promptCountText(v) {
+    const blanks = [...new Set(String(v || '').replace(/\[LINKEDIN_BUTTON\]/gi, '').match(/\[[^\]\n]{2,80}\]/g) || [])];
+    return `${v.length.toLocaleString('en-GB')} / 20,000 characters`
+        + (!v.trim() ? ' · empty uses a default built from the company name, services and booking link' : '')
+        + (blanks.length ? ` · still has blanks to fill (lines with them are ignored): ${blanks.slice(0, 4).join(', ')}` : '');
+}
 function cbPromptCount() {
     const ta = document.getElementById('settings-prompt'), out = document.getElementById('settings-prompt-count');
-    if (ta && out) out.textContent = `${ta.value.length.toLocaleString('en-GB')} / 20,000 characters${ta.value.length ? '' : ' · empty uses the built-in sales prompt'}`;
+    if (ta && out) out.textContent = promptCountText(ta.value);
 }
 document.getElementById('settings-prompt')?.addEventListener('input', cbPromptCount);
 document.getElementById('settings-prompt-template')?.addEventListener('click', () => {
