@@ -24,12 +24,16 @@ const want = process.argv.slice(2).length ? process.argv.slice(2) : all;
 let failed = 0;
 for (const name of want) {
     cpSync(join(here, `${name}.mjs`), join(build, `${name}.mjs`));
-    let out = '';
+    let out = '', crashed = false;
     try { out = execFileSync(process.execPath, [join(build, `${name}.mjs`)], { cwd: build, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }); }
-    catch (e) { out = (e.stdout || '') + (e.stderr || ''); failed++; }
+    catch (e) { out = (e.stdout || '') + (e.stderr || ''); crashed = true; }
     const pass = (out.match(/^PASS/gm) || []).length, fail = (out.match(/^FAIL/gm) || []).length;
-    failed += fail ? 1 : 0;
-    console.log(`${fail ? '✗' : '✓'} ${name}: ${pass} passed, ${fail} failed`);
+    // A suite that exits with an error, or runs no checks at all, did not pass, even with no FAIL line.
+    const why = crashed ? 'crashed' : !pass && !fail ? 'no checks ran' : '';
+    const bad = fail || why;
+    failed += bad ? 1 : 0;
+    console.log(`${bad ? '✗' : '✓'} ${name}: ${pass} passed, ${fail} failed${why ? `, ${why}` : ''}`);
     if (fail) out.split('\n').filter(l => l.startsWith('FAIL')).forEach(l => console.log('   ' + l));
+    if (crashed) console.log('   ' + (out.split('\n').find(l => /^\w*Error\b/.test(l)) || out.trim().split('\n').pop() || 'no output'));
 }
 process.exit(failed ? 1 : 0);

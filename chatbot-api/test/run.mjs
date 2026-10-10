@@ -9,8 +9,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const build = join(here, '.build');
 mkdirSync(build, { recursive: true });
 const out = join(build, 'bundle.mjs');
-execFileSync('npx', ['esbuild', join(here, '..', 'src', 'index.ts'), '--bundle', '--format=esm', '--platform=node',
-    '--external:cloudflare:workers', `--outfile=${out}`, '--log-level=error'], { cwd: join(here, '..'), stdio: 'inherit', shell: process.platform === 'win32' });
+// Paths relative to cwd (chatbot-api/): on Windows the arguments reach a shell unquoted, so a space in the repo path would split them.
+execFileSync('npx', ['esbuild', 'src/index.ts', '--bundle', '--format=esm', '--platform=node',
+    '--external:cloudflare:workers', '--outfile=test/.build/bundle.mjs', '--log-level=error'], { cwd: join(here, '..'), stdio: 'inherit', shell: process.platform === 'win32' });
 writeFileSync(out, readFileSync(out, 'utf8').replace(/from "cloudflare:workers"/g, 'from "./cfw.mjs"'));
 writeFileSync(join(build, 'cfw.mjs'), 'export class WorkerEntrypoint {}\n');
 let bad = 0;

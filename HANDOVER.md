@@ -95,6 +95,10 @@ For example, import plans.json with a plain `import x from '../../public/plans.j
 
 **crm-api** (`bytes-website/crm-api-worker`)
 
+Add `--config wrangler.toml` to Wrangler commands in this folder (`npx wrangler secret put NAME --config wrangler.toml`).
+Without it, Wrangler (seen on 4.72) uses the website's `wrangler.jsonc` from the repo root, and the command acts on the
+website worker instead.
+
 | Secret | Purpose |
 |---|---|
 | `JWT_SECRET`, `OAUTH_STATE_SECRET` | Sessions and OAuth state signing |
@@ -284,9 +288,12 @@ Requires **Node 22.5+** (uses `node:sqlite`). Run `npm install` first in each wo
 cd bytes-website/crm-api-worker && node test/run.mjs        # all 9 suites, or: node test/run.mjs flow plans
 cd chatbot-api && node test/run.mjs                         # website gate, prompts, scripted flow
 cd chatbot-api && npx tsc --noEmit -p .                     # typecheck
-cd bytes-website/crm-api-worker && npx wrangler deploy --dry-run   # bundle check, nothing is deployed
+cd bytes-website/crm-api-worker && npx wrangler deploy --dry-run --config wrangler.toml   # bundle check, nothing is deployed
 cd bytes-website && npm run build                           # website + copies public/
 ```
+
+The bundle check should list the DB, KV, R2 and LLM bindings. "No bindings found" means it checked the website worker
+instead: without `--config wrangler.toml`, Wrangler (seen on 4.72) uses the `wrangler.jsonc` in the repo root.
 
 **crm-api suites:**
 
