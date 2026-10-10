@@ -1082,6 +1082,15 @@ section {
   padding: var(--spacing-sm) var(--spacing-md);
   border-radius: var(--radius-md);
   font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+/* The text takes its bubble's colour, not the site's paragraph colour, and adds no space under itself.
+   Line breaks in a reply are kept. */
+.chat-message p {
+  margin: 0;
+  color: inherit;
+  white-space: pre-line;
 }
 
 .bot-message {
@@ -1125,7 +1134,7 @@ section {
 }
 
 #chatInput::placeholder {
-  color: var(--text-muted);
+  color: var(--text-secondary);
 }
 
 .btn-send-chat {
