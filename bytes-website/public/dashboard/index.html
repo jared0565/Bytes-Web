@@ -422,16 +422,15 @@
                                 <div class="form-group">
                                     <label for="config-mode">Bot mode</label>
                                     <select id="config-mode" aria-describedby="config-mode-note">
-                                        <option value="free">Free — Basic Scripted</option>
-                                        <option value="standard">Standard — Advanced Scripted</option>
-                                        <option value="ai">AI — uses the AI model below</option>
-                                        <option value="pro">Pro AI — Gemini Strategy</option>
-                                        <option value="elite">Elite — Advanced AI + High Limits</option>
+                                        <option value="scripted">Scripted — guided questions, no AI (Free plan)</option>
+                                        <option value="ai">AI — replies by the AI model below (Starter, Pro)</option>
+                                        <option value="ai_plus">AI Plus — higher limits and premium models (Business, Enterprise)</option>
                                     </select>
                                     <p id="config-mode-note" class="cb-hint"></p>
                                 </div>
+                                <div class="form-group" data-services="config-services"></div>
                                 <div class="form-group mc-ai-only">
-                                    <label for="config-llm-model">AI model <span class="site-hint">— used in AI, Pro and Elite modes</span></label>
+                                    <label for="config-llm-model">AI model <span class="site-hint">— used in AI and AI Plus modes</span></label>
                                     <select id="config-llm-model"><option value="">Loading models…</option></select>
                                     <p id="config-llm-cost" class="site-cost"></p>
                                 </div>
@@ -635,26 +634,24 @@
                             <input type="text" id="settings-company-name" placeholder="Your Company Name">
                         </div>
                         <div class="form-group">
-                            <label for="settings-mode">Bot Mode</label>
-                            <select id="settings-mode" aria-describedby="settings-mode-note">
-                                <option value="free">Free — Basic Scripted</option>
-                                <option value="standard">Standard — Advanced Scripted</option>
-                                <option value="ai">AI — uses the AI Model below</option>
-                                <option value="pro">Pro AI — Gemini Strategy</option>
-                                <option value="elite">Elite — Advanced AI + High Limits</option>
-                            </select>
+                            <label>Bot Mode</label>
+                            <input type="hidden" id="settings-mode" value="scripted">
+                            <p class="cb-mode-info" id="settings-mode-info"></p>
                             <p id="settings-mode-note" class="cb-hint"></p>
                         </div>
+                        <div class="form-group" data-services="settings-services"></div>
                         <div class="form-group cb-ai-only">
-                            <label for="settings-llm-model">AI Model <span style="font-size:0.75rem;font-weight:400;color:var(--text-secondary);">— used in AI, Pro and Elite modes</span></label>
-                            <select id="settings-llm-model">
+                            <label>AI Model <span style="font-size:0.75rem;font-weight:400;color:var(--text-secondary);">— used in AI and AI Plus modes</span></label>
+                            <!-- Assigned by Bytes (Manage Clients); clients see it read-only -->
+                            <select id="settings-llm-model" hidden aria-hidden="true" tabindex="-1">
                                 <option value="">Loading models…</option>
                             </select>
+                            <p class="cb-mode-info" id="settings-llm-info">Loading…</p>
                             <p id="settings-llm-cost" style="font-size:0.78rem;color:var(--text-secondary);margin:0.45rem 0 0;line-height:1.5;"></p>
                         </div>
                         <div class="form-group cb-ai-only">
-                            <label for="settings-llm-effort">Effort <span style="font-size:0.75rem;font-weight:400;color:var(--text-secondary);">— how hard the model thinks before replying</span></label>
-                            <select id="settings-llm-effort">
+                            <!-- Effort is assigned by Bytes too; shown in the AI Model line above -->
+                            <select id="settings-llm-effort" hidden aria-hidden="true" tabindex="-1">
                                 <option value="low">Low — fastest, cheapest replies</option>
                                 <option value="medium" selected>Medium — balanced (recommended)</option>
                                 <option value="high">High — most thorough, slower and costs more</option>
@@ -844,16 +841,15 @@
                     <div class="form-group">
                         <label for="site-mode">Bot Mode</label>
                         <select id="site-mode" aria-describedby="site-mode-note">
-                            <option value="free">Free — Basic Scripted</option>
-                            <option value="standard">Standard — Advanced Scripted</option>
-                            <option value="ai">AI — uses the AI Model below</option>
-                            <option value="pro">Pro AI — Gemini Strategy</option>
-                            <option value="elite">Elite — Advanced AI + High Limits</option>
+                            <option value="scripted">Scripted — guided questions, no AI (Free plan)</option>
+                                        <option value="ai">AI — replies by the AI model below (Starter, Pro)</option>
+                                        <option value="ai_plus">AI Plus — higher limits and premium models (Business, Enterprise)</option>
                         </select>
                         <p id="site-mode-note" class="cb-hint"></p>
                     </div>
+                    <div class="form-group" data-services="site-services"></div>
                     <div class="form-group site-ai-only">
-                        <label for="site-llm-model">AI Model <span class="site-hint">— used in AI, Pro and Elite modes</span></label>
+                        <label for="site-llm-model">AI Model <span class="site-hint">— used in AI and AI Plus modes</span></label>
                         <select id="site-llm-model"><option value="">Loading models…</option></select>
                         <p id="site-llm-cost" class="site-cost"></p>
                     </div>

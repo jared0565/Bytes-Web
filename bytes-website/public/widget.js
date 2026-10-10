@@ -211,6 +211,9 @@
 
         .btn-send-chat:disabled { opacity: 0.5; }
 
+        .chat-link { color: inherit; text-decoration: underline; word-break: break-all; }
+        .chat-link:hover { opacity: 0.85; }
+        .chat-link:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
         .chat-linkedin-btn {
             display: inline-flex;
             align-items: center;
@@ -444,8 +447,19 @@
         div.className = `chat-message ${className}`;
 
         // Built with DOM nodes only: bot replies and visitor text can never become HTML or script
-        String(text).split(/(\*\*[^*]+?\*\*|\[linkedin_button\])/i).forEach((seg) => {
+        String(text).split(/(\*\*[^*]+?\*\*|\[linkedin_button\]|https:\/\/[^\s<>"']+[^\s<>"'.,;:!?)])/i).forEach((seg) => {
             if (!seg) return;
+            if (/^https:\/\//i.test(seg)) {
+                // Links (e.g. a booking page) open in a new tab; https only
+                const a = document.createElement('a');
+                a.href = seg;
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer nofollow';
+                a.className = 'chat-link';
+                a.textContent = seg.replace(/^https:\/\//i, '');
+                div.appendChild(a);
+                return;
+            }
             if (/^\*\*[^*]+?\*\*$/.test(seg)) {
                 const b = document.createElement('strong');
                 b.textContent = seg.slice(2, -2);

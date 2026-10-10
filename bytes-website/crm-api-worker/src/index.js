@@ -196,6 +196,68 @@ async function getPlanStatus(env, clientId) {
     return { plan: s.plan || 'free', inTrial, trialDaysLeft, trialEndsAt: s.trial_ends_at || 0 };
 }
 
+// ─── Bot modes, tied to plans ────────────────────────────────────────────────
+// scripted: Free · ai: Starter, Pro and trials · ai_plus: Business, Enterprise (higher limits, premium models).
+// Only admins choose a mode (Manage Clients); clients see what their plan includes.
+// Older saved names map over: free/standard → scripted, pro → ai, elite → ai_plus.
+const BOT_MODES = ['scripted', 'ai', 'ai_plus'];
+const knownMode = (m) => typeof m === 'string' && [...BOT_MODES, 'free', 'standard', 'pro', 'elite'].includes(m);
+function normalizeMode(m) {
+    const v = String(m || '');
+    if (v === 'ai_plus' || v === 'elite') return 'ai_plus';
+    if (v === 'ai' || v === 'pro') return 'ai';
+    return 'scripted';
+}
+function modesForPlan(ps) {
+    if (['business', 'enterprise'].includes(ps.plan) && !ps.inTrial) return ['scripted', 'ai', 'ai_plus'];
+    if (ps.inTrial || ['starter', 'pro', 'business', 'enterprise'].includes(ps.plan)) return ['scripted', 'ai'];
+    return ['scripted'];
+}
+// The mode a client's bot actually runs: their saved choice, capped at what the plan includes
+function effectiveMode(saved, ps) {
+    const allowed = modesForPlan(ps), m = normalizeMode(saved);
+    return allowed.includes(m) ? m : allowed[allowed.length - 1];
+}
+// Writes the plan-capped mode back to the bot's config (bestForPlan: switch to the plan's top mode)
+async function syncBotMode(env, clientId, bestForPlan = false) {
+    const raw = await env.CLIENT_SETTINGS.get(`client:${clientId}`);
+    if (!raw) return null;
+    const cfg = JSON.parse(raw);
+    const ps = await getPlanStatus(env, clientId);
+    const allowed = modesForPlan(ps);
+    const mode = bestForPlan ? allowed[allowed.length - 1] : effectiveMode(cfg.mode, ps);
+    if (cfg.mode !== mode) {
+        cfg.mode = mode;
+        if (mode === 'scripted') cfg.showBranding = true;
+        await env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify(cfg));
+    }
+    return mode;
+}
+// Services a scripted bot offers visitors (one per line in settings)
+function cleanServicesList(v) {
+    if (v === undefined) return undefined;
+    if (!Array.isArray(v)) return null;
+    return [...new Set(v.filter(x => typeof x === 'string').map(x => x.replace(/\s+/g, ' ').trim().slice(0, 60)).filter(Boolean))].slice(0, 8);
+}
+// One-time move of every saved bot to the new mode names, capped by plan
+async function migrateBotModes(env) {
+    if (await env.OAUTH_TOKENS.get('migr:bot-modes-v1')) return;
+    let cursor, n = 0;
+    do {
+        const page = await env.CLIENT_SETTINGS.list({ prefix: 'client:', cursor, limit: 1000 });
+        for (const k of page.keys) {
+            const id = k.name.slice('client:'.length);
+            if (id === HOUSE_CLIENT_ID) {
+                const cfg = JSON.parse(await env.CLIENT_SETTINGS.get(k.name) || '{}');
+                if (cfg.mode !== normalizeMode(cfg.mode)) { cfg.mode = normalizeMode(cfg.mode); await env.CLIENT_SETTINGS.put(k.name, JSON.stringify(cfg)); n++; }
+            } else if (await syncBotMode(env, id)) n++;
+        }
+        cursor = page.list_complete ? null : page.cursor;
+    } while (cursor);
+    await env.OAUTH_TOKENS.put('migr:bot-modes-v1', String(Date.now()));
+    console.log(`[Migrate] Bot modes checked for ${n} bots`);
+}
+
 // ─── Session helpers ─────────────────────────────────────────────────────────
 
 // Create a short-lived grant token in KV — redeemed by client-side JS via fetch.
@@ -455,7 +517,7 @@ app.get('/api/chatbot/status', requireAuth, async (c) => {
             leads7d: leads?.n || 0,
             mailReady: !mailIssue,
             mailIssue,
-            mode: cfg.mode || 'free',
+            mode: clientId === HOUSE_CLIENT_ID ? normalizeMode(cfg.mode) : effectiveMode(cfg.mode, await getPlanStatus(c.env, clientId)),
             llmModel: cfg.llmModel || '',
             domains: (cfg.allowedDomains || []).length,
         });
@@ -535,7 +597,7 @@ app.get('/api/admin/clients', requireAuth, async (c) => {
             const cfg = cfgs[i] ? JSON.parse(cfgs[i]) : null;
             const e = map.get(id);
             e.hasConfig = !!cfg;
-            if (cfg) Object.assign(e, { companyName: cfg.companyName || '', mode: cfg.mode || 'free', llmModel: cfg.llmModel || '', domains: (cfg.allowedDomains || []).length });
+            if (cfg) Object.assign(e, { companyName: cfg.companyName || '', mode: normalizeMode(cfg.mode), llmModel: cfg.llmModel || '', domains: (cfg.allowedDomains || []).length });
         });
 
         const clients = [...map.values()].map(e => {
@@ -579,7 +641,9 @@ app.post('/api/admin/clients/:id/plan', requireAuth, async (c) => {
             ON CONFLICT(client_id) DO UPDATE SET plan = excluded.plan, trial_started_at = excluded.trial_started_at, trial_ends_at = excluded.trial_ends_at`)
             .bind(clientId, plan, started, ends).run();
         const status = await getPlanStatus(c.env, clientId);
-        return c.json({ success: true, clientId, ...status });
+        // The bot moves to what the new plan includes (upgrade unlocks AI; downgrade caps it)
+        const mode = await syncBotMode(c.env, clientId, body.plan !== undefined || !!body.endTrial || days !== null);
+        return c.json({ success: true, clientId, ...status, mode, modesAllowed: modesForPlan(status) });
     } catch (err) {
         console.error('[Admin plan] Error:', err);
         return c.json({ error: 'Failed to update plan' }, 500);
@@ -1670,11 +1734,12 @@ app.get('/api/config', requireAuth, async (c) => {
         delete config.widgetAccentColor;
         delete config.widgetAvatar;
     }
-    return c.json({ ...config, plan: planStatus.plan, inTrial: planStatus.inTrial, brandingMandatory, whiteLabelEnabled });
+    config.mode = effectiveMode(config.mode, planStatus);
+    return c.json({ ...config, plan: planStatus.plan, inTrial: planStatus.inTrial, brandingMandatory, whiteLabelEnabled, modesAllowed: modesForPlan(planStatus), canSetMode: (c.get('user') || {}).role === 'admin' });
 });
 
 // Fields the chatbot settings forms may write (badgeUrl/allowedDomains are further limited for clients)
-const CONFIG_FIELDS = ['companyName', 'mode', 'systemPrompt', 'llmModel', 'llmEffort', 'showBranding', 'referralId', 'allowedDomains', 'badgeUrl', 'widgetName', 'widgetAccentColor', 'widgetAvatar', 'askQuestions', 'bookingUrl', 'alertEmail', 'draftModel', 'readModel'];
+const CONFIG_FIELDS = ['companyName', 'mode', 'services', 'systemPrompt', 'llmModel', 'llmEffort', 'showBranding', 'referralId', 'allowedDomains', 'badgeUrl', 'widgetName', 'widgetAccentColor', 'widgetAvatar', 'askQuestions', 'bookingUrl', 'alertEmail', 'draftModel', 'readModel'];
 
 app.post('/api/config', requireAuth, async (c) => {
     let body;
@@ -1685,11 +1750,20 @@ app.post('/api/config', requireAuth, async (c) => {
     if (scope.error) return c.json({ error: scope.error }, scope.status);
     const { clientId } = scope;
     const planStatus = await getPlanStatus(c.env, clientId);
-    // Post-trial free plans are locked to the free bot (the cron reverts anything else) — say so instead of a silent revert
-    if (!planStatus.inTrial && planStatus.plan === 'free' && settings.mode && settings.mode !== 'free') {
-        return c.json({ error: 'Your Free plan only includes the Free bot mode. Upgrade to change it.', planLimited: true }, 403);
+    // Bot mode: admins only, within what the client's plan includes
+    // Bot mode, AI model and effort: admins only (Manage Clients); a client's save never changes them
+    if ((c.get('user') || {}).role !== 'admin') { delete settings.mode; delete settings.llmModel; delete settings.llmEffort; }
+    else if (settings.mode !== undefined) {
+        if (!knownMode(settings.mode)) return c.json({ error: 'Unknown bot mode.' }, 400);
+        settings.mode = normalizeMode(settings.mode);
+        const allowed = modesForPlan(planStatus);
+        if (!allowed.includes(settings.mode)) return c.json({ error: `This client's plan includes: ${allowed.map(m => ({ scripted: 'Scripted', ai: 'AI', ai_plus: 'AI Plus' })[m]).join(', ')}. Change the plan first.`, planLimited: true }, 403);
     }
-    if (planStatus.inTrial || planStatus.plan === 'free' || planStatus.plan === 'starter') {
+    if (settings.services !== undefined) {
+        settings.services = cleanServicesList(settings.services);
+        if (!settings.services) return c.json({ error: 'Services must be a list.' }, 400);
+    }
+    if (planStatus.inTrial || planStatus.plan === 'free' || planStatus.plan === 'starter' || settings.mode === 'scripted') {
         settings.showBranding = true;
     }
     // Domains go through /api/installations (plan-limited); the badge link and referral are ours to set
@@ -1698,7 +1772,7 @@ app.post('/api/config', requireAuth, async (c) => {
     }
     // Validate every field that reaches the widget or the chatbot (admins included)
     const bad = (msg) => c.json({ error: msg }, 400);
-    if (settings.mode !== undefined && !SITE_MODES.includes(settings.mode)) return bad('Unknown bot mode.');
+    if (settings.mode !== undefined && !BOT_MODES.includes(settings.mode)) return bad('Unknown bot mode.');
     if (settings.llmEffort !== undefined && !['low', 'medium', 'high'].includes(settings.llmEffort)) return bad('Effort must be low, medium or high.');
     if (settings.llmModel !== undefined && (typeof settings.llmModel !== 'string' || !/^[\w.:/\-]{0,120}$/.test(settings.llmModel))) return bad('Unknown AI model.');
     for (const [k, n] of [['companyName', 80], ['systemPrompt', 20000], ['referralId', 60], ['widgetName', 40]]) {
@@ -1751,7 +1825,7 @@ app.post('/api/test-lead', requireAuth, async (c) => {
 // CRM Settings
 // ─── Bytes website settings (admin only) ─────────────────────────────────────
 // The house chatbot on bytesfx.com: no plan limits, no badge rules, separate from every client.
-const SITE_FIELDS = ['companyName', 'mode', 'systemPrompt', 'llmModel', 'llmEffort', 'allowedDomains', 'socials', 'askQuestions', 'bookingUrl', 'alertEmail', 'draftModel', 'readModel'];
+const SITE_FIELDS = ['companyName', 'mode', 'services', 'systemPrompt', 'llmModel', 'llmEffort', 'allowedDomains', 'socials', 'askQuestions', 'bookingUrl', 'alertEmail', 'draftModel', 'readModel'];
 // Footer social links: each must be an https URL on that network's own domain (empty clears it)
 const SOCIAL_HOSTS = {
     linkedin: /(^|\.)linkedin\.com$/,
@@ -1773,7 +1847,7 @@ function cleanSocials(input) {
     }
     return { socials: out, errors };
 }
-const SITE_MODES = ['free', 'standard', 'ai', 'pro', 'elite'];
+const SITE_MODES = BOT_MODES;
 const DOMAIN_RE = /^(\*\.)?[a-zA-Z0-9][a-zA-Z0-9\-\.]{0,252}[a-zA-Z0-9]$/;
 
 function requireAdmin(c) {
@@ -1785,6 +1859,7 @@ app.get('/api/site-settings', requireAuth, async (c) => {
     const cfg = JSON.parse(await c.env.CLIENT_SETTINGS.get(`client:${HOUSE_CLIENT_ID}`) || '{}');
     const out = { clientId: HOUSE_CLIENT_ID };
     for (const k of SITE_FIELDS) if (cfg[k] !== undefined) out[k] = cfg[k];
+    out.mode = normalizeMode(cfg.mode);
     return c.json(out);
 });
 
@@ -1796,8 +1871,12 @@ app.post('/api/site-settings', requireAuth, async (c) => {
     if (typeof body.companyName === 'string') update.companyName = body.companyName.trim().slice(0, 120);
     if (typeof body.systemPrompt === 'string') update.systemPrompt = body.systemPrompt.slice(0, 20000);
     if (body.mode !== undefined) {
-        if (!SITE_MODES.includes(body.mode)) return c.json({ error: 'Invalid bot mode' }, 400);
-        update.mode = body.mode;
+        if (!knownMode(body.mode)) return c.json({ error: 'Invalid bot mode' }, 400);
+        update.mode = normalizeMode(body.mode);
+    }
+    if (body.services !== undefined) {
+        update.services = cleanServicesList(body.services);
+        if (!update.services) return c.json({ error: 'Services must be a list' }, 400);
     }
     if (typeof body.llmModel === 'string') update.llmModel = body.llmModel.trim().slice(0, 200);
     if (body.llmEffort !== undefined) update.llmEffort = ['low', 'medium', 'high'].includes(body.llmEffort) ? body.llmEffort : 'medium';
@@ -2220,8 +2299,8 @@ async function handleVerificationCron(env) {
             const raw = await env.CLIENT_SETTINGS.get(`client:${row.client_id}`);
             if (raw) {
                 const cfg = JSON.parse(raw);
-                if (cfg.mode && cfg.mode !== 'free') {
-                    cfg.mode = 'free'; // downgrade chatbot to rule-based
+                if (normalizeMode(cfg.mode) !== 'scripted') {
+                    cfg.mode = 'scripted'; // downgrade chatbot to the guided (scripted) bot
                     cfg.showBranding = true; // badge mandatory on free tier
                     cfg.badgeUrl = 'https://web.bytesfx.com/?upgrade=free#pricing';
                     await env.CLIENT_SETTINGS.put(`client:${row.client_id}`, JSON.stringify(cfg));
@@ -3181,6 +3260,7 @@ export default {
         ctx.waitUntil(handleSalesCron(env));
         if (new Date(event.scheduledTime || Date.now()).getUTCMinutes() === 7) {
             ctx.waitUntil(cleanupLeadFiles(env).catch(e => console.error('[Files cleanup]', e)));
+            ctx.waitUntil(migrateBotModes(env).catch(e => console.error('[Migrate modes]', e)));
             ctx.waitUntil(ensurePageViews(env).then(() => env.DB.prepare('DELETE FROM page_views WHERE ts < ?').bind(Date.now() - 400 * DAY_MS).run()).catch(e => console.error('[Pageview retention]', e)));
         }
     }
