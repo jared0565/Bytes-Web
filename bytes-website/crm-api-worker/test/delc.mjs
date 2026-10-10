@@ -1,0 +1,28 @@
+import { DatabaseSync } from 'node:sqlite';
+const mod = await import('./src/index.js');
+const db = new DatabaseSync(':memory:'); const now = Date.now();
+db.exec(`CREATE TABLE crm_settings (client_id TEXT PRIMARY KEY, default_campaign_mode TEXT, auto_approve_campaigns INTEGER, plan TEXT, trial_started_at INTEGER, trial_ends_at INTEGER);
+INSERT INTO crm_settings VALUES ('acme','ai',1,'pro',0,0);
+CREATE TABLE leads (id INTEGER PRIMARY KEY, client_id TEXT, name TEXT, email TEXT, service TEXT, budget TEXT, summary TEXT, is_verified INTEGER, verification_token TEXT, pipeline_stage TEXT, next_best_action TEXT, timestamp INTEGER, updated_at INTEGER, session_id TEXT);
+INSERT INTO leads (id, client_id, name, email, service, budget, summary, is_verified, verification_token, pipeline_stage, timestamp) VALUES (1,'acme','Priya Shah','priya@clinic.com','Website','Pending','Wants a clinic site',0,'tok-1','lead',${now - 3600e3});
+CREATE TABLE email_sequences (id INTEGER PRIMARY KEY, lead_id INTEGER, client_id TEXT, email_number INTEGER, subject TEXT, body TEXT, status TEXT, scheduled_for INTEGER);
+CREATE TABLE chat_logs (id INTEGER PRIMARY KEY, client_id TEXT, user_message TEXT, bot_response TEXT, timestamp INTEGER, session_id TEXT);`);
+const prep = (sql) => { let a = []; const o = { bind: (...x) => { a = x; return o; }, all: async () => ({ results: db.prepare(sql).all(...a) }), first: async () => db.prepare(sql).get(...a) ?? null, run: async () => { const r = db.prepare(sql).run(...a); return { meta: { changes: Number(r.changes), last_row_id: Number(r.lastInsertRowid) } }; } }; return o; };
+const sent = []; let mxOk = true;
+const kv = new Map([['client:acme', '{}'], ['mail:acme', '{}'], ['email_client:o@acme.com', 'acme'], ['email_client:x@other.com', 'other'], ['client:other', '{}']]);
+const KV = { get: async k => kv.get(k) ?? null, put: async (k, v) => kv.set(k, v), delete: async k => kv.delete(k), list: async ({ prefix }) => ({ keys: [...kv.keys()].filter(k => k.startsWith(prefix)).map(name => ({ name })), list_complete: true }) };
+const r2 = new Map([['leads/1/a.png', 1]]);
+const env = { DB: { prepare: prep, batch: async s => { for (const x of s) await x.run(); } }, JWT_SECRET: 'x', OAUTH_TOKENS: KV, CLIENT_SETTINGS: KV, FILES: { delete: async ks => [].concat(ks).forEach(k => r2.delete(k)) } };
+const ctx = { waitUntil: () => {} };
+const ok = (l, c, x = '') => console.log(c ? 'PASS' : 'FAIL', l, x);
+db.exec(`INSERT INTO chat_logs (client_id, user_message, timestamp) VALUES ('acme','hi',1),('other','yo',1); INSERT INTO email_sequences (lead_id, client_id) VALUES (1,'acme');`);
+const tok = await mod.signJWT({ role: 'admin' }, 'x'), ctok = await mod.signJWT({ role: 'client', clientId: 'acme' }, 'x');
+await mod.__app.fetch(new Request('http://x/api/leads', { headers: { Authorization: 'Bearer ' + tok } }), env, ctx); // creates sales tables
+db.exec(`INSERT INTO lead_files (lead_id, client_id, name, size, r2_key, status, ts) VALUES (1,'acme','a.png',1,'leads/1/a.png','stored',0)`);
+const del = (t, cid, body) => mod.__app.fetch(new Request('http://x/api/admin/clients/' + cid, { method: 'DELETE', headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }), env, ctx);
+let r = await del(ctok, 'acme', { confirm: 'acme' }); ok('clients cannot delete', r.status === 403);
+r = await del(tok, 'acme', { confirm: 'nope' }); ok('wrong confirmation refused', r.status === 400);
+r = await del(tok, 'default', { confirm: 'default' }); ok('website protected', r.status === 400);
+r = await del(tok, 'acme', { confirm: 'acme' }); const j = await r.json();
+ok('acme deleted everywhere', r.status === 200 && !db.prepare("select 1 from leads where client_id='acme'").get() && !db.prepare("select 1 from chat_logs where client_id='acme'").get() && !db.prepare("select 1 from crm_settings where client_id='acme'").get() && !db.prepare("select 1 from email_sequences where client_id='acme'").get() && !kv.has('client:acme') && !kv.has('mail:acme') && !kv.has('email_client:o@acme.com') && !r2.has('leads/1/a.png'), JSON.stringify(j));
+ok('other client untouched', kv.has('client:other') && kv.has('email_client:x@other.com') && db.prepare("select count(*) n from chat_logs where client_id='other'").get().n === 1);
