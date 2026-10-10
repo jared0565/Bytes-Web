@@ -725,10 +725,17 @@ function ldAttach() {
     ldListeners = true;
     let t;
     document.getElementById('ld-q').addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => renderLeads(window.allLeads), 150); });
-    ['ld-date', 'ld-verified', 'ld-client', 'ld-sort'].forEach(id => document.getElementById(id).addEventListener('change', () => renderLeads(window.allLeads)));
+    ['ld-date', 'ld-verified', 'ld-budget', 'ld-client', 'ld-sort'].forEach(id => document.getElementById(id).addEventListener('change', () => renderLeads(window.allLeads)));
+    // Clicking a column's budget total shows only the leads behind it (click again to show all)
+    document.getElementById('leads-kanban').addEventListener('click', (e) => {
+        if (!e.target.closest('[data-budget-filter]')) return;
+        const sel = document.getElementById('ld-budget');
+        sel.value = sel.value === 'with' ? '' : 'with';
+        renderLeads(window.allLeads);
+    });
     document.getElementById('ld-clear').addEventListener('click', () => {
         document.getElementById('ld-q').value = '';
-        ['ld-date', 'ld-verified', 'ld-client'].forEach(id => { document.getElementById(id).selectedIndex = 0; });
+        ['ld-date', 'ld-verified', 'ld-budget', 'ld-client'].forEach(id => { document.getElementById(id).selectedIndex = 0; });
         renderLeads(window.allLeads);
     });
     document.getElementById('ld-export').addEventListener('click', ldExport);
@@ -764,6 +771,7 @@ function ldFiltered(leads) {
     const q = document.getElementById('ld-q').value.trim().toLowerCase();
     const days = parseInt(document.getElementById('ld-date').value, 10);
     const ver = document.getElementById('ld-verified').value;
+    const budget = document.getElementById('ld-budget').value;
     const client = document.getElementById('ld-client').value;
     const sort = document.getElementById('ld-sort').value;
     let from = 0;
@@ -772,9 +780,10 @@ function ldFiltered(leads) {
         (!q || [l.name, l.email, l.service, l.summary, l.budget].some(v => String(v || '').toLowerCase().includes(q))) &&
         (!from || l.timestamp >= from) &&
         (ver === '' || (ver === '1' ? l.is_verified === 1 : l.is_verified !== 1)) &&
+        (!budget || (budget === 'with') === (ldBudget(l.budget) > 0)) &&
         (!client || l.client_id === client));
     out.sort((a, b) => sort === 'old' ? a.timestamp - b.timestamp : sort === 'budget' ? ldBudget(b.budget) - ldBudget(a.budget) || b.timestamp - a.timestamp : b.timestamp - a.timestamp);
-    document.getElementById('ld-clear').hidden = !(q || days || ver !== '' || client);
+    document.getElementById('ld-clear').hidden = !(q || days || ver !== '' || budget || client);
     return out;
 }
 
@@ -857,7 +866,21 @@ function renderLeads(leads) {
     LD_STAGES.forEach(st => {
         document.getElementById(`count-${st}`).innerText = counts[st];
         const mix = ldMoneyMix(values[st]);
-        document.getElementById(`value-${st}`).textContent = mix ? `${mix} in budgets` : ({ lead: 'New leads land here', priority: 'High-budget leads', opportunity: 'Qualified and in talks', campaign: 'Email sequences' })[st];
+        // Say whose budgets make up the total, so it can't read as a figure from nowhere
+        const withBudget = values[st].filter(l => ldBudget(l.budget) > 0);
+        const valueEl = document.getElementById(`value-${st}`);
+        const onlyBudgets = document.getElementById('ld-budget').value === 'with';
+        if (mix) {
+            // A button: shows just the leads with a budget (or all leads again)
+            valueEl.innerHTML = `<button type="button" class="ld-col-budget${onlyBudgets ? ' active' : ''}" data-budget-filter aria-pressed="${onlyBudgets}"></button>`;
+            valueEl.firstChild.textContent = `${mix} · from ${withBudget.length} lead${withBudget.length === 1 ? '' : 's'}${onlyBudgets ? ' · show all' : ''}`;
+        } else {
+            valueEl.textContent = ({ lead: 'New leads land here', priority: 'High-budget leads', opportunity: 'Qualified and in talks', campaign: 'Email sequences' })[st];
+        }
+        // Full breakdown on hover (first 15, then a count), so the label itself stays one short line
+        const names = withBudget.slice(0, 15).map(l => `${l.name || 'Unnamed'}: ${l.budget}`);
+        if (withBudget.length > 15) names.push(`…and ${withBudget.length - 15} more`);
+        valueEl.title = mix ? `${onlyBudgets ? 'Showing only leads with a budget. Click to show all.' : 'Click to show only these leads.'}\n${names.join('\n')}` : '';
         if (!counts[st]) cols[st].innerHTML = `<div class="ld-empty">${window.allLeads.length ? (filtered ? 'No leads match the filters.' : 'Drag a lead here or use “Move to…”.') : (st === 'lead' ? 'No leads yet. They appear here when your chatbot captures a contact.' : '')}</div>`;
     });
 
