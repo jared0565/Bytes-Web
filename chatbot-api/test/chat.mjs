@@ -192,7 +192,7 @@ r = await send(c, 'and one more: extra@firm9.co');
 ok('one visitor can create 3 leads an hour; the next is not saved', saved === LEADS_HOUR && leadsOf(c).length === 0, `${saved} ${leadsOf(c).length}`);
 c = { ...chat('booker'), ip: ipLeads };
 await send(c, 'and on another bot: other@firm8.co');
-ok('the hourly lead limit counts one visitor across all bots', leadsOf(c).length === 0, String(leadsOf(c).length));
+ok('the hourly lead limit is per bot: the same visitor can still leave a lead on another bot', leadsOf(c).length === 1, String(leadsOf(c).length));
 const racers = Array.from({ length: 6 }, () => ({ ...chat(), ip: '203.0.113.21' }));
 hooks = seen.hooks.length;
 await Promise.all(racers.map((x, i) => post(x, `hello, I am racer ${i}: racer${i}@team${i}.co`)));
@@ -213,9 +213,10 @@ async function play(x, messages) {
   return out;
 }
 const ipCapped = '203.0.113.30';
-for (let i = 0; i < LEADS_HOUR; i++) await send({ ...chat('booker'), ip: ipCapped }, `I am person ${i}: cap${i}@firm${i}.co`);
 let nth = 0;
 for (const bot of ['default', 'script']) for (const [when, messages] of [['early', early], ['after the limit', late]]) {
+  // The limit is per bot, so the third visitor first uses it up on the bot being tested
+  if (when === 'early') for (let i = 0; i < LEADS_HOUR; i++) await send({ ...chat(bot), ip: ipCapped }, `I am person ${i}: cap${i}@${bot}${i}.co`);
   const n = ++nth, fresh = chat(bot), known = chat(bot), capped = { ...chat(bot), ip: ipCapped };
   const a = await play(fresh, messages(`sam${n}@poe${n}.co`)), b = await play(known, messages(`sam${n}@poe${n}.co`)), d = await play(capped, messages(`cap${n}@poe${n}.co`));
   const at = a.findIndex((t, i) => t !== b[i] || t !== d[i]);

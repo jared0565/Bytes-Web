@@ -558,16 +558,16 @@ export default {
 		type SavedLead = { id: number, name: string, service: string, budget: string, summary: string };
 		// One statement checks and saves, so chats sent at the same moment can't all pass the checks first. No lead when
 		// this chat already has one, when this chatbot was given the same email in the last 30 days, or when this
-		// visitor has made too many in the last hour on any chatbot (each new lead sends a confirmation email).
+		// visitor has made too many on this chatbot in the last hour (each new lead sends a confirmation email).
 		const insertLead = async (lead: Lead) => {
 			const now = Date.now(), to = clip(lead.email, 254);
 			const { meta } = await env.DB.prepare(
 				'INSERT INTO leads (client_id, name, email, service, budget, summary, timestamp, session_id) SELECT ?, ?, ?, ?, ?, ?, ?, ?'
 				+ ' WHERE NOT EXISTS (SELECT 1 FROM leads WHERE client_id = ? AND session_id = ?)'
 				+ ' AND NOT EXISTS (SELECT 1 FROM leads WHERE client_id = ? AND lower(email) = lower(?) AND timestamp > ?)'
-				+ ' AND (SELECT COUNT(*) FROM leads l WHERE l.timestamp > ? AND EXISTS (SELECT 1 FROM chat_logs c WHERE c.session_id = l.session_id AND c.visitor = ?)) < ?'
+				+ ' AND (SELECT COUNT(*) FROM leads l WHERE l.client_id = ? AND l.timestamp > ? AND EXISTS (SELECT 1 FROM chat_logs c WHERE c.session_id = l.session_id AND c.client_id = l.client_id AND c.visitor = ?)) < ?'
 			).bind(clientId, clip(lead.name, 80), to, clip(lead.service, 120), clip(lead.budget, 80), clip(lead.summary, 600) || 'Chat enquiry', now, sessionId,
-				clientId, sessionId, clientId, to, now - 30 * 86400000, now - 3600000, visitor, VISITOR_LEADS_PER_HOUR).run();
+				clientId, sessionId, clientId, to, now - 30 * 86400000, clientId, now - 3600000, visitor, VISITOR_LEADS_PER_HOUR).run();
 			// crm-api sends the visitor the confirmation email: only for a lead this statement saved
 			if (meta?.changes !== 1 || !meta.last_row_id) return;
 			await fetch('https://crm-api.bmorris0565.workers.dev/api/webhooks/new-lead', {
