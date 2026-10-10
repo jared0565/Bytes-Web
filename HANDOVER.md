@@ -40,7 +40,7 @@ wrangler.jsonc                 Website worker: static assets from bytes-website/
 chatbot-api/                   Chat worker (TypeScript)
   src/index.ts                 Chat endpoint, bot modes, scripted flow, website gate, LlmService RPC
   src/llm.ts                   Model catalog (prices, premium flag), provider calls (Anthropic/OpenAI/Gemini/OpenRouter)
-  test/                        node test/run.mjs (website gate, prompts, scripted flow)
+  test/                        node test/run.mjs (website gate, prompts, scripted flow, chat endpoint)
 bytes-website/
   index.html, src/main.js, src/home.css   Homepage SPA incl. Pricing section (built by Vite)
   public/                      Copied as-is to dist (NOT bundled):
@@ -116,6 +116,7 @@ Vars in `wrangler.toml`: `ALLOWED_ORIGINS`, `AUTH_REDIRECT_URL`, `FRONTEND_*_URL
 |---|---|
 | `GEMINI_API_KEY` | Required (default model and lead extraction) |
 | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY` | Optional providers; models without a key show "(no API key)" |
+| `ADMIN_API_KEY` | Keys the scrambled visitor id used for the per-visitor chat limits. It must stay set: without it every chat gets a 503, because an id made with a fixed key could be matched back to an IP address. Changing it only resets that day's counts |
 
 Per-client email senders (Resend, SendGrid or Mailgun) are saved by each client in the dashboard, in KV `mail:<clientId>`.
 
@@ -135,6 +136,9 @@ not in `migrations/`:
 - tables `lead_messages`, `lead_files`, `page_views`
 - `leads` columns `thread_token`, `brief`, `replied_at`, `last_reply_at`, `outcome`, `deal_value`, `lost_reason`,
   `closed_at`, `unsubscribed`, `proposal`, `session_id`
+
+chatbot-api's `ensureSchema()` does the same for `chat_logs` columns `session_id`, `flag` (the AI's label for the
+message) and `visitor` (the scrambled visitor id; crm-api's `/api/logs` leaves it out of what it returns).
 
 **KV keys:**
 
@@ -168,13 +172,29 @@ Other OAUTH_TOKENS keys are session and login state: `device:*`, `totp:*`, `setu
 
 **Bot modes:**
 
-| Mode | Messages/day | Messages per chat | Notes |
-|---|---|---|---|
-| `scripted` | 400 | 40 | Guided questions built from the client's Services list |
-| `ai` | 2,000 | 40 | |
-| `ai_plus` | 5,000 | 60 | Allows premium models (output price > $15 per 1M tokens) |
+| Mode | Messages/day | Notes |
+|---|---|---|
+| `scripted` | 400 | Guided questions built from the client's Services list |
+| `ai` | 2,000 | |
+| `ai_plus` | 5,000 | Allows premium models (output price > $15 per 1M tokens) |
 
 Old mode names map over: free/standard → scripted, pro → ai, elite → ai_plus.
+
+**Chat limits** are the same on every plan. The first four are in plans.json under `chat`:
+
+| Limit | Value | Notes |
+|---|---|---|
+| Messages per chat | 10 | Later messages get a fixed reply with no AI call. A first email typed then is still saved as a lead |
+| Characters per message | 500 | Both chat boxes stop typing there and show a count; the server refuses longer messages |
+| Messages per visitor per day, per bot | 30 | The visitor is a keyed hash of their network that changes daily (`chat_logs.visitor`) |
+| New leads per visitor per hour, across all bots | 3 | Each new lead sends a confirmation email. A lead over the limit is not saved |
+| Messages per visitor per minute, per bot | 8 | `CHAT_LIMITER` in `chatbot-api/wrangler.jsonc`, not plans.json |
+
+A visitor's network is their IPv4 address, or the first half (/64) of an IPv6 address (`netOf`). All three per-visitor
+limits count it, so changing address inside one IPv6 network does not reset them.
+
+Fixed replies (over a limit, chat closed, AI unavailable) are not written to `chat_logs`, so they do not count against
+the daily allowance. The one exception is a first email typed after the chat limit: that message is logged.
 
 **Rules** (crm-api `entitlements()`, `modesForPlan()`, `syncBotMode()`):
 - **Trial:** 7 days, only meaningful on the Free plan. A trial gives AI replies and AI follow-ups on Free limits
@@ -190,7 +210,8 @@ Old mode names map over: free/standard → scripted, pro → ai, elite → ai_pl
 ## 7. Features (where to look)
 
 **Website** (`bytes-website/src/main.js`):
-- Homepage sections and chat widget.
+- Homepage sections and the site's own chat box (markup in `index.html`). `public/widget.js` is the separate
+  embeddable widget for clients' sites: a change to one usually belongs in both.
 - Pricing built from plans.json. `?upgrade=<plan>&client=<id>#pricing` highlights a plan and pre-fills the request.
 - Contact form posts to `POST /api/public/website-lead`.
 
@@ -200,13 +221,38 @@ Old mode names map over: free/standard → scripted, pro → ai, elite → ai_pl
   - A client bot with an empty list adopts the first real website it's used on, once. The owner is emailed via
     `/api/webhooks/domain-adopted`.
   - Onboarding now requires a website.
+- **Question order (every bot):** need, then name and email in one question, then timeline, then budget. The email is
+  asked for twice at most. Design and evidence: "Chatbot Conversion Design"
+  (https://claude.ai/code/artifact/dc745756-cf9a-4083-99c7-3dc8d084490c).
 - **Prompts:**
-  - `HOUSE_PROMPT` is used only for `default`.
+  - The Bytes prompt (`HOUSE_ABOUT`, `HOUSE_STEPS`, `HOUSE_FACTS`, `HOUSE_RULES`) is used only for `default`. Its
+    plan prices and trial length are filled in from plans.json.
   - Client bots without a usable prompt get `clientDefaultPrompt()`, built from company name, services and booking link.
   - Prompt lines with unfilled `[blanks]` are dropped.
-- **AI lead capture:** once the visitor types an email, gemini-2.5-flash-lite reads the chat to get name, need, budget
-  and timeline.
-- **Handoff:** LinkedIn handoff only on the Bytes website. Client bots point to their booking link.
+  - Every AI bot, clients' own prompts included, also gets the security rules, the topic rules and a `THIS TURN`
+    block (message number, whether an email was given, whether a confirmation email will be sent).
+  - The leak guard (`leaksPrompt`) covers the instructions only, so a reply can quote prices and links.
+- **Off-topic and spam:** the AI starts each reply with a hidden label, `[business]`, `[offtopic]` or `[spam]`. The
+  code removes it and stores it in `chat_logs.flag`. Spam closes the chat at once, and so does a second off-topic
+  message. No label counts as business. Without AI: a message with no letters or numbers, or with 3 or more links,
+  gets a nudge; the same long message twice gets the same reply back.
+- **Lead capture:** the lead is saved on the message that carries the email, never from spam and never for a
+  placeholder address (test@test.com). No second lead for the same email on the same bot within 30 days.
+  - AI bots: gemini-2.5-flash-lite reads the chat for name, need, budget and timeline, and reads it once more two
+    messages later to update the lead.
+  - Script bots: the script updates the lead as timeline and budget arrive.
+  - An update never replaces a known value with an empty one, and never changes the email.
+  - Nothing a visitor can see depends on the `leads` table: not the reply, not how long it takes, not the
+    `THIS TURN` block. Otherwise a reply would show whether an email address is already a lead of that business.
+    So every visitor who gives an email gets the same confirmation sentence ("...unless you've already had one"),
+    the lead is saved after the reply has gone (`keepLead`, in `ctx.waitUntil`), and one SQL statement checks and
+    saves it. The reply no longer returns `leadData`.
+  - Known limit: a visitor over the hourly lead limit is told the same as everyone else, but that lead is not saved.
+- **Scripted bot (`scriptedTurn`):** works out where a chat is by replaying the visitor's messages from `chat_logs`.
+  It cannot answer questions and says so.
+- **Where the chat sends people:** the contact form (`#contact`) on the Bytes website; a client's booking link, or
+  "the contact form on this website" when the client has none. LinkedIn is offered only when a visitor asks for a
+  person.
 
 **Leads board** (dashboard → Leads):
 - Kanban: Inbox / Priority / Opportunity / Campaigns / Closed.
@@ -286,7 +332,7 @@ Requires **Node 22.5+** (uses `node:sqlite`). Run `npm install` first in each wo
 
 ```
 cd bytes-website/crm-api-worker && node test/run.mjs        # all 9 suites, or: node test/run.mjs flow plans
-cd chatbot-api && node test/run.mjs                         # website gate, prompts, scripted flow
+cd chatbot-api && node test/run.mjs                         # website gate, prompts, scripted flow, chat endpoint
 cd chatbot-api && npx tsc --noEmit -p .                     # typecheck
 cd bytes-website/crm-api-worker && npx wrangler deploy --dry-run --config wrangler.toml   # bundle check, nothing is deployed
 cd bytes-website && npm run build                           # website + copies public/
@@ -344,9 +390,14 @@ gitignored).
 3. **Lead source reporting:** record chatbot vs web form on each lead, and show a funnel per channel (visitors → leads
    → verified → replied → won). This was proposed, not built.
 4. **House bot prompt:** check whether `client:default` in KV has its own `systemPrompt`. If it does, that prompt is
-   used instead of the new `HOUSE_PROMPT`.
+   used instead of the Bytes prompt in the code.
 5. **Paid lead limits:** paid plans have no lead caps ("unlimited"). If caps are wanted, add `leadsPerDay`/`contacts`
    in plans.json; enforcement already reads them.
 6. **Stale "Waiting 24h+" alert:** the lead drawer shows it even after the lead replied or a proposal exists.
 7. **Terms of Service:** has no SaaS plan, trial or refund wording yet.
 8. **Old lead migrations:** `migrations/` only has the early schema; newer tables are created lazily (see §5).
+9. **Chat, second build** (in the design document linked in §7, not built): a duplicate check on the contact form, an
+   opening line that says the bot is an AI assistant, tap-to-answer buttons, a chat funnel in Analytics, and limiting
+   the Bytes bot to web.bytesfx.com.
+10. **Chat limits are starting points:** the 10-message limit is a judgement, not a research figure. Review it after
+    about 100 real chats (the design document says how to read the data).

@@ -172,7 +172,7 @@
       </div>
       <div class="chatbot-input-area">
         <form id="chatForm">
-          <input type="text" id="chatInput" placeholder="Ask about our services..." autocomplete="off" required>
+          <input type="text" id="chatInput" placeholder="Ask about our services..." autocomplete="off" aria-describedby="chatCount" required>
           <button type="submit" id="btnSendChat" class="btn-send-chat">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -180,6 +180,8 @@
             </svg>
           </button>
         </form>
+        <!-- Shown by main.js once a message is close to the character limit -->
+        <p id="chatCount" class="chat-count" hidden></p>
       </div>
     </div>
     <button id="btnOpenChat" class="chatbot-launcher" aria-label="Chat with BytesFX">

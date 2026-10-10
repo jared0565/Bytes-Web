@@ -1249,7 +1249,8 @@ app.get('/api/logs', requireAuth, async (c) => {
         const { results } = user.role === 'admin'
             ? await c.env.DB.prepare('SELECT * FROM chat_logs ORDER BY timestamp DESC LIMIT 200').all()
             : await c.env.DB.prepare('SELECT * FROM chat_logs WHERE client_id = ? ORDER BY timestamp DESC LIMIT 200').bind(user.clientId || '').all();
-        return c.json(results);
+        // chatbot-api stores a scrambled visitor id with each message for its per-visitor limits: it stays on the server
+        return c.json((results || []).map(({ visitor, ...row }) => row));
     } catch (err) {
         console.error('[Logs] Error:', err);
         return c.json({ error: 'Failed to fetch logs' }, 500);

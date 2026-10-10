@@ -20,5 +20,6 @@ for (const f of readdirSync(here).filter(f => f.endsWith('.mjs') && f !== 'run.m
     const res = execFileSync(process.execPath, [join(build, f)], { cwd: build, encoding: 'utf8' });
     const fails = (res.match(/^FAIL/gm) || []).length; bad += fails;
     console.log(`${fails ? '✗' : '✓'} ${f}: ${(res.match(/^PASS/gm) || []).length} passed, ${fails} failed`);
+    if (fails) res.split('\n').filter(l => l.startsWith('FAIL')).forEach(l => console.log('   ' + l.slice(0, 400)));
 }
 process.exit(bad ? 1 : 0);
