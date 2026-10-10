@@ -900,8 +900,9 @@ function renderLeads(leads) {
     document.querySelectorAll('.manage-campaign-btn').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); openSequenceModal(btn.getAttribute('data-id')); }));
     const open = document.getElementById('ld-drawer').dataset.leadId;
     // Don't redraw the open lead while the owner is writing a reply in it
-    const ta = document.getElementById('ld-compose-text');
-    if (open && !document.getElementById('ld-drawer').hidden && !(ta && (ta.value.trim() || document.activeElement === ta))) openLeadDrawer(open, true);
+    // …or editing a proposal draft
+    const busy = ['ld-compose-text', 'ld-prop-text'].some(id => { const ta = document.getElementById(id); return ta && (document.activeElement === ta || (id === 'ld-compose-text' && ta.value.trim())); });
+    if (open && !document.getElementById('ld-drawer').hidden && !busy) openLeadDrawer(open, true);
 }
 
 async function moveLead(id, toStage) {
@@ -962,6 +963,7 @@ function openLeadDrawer(id, keepFocus = false) {
         ${l.summary ? `<h4>Conversation summary</h4><p class="ld-d-summary">${escapeHtml(l.summary)}</p>` : ''}
         ${l.next_best_action ? `<h4>Suggested next step</h4><p class="ld-d-summary">${escapeHtml(l.next_best_action)}</p>` : ''}
         ${ldBriefHtml(l)}
+        ${ldProposalHtml(l)}
         ${col === 'closed' ? '' : `<h4>Stage</h4>
         <div class="ld-stage-pick" role="group" aria-label="Stage">
             ${LD_STAGES.map(st => `<button type="button" class="cl-seg-btn${st === col ? ' active' : ''}" data-stage-pick="${st}" aria-pressed="${st === col}">${LD_STAGE_NAMES[st]}</button>`).join('')}
@@ -3723,7 +3725,7 @@ async function siteHealth() {
             : item('warn', 'No website chats yet', 'Open the website and send a test message.', 'site-card'),
         item(ai ? 'ok' : 'bad', ai ? 'AI replies on' : 'Scripted replies only', ai ? `Mode: ${escapeHtml(d.mode)} · ${d.llmModel ? escapeHtml(d.llmModel.replace(/^openrouter:/, '')) : 'default model'}` : `Mode: ${escapeHtml(d.mode)}. Visitors get canned answers. Set Bot Mode to AI below.`, 'site-mode'),
         item(d.mailReady ? 'ok' : 'bad', d.mailReady ? 'Lead emails ready' : 'Lead emails not sending', d.mailReady ? `${d.leads7d} website lead${d.leads7d === 1 ? '' : 's'} this week` : `${escapeHtml(d.mailIssue)}. Set it up in Website email sender below.`, 'site-mail-card'),
-        s ? item(s.replyTracking ? 'ok' : 'warn', s.replyTracking ? 'Reply tracking on' : 'Reply tracking off', s.replyTracking ? 'Lead replies appear in each lead\'s conversation' : `Replies go to your alerts email. Turn on Email Routing for ${escapeHtml(s.replyDomain || 'the reply domain')}.`, 'site-sales-tracking') : '',
+        s ? item(s.replyTracking && !s.files?.warn ? 'ok' : 'warn', s.replyTracking ? 'Reply tracking on' : 'Reply tracking off', (s.replyTracking ? 'Lead replies appear in each lead\'s conversation' : `Replies go to your alerts email. Turn on Email Routing for ${escapeHtml(s.replyDomain || 'the reply domain')}.`) + (s.files ? ` · Files: ${salesGB(s.files.bytes)}${s.files.warn ? ', nearly full' : ''}` : ''), 'site-sales-tracking') : '',
     ].join('');
 }
 document.getElementById('site-health')?.addEventListener('click', (e) => {
@@ -3873,6 +3875,9 @@ function salesCollect(p) {
 }
 
 let salesStatusCache = null;
+const salesGB = (n) => n >= 1073741824 ? `${(n / 1073741824).toFixed(1)} GB` : `${Math.round(n / 1048576)} MB`;
+// Lead files (samples, references) in storage: 10 GB free, warning from 8 GB
+const salesStorageText = (f) => `Lead files: ${salesGB(f.bytes)} used${f.scope === 'all' ? ` of the ${salesGB(f.freeBytes)} free allowance` : ''}.${f.warn ? ' Storage is nearly full: remove old leads or expect a small R2 charge (about $0.015 per GB a month).' : ' Files are deleted 90 days after a lead is lost or goes quiet.'}`;
 async function salesTrackingNote(p) {
     const el = document.getElementById(`${p}-tracking`);
     if (!el) return;
@@ -3881,29 +3886,98 @@ async function salesTrackingNote(p) {
     } catch (_) {}
     const s = salesStatusCache;
     if (!s) { el.textContent = ''; return; }
-    el.classList.toggle('cb-warn', !s.replyTracking);
-    el.textContent = s.replyTracking
+    el.classList.toggle('cb-warn', !s.replyTracking || !!s.files?.warn);
+    el.textContent = (s.replyTracking
         ? `✓ Reply tracking is on: leads' replies come back into each lead's conversation (via ${s.replyDomain}).`
-        : `Reply tracking isn't set up yet, so replies go straight to your alerts email and won't appear in the dashboard. Turn on Email Routing for ${s.replyDomain || 'the reply domain'} to record them.`;
+        : `Reply tracking isn't set up yet, so replies go straight to your alerts email and won't appear in the dashboard. Turn on Email Routing for ${s.replyDomain || 'the reply domain'} to record them.`)
+        + (s.files ? ` ${salesStorageText(s.files)}` : '');
 }
 
 // ─── Leads: conversation thread, brief, won / lost ────────────────────────────
 const LD_OUTCOME = { won: 'Won', lost: 'Lost' };
 const ldFmtWhen = (ts) => new Date(ts).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-const LD_KIND = { questions: 'Questions', reminder: 'Reminder', followup: 'Follow-up', manual: 'You', reply: 'Reply' };
+const LD_KIND = { questions: 'Questions', reminder: 'Reminder', followup: 'Follow-up', manual: 'You', reply: 'Reply', proposal: 'Proposal', nudge: 'Follow-up', details: 'Asked for details', files: 'About their files' };
+const LD_REQUIRED = { need: 'need', goals: 'goals', budget: 'budget', timeline: 'timeline' };
+const ldMissing = (b) => Object.keys(LD_REQUIRED).filter(k => !String(b?.[k] || '').trim());
+const ldBrief = (l) => { try { const b = JSON.parse(l.brief || 'null'); return b && typeof b === 'object' ? b : null; } catch (_) { return null; } };
+const ldSize = (n) => n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
+const ldProposal = (l) => { try { const p = JSON.parse(l.proposal || 'null'); return p && typeof p === 'object' ? p : null; } catch (_) { return null; } };
+// [PRICE], [START DATE]…: blanks that must be filled before a proposal can be sent (same rule as the server)
+const ldBlanks = (t) => [...new Set(String(t || '').match(/\[[^\]\n]{2,40}\]/g) || [])];
 
 function ldSalesChips(l) {
     if (l.outcome === 'won') return `<span class="ld-chip ld-chip-ok">Won${l.deal_value ? ` · ${escapeHtml(l.deal_value)}` : ''}</span>`;
     if (l.outcome === 'lost') return '<span class="ld-chip ld-chip-muted">Lost</span>';
+    const p = ldProposal(l);
+    if (p?.acceptedAt) return '<span class="ld-chip ld-chip-ok">Said yes to proposal</span>';
+    if (p?.status === 'draft') return '<span class="ld-chip ld-chip-reply">Proposal to review</span>';
+    if (p?.status === 'sent') return '<span class="ld-chip ld-chip-info">Proposal sent</span>' + (l.unsubscribed ? '<span class="ld-chip ld-chip-muted">Unsubscribed</span>' : '');
+    const b = ldBrief(l);
+    if (!p && b?.detailsAskedAt && ldMissing(b).length) return '<span class="ld-chip ld-chip-info">Asked for details</span>';
     return (l.replied_at ? '<span class="ld-chip ld-chip-reply">Replied: follow up now</span>' : l.thread_token ? '<span class="ld-chip ld-chip-info">Questions sent</span>' : '')
         + (l.unsubscribed ? '<span class="ld-chip ld-chip-muted">Unsubscribed</span>' : '');
 }
 
 function ldBriefHtml(l) {
-    let b = null; try { b = JSON.parse(l.brief || 'null'); } catch (_) {}
+    const b = ldBrief(l);
     if (!b) return '';
     const r = (k, v) => v ? `<div class="ld-row"><dt>${k}</dt><dd>${escapeHtml(v)}</dd></div>` : '';
-    return `<h4>Their answers</h4><dl class="ld-dl ld-brief">${r('Need', b.need)}${r('Goals', b.goals)}${r('Budget', b.budget)}${r('Timeline', b.timeline)}${b.wantsCall ? r('Call', 'Open to a call') : ''}</dl>`;
+    const links = (b.links || []).filter(u => /^https?:\/\//i.test(u)).map(u => `<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer nofollow">${escapeHtml(u.replace(/^https?:\/\//, '').slice(0, 60))}</a>`).join('<br>');
+    const missing = !ldProposal(l) ? ldMissing(b) : [];
+    return `<h4>Their answers</h4><dl class="ld-dl ld-brief">${r('Need', b.need)}${r('Goals', b.goals)}${r('Budget', b.budget)}${r('Timeline', b.timeline)}${r('References', b.references)}${links ? `<div class="ld-row"><dt>Links</dt><dd>${links}</dd></div>` : ''}${missing.length ? r('Still missing', `${missing.join(', ')}${b.detailsAskedAt ? ' (we asked them)' : ''}`) : ''}${r('Prefers', b.wantsCall ? 'A call' : b.contact === 'email' ? 'Email (no call needed)' : 'Email')}</dl>`;
+}
+
+function ldProposalHtml(l) {
+    const p = ldProposal(l);
+    const fmtDay = (ts) => new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    if (p?.status === 'sent') {
+        return `<h4>Proposal</h4><div class="ld-outcome${p.acceptedAt ? ' ld-outcome-won' : ''}">
+            <strong>${p.acceptedAt ? 'They said yes' : 'Sent'}</strong> <span class="ld-muted">${p.acceptedAt ? `on ${fmtDay(p.acceptedAt)} · confirm the details, then mark won` : `on ${fmtDay(p.sentAt)} · it's in the conversation below`}</span>
+            ${l.outcome ? '' : '<button type="button" class="cl-btn" data-prop="draft">Draft a revised one</button>'}</div>`;
+    }
+    if (p?.status === 'draft') {
+        return `<h4>Proposal <span class="ld-prop-tag">Needs your review</span></h4>
+            <p class="ld-thread-note">${p.ai ? 'Drafted by AI from their answers.' : 'Draft.'} Check it, adjust anything you like, and fill in every [bracketed] blank such as the price. Nothing is sent until you press Send.</p>
+            <label class="sr-only" for="ld-prop-text">Proposal to ${escapeHtml(l.name || 'the lead')}</label>
+            <textarea id="ld-prop-text" class="ld-prop-text" rows="14" maxlength="8000">${escapeHtml(p.body || '')}</textarea>
+            <p class="ld-prop-blanks" id="ld-prop-blanks" role="status"></p>
+            <div class="ld-row-inline">
+                <button type="button" class="cl-btn ld-primary" data-prop="send">Send proposal</button>
+                <button type="button" class="cl-btn" data-prop="save">Save draft</button>
+                <button type="button" class="cl-btn" data-prop="draft">Redraft with AI</button>
+                <span class="cb-hint" id="ld-prop-status" role="status"></span>
+            </div>`;
+    }
+    if (!l.email || l.unsubscribed || l.outcome) return '';
+    return `<h4>Proposal</h4><div class="ld-row-inline"><button type="button" class="cl-btn" data-prop="draft">Draft a proposal</button><span class="cb-hint" id="ld-prop-status" role="status">Writes one from what they've told you, for you to review before anything is sent.</span></div>`;
+}
+
+function ldWireProposal(l, body) {
+    const ta = body.querySelector('#ld-prop-text'), st = () => body.querySelector('#ld-prop-status');
+    const blanks = () => {
+        const el = body.querySelector('#ld-prop-blanks'), b = ldBlanks(ta.value);
+        el.textContent = b.length ? `Fill in before sending: ${b.join(', ')}` : '✓ No blanks left';
+        el.classList.toggle('ld-prop-ready', !b.length);
+        body.querySelector('[data-prop="send"]').setAttribute('aria-disabled', String(!!b.length));
+    };
+    if (ta) { blanks(); ta.addEventListener('input', blanks); }
+    body.querySelectorAll('[data-prop]').forEach(btn => btn.addEventListener('click', async () => {
+        const action = btn.dataset.prop;
+        if (action === 'send') {
+            const b = ldBlanks(ta.value);
+            if (b.length) { st().textContent = `Fill in ${b[0]} first.`; ta.focus(); return; }
+            if (!confirm(`Send this proposal to ${l.name || l.email}?`)) return;
+        }
+        if (action === 'draft' && ta && ta.value.trim() && !confirm('Replace this draft with a new AI draft? Your edits will be lost.')) return;
+        btn.disabled = true;
+        if (st()) st().textContent = action === 'draft' ? 'Drafting… (up to a minute)' : action === 'send' ? 'Sending…' : 'Saving…';
+        try {
+            const d = await ldPost(`/api/leads/${l.id}/proposal`, { action, body: ta ? ta.value : '' });
+            l.proposal = JSON.stringify(d.proposal);
+            if (action === 'save') { st().textContent = '✓ Draft saved'; btn.disabled = false; return; }
+            await loadLeads();
+        } catch (err) { btn.disabled = false; if (st()) st().textContent = `Not ${action === 'send' ? 'sent' : action === 'save' ? 'saved' : 'drafted'}: ${err.message}`; }
+    }));
 }
 
 function ldOutcomeHtml(l) {
@@ -3932,6 +4006,7 @@ async function ldPost(path, payload) {
 }
 
 function ldWireSales(l, body) {
+    ldWireProposal(l, body);
     const form = body.querySelector('.ld-outcome-form');
     body.querySelectorAll('[data-outcome-form]').forEach(b => b.addEventListener('click', () => {
         const kind = b.dataset.outcomeForm;
@@ -3972,11 +4047,18 @@ async function ldLoadThread(l) {
     const notes = [];
     if (!d.replyTracking) notes.push('Reply tracking isn\'t set up, so the lead\'s replies go to your inbox and won\'t show here. Use "They replied" when they answer.');
     if (d.unsubscribed) notes.push('This lead unsubscribed: no more automatic emails.');
-    if (d.pending?.task) notes.push(`Next automatic step: ${d.pending.task.kind === 'reminder' ? 'a reminder' : 'closing emails if there\'s still no reply'} on ${ldFmtWhen(d.pending.task.scheduled_for)}.`);
+    if (d.pending?.task) notes.push(`Next automatic step: ${({ reminder: 'a reminder', checkpoint: 'closing emails if there\'s still no reply', details_timeout: 'if they haven\'t answered, we draft the proposal from what we know (for your review)', proposal_nudge: 'one gentle nudge about the proposal if they\'re still quiet' })[d.pending.task.kind] || 'a follow-up'} on ${ldFmtWhen(d.pending.task.scheduled_for)}.`);
     const seq = d.pending?.sequence || [];
     if (seq.length) notes.push(seq.some(s => s.status === 'draft') ? `${seq.length} closing email${seq.length === 1 ? '' : 's'} drafted and waiting for your approval (Campaign button).` : `${seq.length} closing email${seq.length === 1 ? '' : 's'} scheduled; the next goes out ${ldFmtWhen(Math.max(Date.now(), seq[0].scheduled_for))}.`);
+    const files = d.files || [];
     box.innerHTML = `
         ${notes.map(n => `<p class="ld-thread-note">${escapeHtml(n)}</p>`).join('')}
+        ${files.length ? `<div class="ld-files"><p class="ld-files-head">Files from ${escapeHtml(firstNameOf(l.name))}</p><ul>${files.map(f => `
+            <li class="ld-file${f.status === 'stored' ? '' : ' ld-file-skipped'}">
+                ${f.status === 'stored' && /^image\//.test(f.type) && f.size <= 3145728 ? `<span class="ld-file-thumb" data-thumb="${f.id}" aria-hidden="true"></span>` : `<span class="ld-file-icon" aria-hidden="true">${escapeHtml((f.name.split('.').pop() || 'file').slice(0, 4).toUpperCase())}</span>`}
+                <span class="ld-file-meta"><strong>${escapeHtml(f.name)}</strong><span>${ldSize(f.size)} · ${ldFmtWhen(f.ts)}${f.status === 'stored' ? '' : ` · not saved: ${escapeHtml(f.note || '')}`}</span></span>
+                ${f.status === 'stored' ? `<button type="button" class="cl-btn" data-file="${f.id}" aria-label="Download ${escapeHtml(f.name)}">Download</button>` : ''}
+            </li>`).join('')}</ul></div>` : ''}
         ${msgs.length ? `<ol class="ld-thread">${msgs.map(m => `
             <li class="ld-msg ld-msg-${m.direction === 'in' ? 'in' : 'out'}${m.status === 'failed' ? ' ld-msg-failed' : ''}">
                 <div class="ld-msg-meta"><strong>${m.direction === 'in' ? escapeHtml(l.name || 'Lead') : escapeHtml(LD_KIND[m.kind] || 'Email')}</strong><span>${ldFmtWhen(m.ts)}${m.status === 'failed' ? ` · not sent: ${escapeHtml(m.error || 'error')}` : ''}</span></div>
@@ -3999,6 +4081,22 @@ async function ldLoadThread(l) {
         finally { btn.disabled = false; }
     });
     box.querySelector('[data-thread-download]')?.addEventListener('click', () => ldThreadDownload(l, msgs));
+    // Files come through the API (signed-in only): download as a blob; small images get a preview
+    const fileBlob = async (id) => { const r = await apiFetch(`${API_BASE}/api/leads/${l.id}/files/${id}`); if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `HTTP ${r.status}`); return r.blob(); };
+    box.querySelectorAll('[data-file]').forEach(btn => btn.addEventListener('click', async () => {
+        const f = files.find(x => String(x.id) === btn.dataset.file);
+        btn.disabled = true;
+        try {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(await fileBlob(f.id)); a.download = f.name;
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        } catch (err) { alert(`Could not download: ${err.message}`); }
+        finally { btn.disabled = false; }
+    }));
+    box.querySelectorAll('[data-thumb]').forEach(async (el) => {
+        try { const img = new Image(); img.alt = ''; img.src = URL.createObjectURL(await fileBlob(el.dataset.thumb)); el.appendChild(img); } catch (_) { /* icon stays blank */ }
+    });
     box.querySelector('[data-thread-print]')?.addEventListener('click', () => ldThreadPrint(l, msgs));
 }
 

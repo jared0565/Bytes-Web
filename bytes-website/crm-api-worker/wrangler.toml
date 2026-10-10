@@ -35,6 +35,11 @@ id = "cffce7f12c7248f7935c31f7c591c726"
 preview_id = "cffce7f12c7248f7935c31f7c591c726"
 
 # AI drafting/reading for the sales follow-up (chatbot-api's LlmService, Workers RPC)
+# Files leads attach to their replies (samples, references); limits and cleanup are in the code
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "bytes-lead-files"
+
 [[services]]
 binding = "LLM"
 service = "chatbot-api"
