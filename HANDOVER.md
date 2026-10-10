@@ -116,7 +116,7 @@ Vars in `wrangler.toml`: `ALLOWED_ORIGINS`, `AUTH_REDIRECT_URL`, `FRONTEND_*_URL
 |---|---|
 | `GEMINI_API_KEY` | Required (default model and lead extraction) |
 | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY` | Optional providers; models without a key show "(no API key)" |
-| `ADMIN_API_KEY` | Keys the scrambled visitor id used for the per-visitor chat limits. Changing it only resets that day's counts |
+| `ADMIN_API_KEY` | Keys the scrambled visitor id used for the per-visitor chat limits. It must stay set: without it every chat gets a 503, because an id made with a fixed key could be matched back to an IP address. Changing it only resets that day's counts |
 
 Per-client email senders (Resend, SendGrid or Mailgun) are saved by each client in the dashboard, in KV `mail:<clientId>`.
 
@@ -184,14 +184,17 @@ Old mode names map over: free/standard → scripted, pro → ai, elite → ai_pl
 
 | Limit | Value | Notes |
 |---|---|---|
-| Messages per chat | 10 | Later messages get a fixed reply with no AI call. An email typed then is still saved as a lead |
+| Messages per chat | 10 | Later messages get a fixed reply with no AI call. A first email typed then is still saved as a lead |
 | Characters per message | 500 | Both chat boxes stop typing there and show a count; the server refuses longer messages |
-| Messages per visitor per day, per bot | 30 | The visitor is a keyed hash of the IP address that changes daily (`chat_logs.visitor`) |
-| New leads per visitor per hour, per bot | 3 | Each new lead sends a confirmation email |
+| Messages per visitor per day, per bot | 30 | The visitor is a keyed hash of their network that changes daily (`chat_logs.visitor`) |
+| New leads per visitor per hour, across all bots | 3 | Each new lead sends a confirmation email. A lead over the limit is not saved |
 | Messages per visitor per minute, per bot | 8 | `CHAT_LIMITER` in `chatbot-api/wrangler.jsonc`, not plans.json |
 
+A visitor's network is their IPv4 address, or the first half (/64) of an IPv6 address (`netOf`). All three per-visitor
+limits count it, so changing address inside one IPv6 network does not reset them.
+
 Fixed replies (over a limit, chat closed, AI unavailable) are not written to `chat_logs`, so they do not count against
-the daily allowance.
+the daily allowance. The one exception is a first email typed after the chat limit: that message is logged.
 
 **Rules** (crm-api `entitlements()`, `modesForPlan()`, `syncBotMode()`):
 - **Trial:** 7 days, only meaningful on the Free plan. A trial gives AI replies and AI follow-ups on Free limits
@@ -239,6 +242,12 @@ the daily allowance.
     messages later to update the lead.
   - Script bots: the script updates the lead as timeline and budget arrive.
   - An update never replaces a known value with an empty one, and never changes the email.
+  - Nothing a visitor can see depends on the `leads` table: not the reply, not how long it takes, not the
+    `THIS TURN` block. Otherwise a reply would show whether an email address is already a lead of that business.
+    So every visitor who gives an email gets the same confirmation sentence ("...unless you've already had one"),
+    the lead is saved after the reply has gone (`keepLead`, in `ctx.waitUntil`), and one SQL statement checks and
+    saves it. The reply no longer returns `leadData`.
+  - Known limit: a visitor over the hourly lead limit is told the same as everyone else, but that lead is not saved.
 - **Scripted bot (`scriptedTurn`):** works out where a chat is by replaying the visitor's messages from `chat_logs`.
   It cannot answer questions and says so.
 - **Where the chat sends people:** the contact form (`#contact`) on the Bytes website; a client's booking link, or

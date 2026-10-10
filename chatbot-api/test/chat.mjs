@@ -23,11 +23,13 @@ kv.set('client:tiny', JSON.stringify({ mode: 'scripted', companyName: 'Tiny', al
 const seen = { chat: [], facts: [], hooks: [] };
 let brain = () => '[business] Happy to help.';
 let facts = () => ({ name: '', need: '', budget: '', timeline: '', summary: '' });
+let hold = null; // a promise here makes the lead reader wait until it resolves
 const gem = t => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: t }] } }] }));
 globalThis.fetch = async (u, o) => {
   const url = String(u), body = o?.body ? JSON.parse(o.body) : {};
+  await new Promise(res => setImmediate(res)); // a real network call lets other requests run meanwhile
   if (url.includes('/webhooks/new-lead')) { seen.hooks.push(body); return new Response('{}'); }
-  if (url.includes('flash-lite:generateContent')) { seen.facts.push(body); return gem(JSON.stringify(facts())); }
+  if (url.includes('flash-lite:generateContent')) { seen.facts.push(body); if (hold) await hold; return gem(JSON.stringify(facts())); }
   if (url.includes('generativelanguage')) {
     const call = { sys: body.system_instruction?.parts?.[0]?.text || '', contents: body.contents };
     seen.chat.push(call);
@@ -41,10 +43,13 @@ const waits = []; const ctx = { waitUntil: p => waits.push(p) };
 let seq = 0;
 // Each chat is a new visitor (own IP) unless told otherwise
 const chat = (client = 'default') => { const n = ++seq; return { client, session: 'chat-' + String(n).padStart(14, '0'), ip: '198.51.100.' + n }; };
+const post = (c, message, e = env) => worker.fetch(new Request('https://ai.bytesfx.com/', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://web.bytesfx.com', 'CF-Connecting-IP': c.ip }, body: JSON.stringify({ message, clientId: c.client, sessionId: c.session }) }), e, ctx);
+// Leads are saved after the reply has gone: wait for that work before looking at the database
+const settle = async () => { while (waits.length) await Promise.all(waits.splice(0)); };
 async function send(c, message, e = env) {
   const before = seen.chat.length;
-  const res = await worker.fetch(new Request('https://ai.bytesfx.com/', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://web.bytesfx.com', 'CF-Connecting-IP': c.ip }, body: JSON.stringify({ message, clientId: c.client, sessionId: c.session }) }), e, ctx);
-  await Promise.all(waits.splice(0));
+  const res = await post(c, message, e);
+  await settle();
   const data = await res.json();
   const asked = seen.chat.length > before;
   return { status: res.status, text: data.response || '', data, asked, sys: asked ? seen.chat.at(-1).sys : '', contents: asked ? seen.chat.at(-1).contents : [] };
@@ -133,10 +138,11 @@ r = await send(c, 'a new website. email me at kim@shop.co');
 let L = leadsOf(c)[0];
 ok('AI bot: the lead is saved on the message that carries the email, name or not', leadsOf(c).length === 1 && L.email === 'kim@shop.co' && L.name === 'Visitor' && L.service === 'A new website' && L.budget === 'Not yet specified', JSON.stringify(L));
 ok('the CRM is told once', !!L && told(L.id) === 1);
-ok('THIS TURN told the bot a confirmation email will be sent', /Email already given: yes\./.test(turn(r.sys)) && /Confirmation email will be sent: yes\./.test(turn(r.sys)), turn(r.sys));
+ok('THIS TURN told the bot a confirmation email will be sent', /Email already given: yes\./.test(turn(r.sys)) && /Confirmation email will be sent: yes, unless this address has had one before\./.test(turn(r.sys)), turn(r.sys));
+ok('the reply never carries the lead back to the browser', !('leadData' in r.data), Object.keys(r.data).join());
 facts = () => ({ name: 'Kim', need: 'A new website', budget: '', timeline: 'March', summary: 'Kim wants a new website by March.' });
 r = await send(c, 'by March');
-ok('next message: same lead, not updated yet, confirmation not announced again', leadsOf(c).length === 1 && leadsOf(c)[0].name === 'Visitor' && /Confirmation email will be sent: no\. One was sent earlier in this chat\./.test(turn(r.sys)), turn(r.sys));
+ok('next message: same lead, not updated yet, confirmation not announced again', leadsOf(c).length === 1 && leadsOf(c)[0].name === 'Visitor' && /Confirmation email will be sent: no\. It was mentioned earlier in this chat\./.test(turn(r.sys)), turn(r.sys));
 facts = () => ({ name: 'Kim', need: '', budget: 'around 5k', timeline: 'March', summary: 'Kim wants a new website by March, budget around 5k.' });
 await send(c, 'around 5k');
 L = leadsOf(c)[0];
@@ -154,11 +160,20 @@ const afterFake = await send(c, 'why?');
 ok('a placeholder email saves no lead and does not count as given', leadsOf(c).length === 0 && /Email already given: no\./.test(turn(afterFake.sys)), turn(afterFake.sys));
 facts = () => ({ name: 'Lee', need: '', budget: '', timeline: '', summary: '' });
 r = await send(c, 'ok, lee@studio.io');
-ok('the real address typed next is saved', leadsOf(c).length === 1 && leadsOf(c)[0].email === 'lee@studio.io' && /Confirmation email will be sent: yes\./.test(turn(r.sys)), JSON.stringify(leadsOf(c)));
+ok('the real address typed next is saved', leadsOf(c).length === 1 && leadsOf(c)[0].email === 'lee@studio.io' && /Confirmation email will be sent: yes,/.test(turn(r.sys)), JSON.stringify(leadsOf(c)));
 
 c = chat();
+let hooks = seen.hooks.length;
 r = await send(c, 'me again, lee@studio.io');
-ok('same email on the same bot within 30 days: no second lead, no confirmation promised', leadsOf(c).length === 0 && /Email already given: yes\./.test(turn(r.sys)) && /Confirmation email will be sent: no\./.test(turn(r.sys)), turn(r.sys));
+ok('same email on the same bot within 30 days: no second lead, and the CRM is not told again', leadsOf(c).length === 0 && seen.hooks.length === hooks, `${leadsOf(c).length} ${seen.hooks.length - hooks}`);
+
+// The reply must not wait for the lead: how long it takes would show whether a lead was being saved
+c = chat();
+let release; hold = new Promise(res => { release = res; });
+const pending = post(c, 'I need an app. I am Mo, mo@apps.co');
+const first = await Promise.race([pending.then(() => 'replied'), new Promise(res => setTimeout(() => res('waited'), 300))]);
+release(); hold = null; await pending; await settle();
+ok('the reply is sent before the lead is read and saved', first === 'replied' && leadsOf(c).length === 1, first);
 
 c = chat();
 brain = () => "[business] Happy to help. What's your name and email so the team can send a quote?";
@@ -174,7 +189,39 @@ let saved = 0;
 for (let i = 0; i < LEADS_HOUR; i++) { const x = { ...chat(), ip: ipLeads }; await send(x, `I am person ${i}: mail${i}@firm${i}.co`); saved += leadsOf(x).length; }
 c = { ...chat(), ip: ipLeads };
 r = await send(c, 'and one more: extra@firm9.co');
-ok('one visitor can create 3 leads an hour; the next is not saved and no confirmation is promised', saved === LEADS_HOUR && leadsOf(c).length === 0 && /Confirmation email will be sent: no\./.test(turn(r.sys)), `${saved} ${turn(r.sys)}`);
+ok('one visitor can create 3 leads an hour; the next is not saved', saved === LEADS_HOUR && leadsOf(c).length === 0, `${saved} ${leadsOf(c).length}`);
+c = { ...chat('booker'), ip: ipLeads };
+await send(c, 'and on another bot: other@firm8.co');
+ok('the hourly lead limit counts one visitor across all bots', leadsOf(c).length === 0, String(leadsOf(c).length));
+const racers = Array.from({ length: 6 }, () => ({ ...chat(), ip: '203.0.113.21' }));
+hooks = seen.hooks.length;
+await Promise.all(racers.map((x, i) => post(x, `hello, I am racer ${i}: racer${i}@team${i}.co`)));
+await settle();
+const raced = racers.reduce((n, x) => n + leadsOf(x).length, 0);
+ok('six chats started at once by one visitor still save 3 leads and send 3 emails', raced === LEADS_HOUR && seen.hooks.length - hooks === LEADS_HOUR, `${raced} ${seen.hooks.length - hooks}`);
+
+// ─── What a visitor is told never depends on what the leads table holds ─────────
+// Otherwise the replies would show whether an email address is already a lead of that business. The same chat is
+// run by a new visitor, by one whose email the bot already has, and by one over the hourly lead limit.
+brain = () => '[business] Sure.';
+facts = () => ({ name: 'Sam', need: 'A website', budget: '', timeline: '', summary: 'Sam wants a website.' });
+const early = email => ['I need a new website', `Sam Poe, ${email}`, 'next month', 'about 2k', ...Array.from({ length: LIMIT - 4 }, (_, i) => `one more thing, number ${i}`), 'are you still there?'];
+const late = email => [...Array.from({ length: LIMIT }, (_, i) => `question ${i} about websites`), `ok, reach me at ${email}`, 'hello?'];
+async function play(x, messages) {
+  const out = [];
+  for (const m of messages) { const t = await send(x, m); out.push(JSON.stringify([t.status, t.text, Object.keys(t.data).sort(), turn(t.sys)])); }
+  return out;
+}
+const ipCapped = '203.0.113.30';
+for (let i = 0; i < LEADS_HOUR; i++) await send({ ...chat('booker'), ip: ipCapped }, `I am person ${i}: cap${i}@firm${i}.co`);
+let nth = 0;
+for (const bot of ['default', 'script']) for (const [when, messages] of [['early', early], ['after the limit', late]]) {
+  const n = ++nth, fresh = chat(bot), known = chat(bot), capped = { ...chat(bot), ip: ipCapped };
+  const a = await play(fresh, messages(`sam${n}@poe${n}.co`)), b = await play(known, messages(`sam${n}@poe${n}.co`)), d = await play(capped, messages(`cap${n}@poe${n}.co`));
+  const at = a.findIndex((t, i) => t !== b[i] || t !== d[i]);
+  ok(`${bot} bot, email given ${when}: new, known and over-the-limit visitors are told the same at every message`, at < 0 && leadsOf(fresh).length === 1 && leadsOf(known).length === 0 && leadsOf(capped).length === 0,
+    at < 0 ? [fresh, known, capped].map(x => leadsOf(x).length).join() : `message ${at + 1}: ${a[at]} | ${b[at]} | ${d[at]}`);
+}
 
 // ─── Per-chat limits ──────────────────────────────────────────────────────────
 c = chat();
@@ -186,7 +233,7 @@ r = await send(c, 'another question');
 ok('the next message gets a fixed reply with the contact form: no AI call, nothing logged', !r.asked && r.status === 200 && r.text.includes(FORM) && logs(c).length === LIMIT, r.text);
 facts = () => ({ name: 'Pat', need: 'Hosting', budget: '', timeline: '', summary: 'Pat asked about hosting.' });
 r = await send(c, 'ok, email me: pat@firm.co');
-ok('an email typed after the limit is still saved', leadsOf(c).length === 1 && leadsOf(c)[0].email === 'pat@firm.co' && !r.asked && /has your details/.test(r.text), r.text);
+ok('an email typed after the limit is still saved, and that one message is logged so the chat remembers it', leadsOf(c).length === 1 && leadsOf(c)[0].email === 'pat@firm.co' && !r.asked && /has your details/.test(r.text) && /confirm your address/.test(r.text) && logs(c).length === LIMIT + 1, r.text);
 r = await send(c, 'hello?');
 ok('after that the fixed reply says the team has the details', !r.asked && /has your details/.test(r.text) && leadsOf(c).length === 1, r.text);
 
@@ -219,6 +266,16 @@ const net = [{ ...chat(), ip: '2001:db8:1:2:aaaa::1' }, { ...chat(), ip: '2001:d
 for (const x of net) await send(x, 'hello there');
 const [v1, v2, v3] = net.map(x => logs(x)[0].visitor);
 ok('IPv6 addresses on one network count as one visitor', !!v1 && v1 === v2 && v1 !== v3, `${v1} ${v2} ${v3}`);
+// '::' stands for groups of zeros, which can be part of the network: 2001:db8::a:b:c:d is 2001:db8:0:0:a:b:c:d
+const zero = [{ ...chat(), ip: '2001:db8::a:b:c:d' }, { ...chat(), ip: '2001:db8:0:0:1:2:3:4' }, { ...chat(), ip: '2001:db8::1' }];
+const keys = [], counting = { ...env, CHAT_LIMITER: { limit: async ({ key }) => { keys.push(key); return { success: true }; } } };
+for (const x of zero) await send(x, 'hello there', counting);
+const ids = zero.map(x => logs(x)[0]?.visitor);
+ok('a shortened IPv6 address is the same visitor as its full form', !!ids[0] && new Set(ids).size === 1, ids.join(' '));
+ok('the per-minute limit is counted per network too, not per address', keys.length === 3 && new Set(keys).size === 1, keys.join(' '));
+c = chat();
+r = await send(c, 'hello there', { ...env, ADMIN_API_KEY: '' });
+ok('without the secret that scrambles visitor ids the chat is unavailable: no id is ever made from a fixed key', r.status === 503 && !r.asked && logs(c).length === 0, String(r.status));
 
 const ipBusy = '203.0.113.9';
 for (let sent = 0; sent < PER_DAY;) { const x = { ...chat(), ip: ipBusy }; for (let i = 0; i < LIMIT && sent < PER_DAY; i++, sent++) await send(x, `message ${i} of a busy day`); }
@@ -250,6 +307,7 @@ c = chat('script');
 r = await send(c, 'I need SEO');
 ok('script bots make no AI call', !r.asked && /name and the best email/.test(r.text), r.text);
 r = await send(c, 'Sam Lee, sam@lee.co');
+const firstTime = r.text;
 L = leadsOf(c)[0];
 ok('script bot: lead saved when the email arrives, confirmation email mentioned', leadsOf(c).length === 1 && L.name === 'Sam Lee' && L.service === 'SEO' && L.budget === 'Not yet specified' && /confirm your address/.test(r.text), JSON.stringify([L, r.text]));
 await send(c, 'next month');
@@ -257,9 +315,10 @@ await send(c, 'about 2k');
 L = leadsOf(c)[0];
 ok('script bot: the same lead is updated with timeline and budget, and the CRM is told once', leadsOf(c).length === 1 && L.budget === 'about 2k' && /next month/.test(L.summary) && told(L.id) === 1, JSON.stringify(L));
 c = chat('script');
-await send(c, 'SEO please');
-r = await send(c, 'Sam, sam@lee.co');
-ok('script bot: a known email gets no second lead and no confirmation sentence', leadsOf(c).length === 0 && !/confirm/i.test(r.text) && /when would you like this done\?/.test(r.text), r.text);
+await send(c, 'I need SEO');
+hooks = seen.hooks.length;
+r = await send(c, 'Sam Lee, sam@lee.co');
+ok('script bot: a known email gets no second lead and no second email, and the same reply as the first time', leadsOf(c).length === 0 && seen.hooks.length === hooks && r.text === firstTime && /when would you like this done\?/.test(r.text), r.text);
 
 const cfg = await (await worker.fetch(new Request('https://ai.bytesfx.com/public/config?clientId=default', { headers: { Origin: 'https://web.bytesfx.com' } }), env, ctx)).json();
 ok('the widget is told the character limit', cfg.maxMessageChars === CHARS && CHARS > 0, JSON.stringify(cfg));

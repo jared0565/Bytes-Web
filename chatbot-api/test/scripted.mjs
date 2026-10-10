@@ -4,7 +4,7 @@ const DENTAL = ['Teeth whitening', 'Dental implants', 'Check-ups'], AGENCY = ['S
 const run = (msgs, opts = {}) => {
   const history = []; const out = [];
   for (const m of msgs) {
-    const r = scriptedTurn({ message: m, history, companyName: opts.company ?? 'Acme Dental', services: opts.services ?? DENTAL, booking: opts.booking ?? 'https://cal.com/acme', house: !!opts.house, emailRegex, confirm: opts.confirm ?? true });
+    const r = scriptedTurn({ message: m, history, companyName: opts.company ?? 'Acme Dental', services: opts.services ?? DENTAL, booking: opts.booking ?? 'https://cal.com/acme', house: !!opts.house, emailRegex });
     out.push([m, r.text, r.lead]); history.push({ role: 'user', parts: [{ text: m }] }, { role: 'model', parts: [{ text: r.text }] });
   }
   return out;
@@ -68,8 +68,8 @@ ok('a visitor who only asks questions is not told "No problem"', !/No problem/.t
 // Optional answers, confirmation wording, bots without a booking link
 o = run(['web design', 'Sam sam@x.com', 'asap', 'not sure'], { services: AGENCY });
 ok('"not sure" is a complete budget answer', o[3][2]?.budget === 'Not sure' && /That's everything, Sam/.test(o[3][1]), JSON.stringify(o[3][2]));
-o = run(['web design', 'Sam sam@x.com'], { services: AGENCY, confirm: false });
-ok('no confirmation email is promised when none will be sent', !/confirm/i.test(o[1][1]) && /when would you like this done\?/.test(o[1][1]), o[1][1]);
+o = run(['web design', 'Sam sam@x.com'], { services: AGENCY });
+ok('the confirmation sentence is also true for an address that has had the email before', /confirm your address, unless you've already had one\./.test(o[1][1]) && /when would you like this done\?/.test(o[1][1]), o[1][1]);
 o = run(['We need a new logo for our cafe', 'Ana ana@x.com', 'next month', '500'], { services: [], booking: '' });
 ok('no services list: the first message is the need; no booking line', o[1][2]?.service.includes('logo') && !/Book/.test(o[3][1]) && /That's everything, Ana/.test(o[3][1]), JSON.stringify([o[1][2], o[3][1]]));
 o = run(['web design', 'no thanks', 'nope'], { services: AGENCY, booking: '' });

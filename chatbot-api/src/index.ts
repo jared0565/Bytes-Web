@@ -8,10 +8,10 @@ export interface Env {
 	ANTHROPIC_API_KEY?: string;
 	OPENAI_API_KEY?: string;
 	OPENROUTER_API_KEY?: string;
-	ADMIN_API_KEY: string;       // keys the daily visitor hash (visitorKey); the old admin API it guarded is retired
+	ADMIN_API_KEY: string;       // keys the daily visitor hash (visitorKey), so it must stay set; the old admin API it guarded is retired
 	DB: D1Database;
 	CLIENT_SETTINGS: KVNamespace;
-	CHAT_LIMITER?: RateLimit;    // per visitor IP + chatbot
+	CHAT_LIMITER?: RateLimit;    // per visitor network + chatbot
 	CLIENT_LIMITER?: RateLimit;  // per chatbot, all visitors
 	ALLOW_LOCALHOST?: string;    // '1' only in local development
 }
@@ -215,20 +215,29 @@ async function loadHistory(env: Env, clientId: string, sessionId: string): Promi
 	return { turns, labels, count: Number((cnt as any)?.n || 0) };
 }
 
+// Every per-visitor limit counts a network, not an address: an IPv4 address, or the first half (/64) of an IPv6 one,
+// since one device has many addresses there. '::' is filled in first, so the same network always gives the same four groups.
+function netOf(ip: string): string {
+	if (!ip.includes(':')) return ip;
+	const [head, tail] = ip.toLowerCase().split('::');
+	const h = head ? head.split(':') : [], t = tail ? tail.split(':') : [];
+	const groups = tail === undefined ? h : [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill('0'), ...t];
+	return groups.slice(0, 4).map(g => g.replace(/^0+(?=.)/, '')).join(':');
+}
 // Rate limits: Cloudflare's rate-limiting bindings (shared across the edge, unlike an in-memory map)
-async function overRateLimit(env: Env, ip: string, clientId: string): Promise<boolean> {
+async function overRateLimit(env: Env, net: string, clientId: string): Promise<boolean> {
 	try {
-		if (env.CHAT_LIMITER && !(await env.CHAT_LIMITER.limit({ key: `${ip}:${clientId}` })).success) return true;
+		if (env.CHAT_LIMITER && !(await env.CHAT_LIMITER.limit({ key: `${net}:${clientId}` })).success) return true;
 		if (env.CLIENT_LIMITER && !(await env.CLIENT_LIMITER.limit({ key: clientId })).success) return true;
 	} catch (e) { console.error('[RateLimit]', e); }
 	return false;
 }
-// A visitor is recognised by a keyed hash of their IP address that changes every day: no cookie, and the
-// address itself is never stored. IPv6 is cut to its network (/64), since one device has many addresses there.
-async function visitorKey(env: Env, ip: string): Promise<string> {
+// A visitor is recognised by a keyed hash of their network that changes every day: no cookie, and the address
+// itself is never stored. The key is a secret: with a fixed one, a stored id could be matched back to an address.
+async function visitorKey(env: Env, net: string): Promise<string> {
+	if (!env.ADMIN_API_KEY) throw new Error('ADMIN_API_KEY is not set');
 	const enc = new TextEncoder();
-	const net = ip.includes(':') ? ip.toLowerCase().split(':').slice(0, 4).join(':') : ip;
-	const key = await crypto.subtle.importKey('raw', enc.encode(env.ADMIN_API_KEY || 'local'), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+	const key = await crypto.subtle.importKey('raw', enc.encode(env.ADMIN_API_KEY), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
 	const sig = await crypto.subtle.sign('HMAC', key, enc.encode(`${net}|${new Date().toISOString().slice(0, 10)}`));
 	return [...new Uint8Array(sig)].slice(0, 16).map(b => b.toString(16).padStart(2, '0')).join('');
 }
@@ -255,6 +264,10 @@ function chatEmail(texts: string[], emailRegex: RegExp): string {
 	for (let i = texts.length - 1; i >= 0; i--) { const e = emailIn(texts[i], emailRegex); if (e) return e; }
 	return '';
 }
+// What a visitor is told about their details depends only on what was typed in the chat, never on what the leads
+// table holds: otherwise a reply would show whether an email address is already this business's lead. So this
+// sentence has to be true both for a new address and for one that was sent the email on an earlier visit.
+const CONFIRM = "We'll email you a link to confirm your address, unless you've already had one.";
 
 // ─── Scripted mode ────────────────────────────────────────────────────────────
 // Four questions in a fixed order: need, name and email, timeline, budget. Where a chat has got to is worked
@@ -289,7 +302,7 @@ function cleanName(text: string): string {
 	return t.slice(0, 60);
 }
 
-export function scriptedTurn(o: { message: string, history: Turn[], companyName: string, services: string[], booking: string, house: boolean, emailRegex: RegExp, confirm?: boolean }): { text: string, lead: Lead | null } {
+export function scriptedTurn(o: { message: string, history: Turn[], companyName: string, services: string[], booking: string, house: boolean, emailRegex: RegExp }): { text: string, lead: Lead | null } {
 	const { companyName, services, booking, house, emailRegex } = o;
 	// Offered once the visitor has declined to give an email twice
 	const fallback = booking ? `You can book a time with the team here: ${booking}`
@@ -339,8 +352,8 @@ export function scriptedTurn(o: { message: string, history: Turn[], companyName:
 			const lead = sorry || (t.includes('@') ? "That doesn't look like a working email address. " : first() ? thanks : s.emailAsks === 2 ? 'No worries. ' : thanks);
 			return `${lead}${s.name ? "What's the best email to reach you?" : "What's your name and the best email to reach you?"} The team will reply there.`;
 		}
-		// The confirmation email goes out only when a new lead is saved (not for an address this chatbot already has)
-		const confirm = arrived && o.confirm ? "We'll email you a link to confirm your address. " : '';
+		// Said to everyone who gives an email, whether or not the address is new (see CONFIRM)
+		const confirm = arrived ? `${CONFIRM} ` : '';
 		if (!s.need && !s.needAsks) { s.needAsks++; s.asked = 'need'; return thanks + confirm + needQuestion; }
 		if (s.timeline === undefined) {
 			s.asked = 'timeline';
@@ -422,7 +435,7 @@ function turnNotes(o: { n: number, email: boolean, asks: number, confirmation: '
 THIS TURN
 - This is visitor message ${o.n} of ${SESSION_MAX_MESSAGES}. Never mention message numbers or limits to the visitor.
 - Email already given: ${o.email ? 'yes' : 'no'}. Times you have asked for it: ${o.asks}.${!o.email && o.asks >= 2 ? ' Do not ask for it again.' : ''}
-- Confirmation email will be sent: ${o.confirmation === 'now' ? 'yes' : 'no'}.${o.confirmation === 'sent' ? ' One was sent earlier in this chat.' : ''}${o.n >= SESSION_MAX_MESSAGES ? `
+- Confirmation email will be sent: ${o.confirmation === 'now' ? 'yes, unless this address has had one before' : 'no'}.${o.confirmation === 'sent' ? ' It was mentioned earlier in this chat.' : ''}${o.n >= SESSION_MAX_MESSAGES ? `
 - This is your last reply. Do not ask a question: ${o.close}` : ''}`;
 }
 
@@ -512,11 +525,11 @@ export default {
 		const CLOSED = `I can only help with questions about ${companyName || (house ? 'BytesFX' : 'this business')} and its services, so I'll end the chat here. To reach the team, please use ${form}`;
 
 		// 2. Limits before any paid work: per visitor, per chatbot, per day. None of these replies is logged or counted.
-		const clientIP = request.headers.get('CF-Connecting-IP') || 'unknown';
-		if (await overRateLimit(env, clientIP, clientId)) return reply(`I'm getting a lot of messages right now. Please try again in a minute, or use ${form}`);
+		const net = netOf(request.headers.get('CF-Connecting-IP') || 'unknown');
+		if (await overRateLimit(env, net, clientId)) return reply(`I'm getting a lot of messages right now. Please try again in a minute, or use ${form}`);
 		if (typed.length > MAX_MESSAGE_CHARS) return reply(`That message is longer than this chat allows (${MAX_MESSAGE_CHARS} characters). Please send a shorter one, or use ${form}`);
 		let visitor = '';
-		try { await ensureSchema(env); visitor = await visitorKey(env, clientIP); } catch (e) { console.error('Schema Error:', e); return json({ error: 'The chatbot is temporarily unavailable. Please try again.' }, 503, cors); }
+		try { await ensureSchema(env); visitor = await visitorKey(env, net); } catch (e) { console.error('Setup Error:', e); return json({ error: 'The chatbot is temporarily unavailable. Please try again.' }, 503, cors); }
 		const full = await overDailyCap(env, clientId, tier, visitor);
 		if (full) return reply(`${full === 'bot' ? "Thanks for your message! I can't take more chats today." : "Thanks for chatting! That's as much as I can help with today."} To reach the team, please use ${form}`);
 
@@ -529,33 +542,32 @@ export default {
 		const ended = spam || labels.filter(l => l === 'offtopic').length >= 2;
 		const over = ended || sessionCount >= SESSION_MAX_MESSAGES;
 
-		// 3. Leads. One per conversation, saved when the email arrives. 'new' = this message will save one;
-		// 'known' = this chatbot already has it (this chat, or the same email in the last 30 days);
-		// 'capped' = this visitor has made too many in the last hour (each new lead sends a confirmation email).
+		// 3. Leads. One per conversation, saved when the email arrives and filled in by later answers.
+		// Nothing a visitor can see (the reply, how long it takes, what the AI is told) may depend on the leads table,
+		// or it would show whether an address is already this business's lead. So replies go by the chat alone
+		// (`emailAt`: the message that first gave an email), and the lead is saved after the reply has gone.
+		const emailAt = said.findIndex(t => !!emailIn(t, emailRegex));
+		const emailNow = !!email && emailAt === said.length - 1;
 		type SavedLead = { id: number, name: string, service: string, budget: string, summary: string };
-		const sessionLead = (email || over) && !spam
-			? await env.DB.prepare('SELECT id, name, service, budget, summary FROM leads WHERE client_id = ? AND session_id = ? LIMIT 1').bind(clientId, sessionId).first() as SavedLead | null : null;
-		let leadState: 'none' | 'new' | 'known' | 'capped' = sessionLead ? 'known' : 'none';
-		if (email && !sessionLead && !spam) {
-			const [dup, recent] = await Promise.all([
-				env.DB.prepare('SELECT id FROM leads WHERE client_id = ? AND lower(email) = lower(?) AND timestamp > ? LIMIT 1').bind(clientId, email, Date.now() - 30 * 86400000).first(),
-				env.DB.prepare('SELECT COUNT(*) AS n FROM leads l WHERE l.client_id = ? AND l.timestamp > ? AND EXISTS (SELECT 1 FROM chat_logs c WHERE c.session_id = l.session_id AND c.client_id = l.client_id AND c.visitor = ?)')
-					.bind(clientId, Date.now() - 3600000, visitor).first(),
-			]);
-			leadState = dup ? 'known' : Number((recent as any)?.n || 0) >= VISITOR_LEADS_PER_HOUR ? 'capped' : 'new';
-		}
+		// One statement checks and saves, so chats sent at the same moment can't all pass the checks first. No lead when
+		// this chat already has one, when this chatbot was given the same email in the last 30 days, or when this
+		// visitor has made too many in the last hour on any chatbot (each new lead sends a confirmation email).
 		const insertLead = async (lead: Lead) => {
+			const now = Date.now(), to = clip(lead.email, 254);
 			const { meta } = await env.DB.prepare(
-				'INSERT INTO leads (client_id, name, email, service, budget, summary, timestamp, session_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-			).bind(clientId, clip(lead.name, 80), clip(lead.email, 254), clip(lead.service, 120), clip(lead.budget, 80), clip(lead.summary, 600) || 'Chat enquiry', Date.now(), sessionId).run();
-			// crm-api sends the visitor the confirmation email
-			if (meta && meta.last_row_id) {
-				ctx.waitUntil(fetch('https://crm-api.bmorris0565.workers.dev/api/webhooks/new-lead', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ leadId: meta.last_row_id, clientId, budget: clip(lead.budget, 80) })
-				}).catch(err => console.error('Webhook Dispatch Error:', err)));
-			}
+				'INSERT INTO leads (client_id, name, email, service, budget, summary, timestamp, session_id) SELECT ?, ?, ?, ?, ?, ?, ?, ?'
+				+ ' WHERE NOT EXISTS (SELECT 1 FROM leads WHERE client_id = ? AND session_id = ?)'
+				+ ' AND NOT EXISTS (SELECT 1 FROM leads WHERE client_id = ? AND lower(email) = lower(?) AND timestamp > ?)'
+				+ ' AND (SELECT COUNT(*) FROM leads l WHERE l.timestamp > ? AND EXISTS (SELECT 1 FROM chat_logs c WHERE c.session_id = l.session_id AND c.visitor = ?)) < ?'
+			).bind(clientId, clip(lead.name, 80), to, clip(lead.service, 120), clip(lead.budget, 80), clip(lead.summary, 600) || 'Chat enquiry', now, sessionId,
+				clientId, sessionId, clientId, to, now - 30 * 86400000, now - 3600000, visitor, VISITOR_LEADS_PER_HOUR).run();
+			// crm-api sends the visitor the confirmation email: only for a lead this statement saved
+			if (meta?.changes !== 1 || !meta.last_row_id) return;
+			await fetch('https://crm-api.bmorris0565.workers.dev/api/webhooks/new-lead', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ leadId: meta.last_row_id, clientId, budget: clip(lead.budget, 80) })
+			}).catch(err => console.error('Webhook Dispatch Error:', err));
 		};
 		// Later answers fill in a saved lead. A value already known is never replaced by an empty one, and the email never changes.
 		const blank = (v: unknown) => !clean(v) || clean(v) === UNKNOWN;
@@ -568,27 +580,37 @@ export default {
 			await env.DB.prepare('UPDATE leads SET name = ?, service = ?, budget = ?, summary = ? WHERE id = ? AND client_id = ? AND session_id = ?')
 				.bind(next.name, next.service, next.budget, next.summary, old.id, clientId, sessionId).run();
 		};
+		// Saves or updates this chat's lead once the reply is on its way. `make` builds it: for AI bots a small model reads the chat.
+		const keepLead = (make: () => Lead | null | Promise<Lead | null>) => ctx.waitUntil((async () => {
+			const [mine, known] = await Promise.all([
+				env.DB.prepare('SELECT id, name, service, budget, summary FROM leads WHERE client_id = ? AND session_id = ? LIMIT 1').bind(clientId, sessionId).first() as Promise<SavedLead | null>,
+				env.DB.prepare('SELECT id FROM leads WHERE client_id = ? AND lower(email) = lower(?) AND timestamp > ? LIMIT 1').bind(clientId, email, Date.now() - 30 * 86400000).first(),
+			]);
+			if (!mine && known) return; // an address this chatbot already has
+			const lead = await make();
+			if (lead) await (mine ? updateLead(mine, lead) : insertLead(lead));
+		})().catch(e => console.error('Lead Error:', e)));
 		const aiLead = (f: Awaited<ReturnType<typeof extractLeadFacts>>): Lead => ({
 			name: clip(f?.name, 80) || 'Visitor', email, service: clip(f?.need, 120) || UNKNOWN, budget: clip(f?.budget, 80) || UNKNOWN, summary: clip(f?.summary, 600),
 		});
-		const script = (confirm: boolean) => scriptedTurn({ message, history, companyName, services: cleanServices(clientConfig?.services), booking, house, emailRegex, confirm });
-		const leadData = (l: Lead) => ({ leadData: { name: l.name, email: l.email, summary: l.summary } });
+		const script = () => scriptedTurn({ message, history, companyName, services: cleanServices(clientConfig?.services), booking, house, emailRegex });
+		const saveTurn = (botText: string, label: Label | null) => env.DB.prepare(
+			'INSERT INTO chat_logs (client_id, user_message, bot_response, timestamp, session_id, flag, visitor) VALUES (?, ?, ?, ?, ?, ?, ?)'
+		).bind(clientId, message, botText.slice(0, 4000), Date.now(), sessionId, label, visitor).run();
 
-		// 4. A chat that is over gets a fixed reply: no AI reply, nothing logged or counted
+		// 4. A chat that is over gets a fixed reply: no AI reply, and nothing logged or counted
 		if (over) {
-			// An email typed now is still a lead (never in a chat closed as spam)
-			if (leadState === 'new') {
-				try {
-					const lead = tier === 'scripted' ? script(true).lead : aiLead(await extractLeadFacts(env, [...history, { role: 'user', parts: [{ text: message }] }]));
-					if (lead) {
-						await insertLead(lead);
-						return reply("Thanks! The team has your details and will reply by email. We'll email you a link to confirm your address.", leadData(lead));
-					}
-				} catch (e) { console.error('Lead Error:', e); }
+			// except a first email, which is still a lead (never in a chat closed as spam). That one message is
+			// logged, so the chat remembers the email was given whether or not a lead was saved for it.
+			if (emailNow && !spam) {
+				const text = `Thanks! The team has your details and will reply by email. ${CONFIRM}`;
+				try { await saveTurn(text, null); } catch (e) { console.error('D1 Error:', e); }
+				keepLead(async () => tier === 'scripted' ? script().lead : aiLead(await extractLeadFacts(env, [...history, { role: 'user', parts: [{ text: message }] }])));
+				return reply(text);
 			}
-			if (leadState === 'known') return reply('Thanks for chatting! The team has your details and will reply by email.');
+			if (email && !spam) return reply('Thanks for chatting! The team has your details and will reply by email.');
 			if (ended) return reply(CLOSED);
-			return reply(`Thanks for chatting! This chat has reached its limit. ${leadState === 'none' ? 'Leave your email here and the team will reply, or use' : 'To reach the team, please use'} ${form}`);
+			return reply(`Thanks for chatting! This chat has reached its limit. Leave your email here and the team will reply, or use ${form}`);
 		}
 
 		// 5. Checks that need no AI. These replies are not logged or counted either.
@@ -598,20 +620,12 @@ export default {
 		const same = (a: string, b: string) => a.toLowerCase().replace(/\s+/g, ' ') === b.toLowerCase().replace(/\s+/g, ' ');
 		if (message.length >= 20 && history.length && same(history[history.length - 2].parts[0].text, message)) return reply(history[history.length - 1].parts[0].text);
 
-		const saveTurn = (botText: string, label: Label | null) => env.DB.prepare(
-			'INSERT INTO chat_logs (client_id, user_message, bot_response, timestamp, session_id, flag, visitor) VALUES (?, ?, ?, ?, ?, ?, ?)'
-		).bind(clientId, message, botText.slice(0, 4000), Date.now(), sessionId, label, visitor).run();
-
 		// --- Scripted mode: a guided enquiry built from the client's own services and booking link ---
 		if (tier === 'scripted') {
-			const out = script(leadState === 'new');
+			const out = script();
 			try { await saveTurn(out.text, null); } catch (e) { console.error('D1 Error:', e); }
-			let fresh = false;
-			try {
-				if (out.lead && leadState === 'new') { await insertLead(out.lead); fresh = true; }
-				else if (out.lead && sessionLead) await updateLead(sessionLead, out.lead);
-			} catch (e) { console.error('Lead Error:', e); }
-			return reply(out.text, { ...(fresh && out.lead ? leadData(out.lead) : {}), _mode: 'scripted' });
+			if (out.lead) keepLead(() => out.lead);
+			return reply(out.text, { _mode: 'scripted' });
 		}
 
 		if (!env.GEMINI_API_KEY) return json({ error: 'The chatbot is temporarily unavailable.' }, 503, cors);
@@ -627,7 +641,7 @@ export default {
 		guard += always;
 		const activeSystemPrompt = prompt + always + turnNotes({
 			n: sessionCount + 1, email: !!email, asks: history.filter(h => h.role === 'model' && asksForEmail(h.parts[0].text)).length,
-			confirmation: leadState === 'new' ? 'now' : sessionLead ? 'sent' : 'no',
+			confirmation: emailNow ? 'now' : email ? 'sent' : 'no',
 			close: own ? 'sum up in one line and say what happens next.' : 'close as in step 6.',
 		});
 
@@ -679,23 +693,13 @@ export default {
 			// Spam ends the chat at once. Off-topic gets one redirect from the AI, and ends the chat the second time.
 			if (got.label === 'spam' || (got.label === 'offtopic' && labels.includes('offtopic'))) visible = CLOSED;
 
-			// --- Lead: saved on the message that carries the email, then updated once, two messages later,
-			// with what the visitor has said since (a small model reads the whole chat). Never from spam. ---
-			let fresh: Lead | null = null;
-			if (got.label !== 'spam' && (leadState === 'new' || sessionLead)) {
-				const all: Turn[] = [...history, userTurn, { role: 'model', parts: [{ text: visible }] }];
-				try {
-					if (leadState === 'new') fresh = aiLead(await extractLeadFacts(env, all));
-					else if (sessionLead && said.length - 1 - said.findIndex(t => emailIn(t, emailRegex)) === 2) {
-						const facts = await extractLeadFacts(env, all);
-						if (facts) await updateLead(sessionLead, aiLead(facts));
-					}
-				} catch (e) { console.error('Lead Error:', e); }
-			}
-
 			try { await saveTurn(visible, got.label); } catch (e) { console.error('D1 Persistence Error:', e); }
-			if (fresh) { try { await insertLead(fresh); } catch (e) { console.error('Lead Error:', e); fresh = null; } }
-			return reply(visible, fresh ? leadData(fresh) : {});
+			// --- Lead: saved on the message that first carries an email, then updated once, two messages later,
+			// with what the visitor has said since (a small model reads the whole chat). Never from spam. ---
+			if (email && got.label !== 'spam' && (emailNow || said.length - 1 - emailAt === 2)) {
+				keepLead(async () => aiLead(await extractLeadFacts(env, [...history, userTurn, { role: 'model', parts: [{ text: visible }] }])));
+			}
+			return reply(visible);
 		} catch (error: any) {
 			console.error('Worker Error:', error);
 			return json({ error: "I'm having trouble responding right now. Please try again in a moment.", sessionId }, 500, cors);
