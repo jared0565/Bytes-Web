@@ -1737,7 +1737,9 @@ body.light-mode .mc-drawer { --cl-1: #2a78d6; --cl-soft: rgba(15, 23, 42, 0.05);
 /* ─── Bytes website Settings ─── */
 #site-settings-view { --cb-1: #3987e5; --cb-ok: #4cc44c; --cb-warn: #f0a33a; --cb-bad: #ef7a7a; --cb-line: var(--glass-border); --cb-soft: rgba(255, 255, 255, 0.04); max-width: 880px; }
 body.light-mode #site-settings-view { --cb-1: #2a78d6; --cb-ok: #0a7d0a; --cb-warn: #a35f00; --cb-bad: #b02e2e; --cb-soft: rgba(15, 23, 42, 0.05); }
-.site-health { margin-bottom: 1rem; }
+.site-health { margin-bottom: 1rem; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1100px) { .site-health { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .site-health { grid-template-columns: 1fr; } }
 #site-settings-view .site-settings-card { max-width: none; position: relative; }
 #site-card.cb-dirty { border-color: color-mix(in srgb, var(--cb-warn) 55%, transparent); }
 #site-card.cb-dirty::after { content: 'Unsaved changes'; position: absolute; top: 1.25rem; right: 1.5rem; font-size: 0.7rem; font-weight: 600; color: var(--cb-warn); padding: 0.15rem 0.55rem; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--cb-warn) 50%, transparent); }
