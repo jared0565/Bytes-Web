@@ -273,6 +273,12 @@ for (const x of zero) await send(x, 'hello there', counting);
 const ids = zero.map(x => logs(x)[0]?.visitor);
 ok('a shortened IPv6 address is the same visitor as its full form', !!ids[0] && new Set(ids).size === 1, ids.join(' '));
 ok('the per-minute limit is counted per network too, not per address', keys.length === 3 && new Set(keys).size === 1, keys.join(' '));
+// An IPv4 address can be written inside an IPv6 one, with dots or in hex. Each is its own visitor, the same as the plain address
+const mapped = ['::ffff:192.0.2.201', '::ffff:192.0.2.202', '::ffff:c000:2c9', '192.0.2.201'].map(ip => ({ ...chat(), ip }));
+keys.length = 0;
+for (const x of mapped) await send(x, 'hello there', counting);
+const m = mapped.map(x => logs(x)[0]?.visitor);
+ok('IPv4 addresses written inside IPv6 ones do not all share one visitor', !!m[0] && m[0] !== m[1] && m[0] === m[2] && m[0] === m[3] && keys[0] !== keys[1] && keys[0] === keys[2] && keys[0] === keys[3], `${m.join(' ')} | ${keys.join(' ')}`);
 c = chat();
 r = await send(c, 'hello there', { ...env, ADMIN_API_KEY: '' });
 ok('without the secret that scrambles visitor ids the chat is unavailable: no id is ever made from a fixed key', r.status === 503 && !r.asked && logs(c).length === 0, String(r.status));

@@ -219,10 +219,17 @@ async function loadHistory(env: Env, clientId: string, sessionId: string): Promi
 // since one device has many addresses there. '::' is filled in first, so the same network always gives the same four groups.
 function netOf(ip: string): string {
 	if (!ip.includes(':')) return ip;
-	const [head, tail] = ip.toLowerCase().split('::');
+	// An IPv4 address written at the end of an IPv6 one (::ffff:192.0.2.1) is read as two groups, like the rest
+	const hex = (a: string, b: string) => ((Number(a) << 8) | Number(b)).toString(16);
+	const [head, tail] = ip.toLowerCase().replace(/(\d+)\.(\d+)\.(\d+)\.(\d+)$/, (_, a, b, c, d) => `${hex(a, b)}:${hex(c, d)}`).split('::');
 	const h = head ? head.split(':') : [], t = tail ? tail.split(':') : [];
-	const groups = tail === undefined ? h : [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill('0'), ...t];
-	return groups.slice(0, 4).map(g => g.replace(/^0+(?=.)/, '')).join(':');
+	const g = (tail === undefined ? h : [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill('0'), ...t]).map(x => x.replace(/^0+(?=.)/, ''));
+	// ::ffff:a.b.c.d is an IPv4 visitor, not one network that every such visitor shares: the same key as the plain address
+	if (g.length === 8 && g[5] === 'ffff' && g.slice(0, 5).every(x => x === '0')) {
+		const hi = parseInt(g[6], 16), lo = parseInt(g[7], 16);
+		return `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
+	}
+	return g.slice(0, 4).join(':');
 }
 // Rate limits: Cloudflare's rate-limiting bindings (shared across the edge, unlike an in-memory map)
 async function overRateLimit(env: Env, net: string, clientId: string): Promise<boolean> {
