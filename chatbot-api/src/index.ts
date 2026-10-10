@@ -282,6 +282,13 @@ const CONFIRM = "We'll email you a link to confirm your address, unless you've a
 function cleanServices(v: unknown): string[] {
 	return (Array.isArray(v) ? v : []).map(x => clip(x, 60)).filter(Boolean).slice(0, 8);
 }
+// The choices a chat box shows as buttons when a chat opens: the Services list from the dashboard. The Bytes bot
+// falls back to the three things its prompt says BytesFX builds (HOUSE_ABOUT), in the same words.
+const HOUSE_SERVICES = ['Websites', 'Web applications', 'AI chatbots'];
+function servicesOf(cfg: { services?: unknown } | null | undefined, house: boolean): string[] {
+	const list = cleanServices(cfg?.services);
+	return list.length || !house ? list : HOUSE_SERVICES;
+}
 // Whole words only, ignoring hyphens and plural endings: "SEO" matches, and "check my order" is not "Check-ups"
 const SERVICE_FILLER = new Set(['and', 'or', 'the', 'for', 'of', 'a', 'an', 'to', 'in', 'on', 'with', 'our', 'your', 'service']);
 const wordsOf = (t: string) => t.toLowerCase().replace(/-/g, '').split(/[^\p{L}\p{N}]+/u).filter(Boolean).map(w => w.length > 3 ? w.replace(/s$/, '') : w);
@@ -289,6 +296,10 @@ const wordsOf = (t: string) => t.toLowerCase().replace(/-/g, '').split(/[^\p{L}\
 function matchService(text: string, services: string[]): string {
 	const n = text.trim().match(/^(?:option|number|no\.?|#)?\s*(\d{1,2})\.?$/i);
 	if (n) return services[Number(n[1]) - 1] || '';
+	// A choice tapped in the chat box arrives as the service's own name: that is the service, whatever words it shares with others
+	const plain = (s: string) => s.trim().toLowerCase().replace(/\s+/g, ' ');
+	const exact = services.find(sv => plain(sv) === plain(text));
+	if (exact) return exact;
 	const said = new Set(wordsOf(text));
 	let best = '', hits = 0;
 	for (const sv of services) {
@@ -486,7 +497,8 @@ export default {
 				widgetName: cfg.widgetName || '',
 				widgetAccentColor: cfg.widgetAccentColor || '',
 				widgetAvatar: safeHttpsUrl(cfg.widgetAvatar || ''),
-				maxMessageChars: MAX_MESSAGE_CHARS // the widget stops typing at this length
+				maxMessageChars: MAX_MESSAGE_CHARS, // the widget stops typing at this length
+				services: servicesOf(cfg, clientId === HOUSE_CLIENT) // shown as buttons when a chat opens
 			};
 			return new Response(JSON.stringify(pub), {
 				headers: { ...cors, 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=60' }
@@ -526,6 +538,7 @@ export default {
 		const tier = normalizeMode(clientConfig?.mode);
 		const house = clientId === HOUSE_CLIENT;
 		const companyName = clip(clientConfig?.companyName, 80);
+		const services = servicesOf(clientConfig, house);
 		const reply = (text: string, extra: Record<string, unknown> = {}) => json({ response: text, sessionId, ...extra }, 200, cors);
 		// Where a visitor goes when the chat can't take them further: the contact form on the Bytes website,
 		// the client's booking link, or the contact form on the client's own site
@@ -602,7 +615,7 @@ export default {
 		const aiLead = (f: Awaited<ReturnType<typeof extractLeadFacts>>): Lead => ({
 			name: clip(f?.name, 80) || 'Visitor', email, service: clip(f?.need, 120) || UNKNOWN, budget: clip(f?.budget, 80) || UNKNOWN, summary: clip(f?.summary, 600),
 		});
-		const script = () => scriptedTurn({ message, history, companyName, services: cleanServices(clientConfig?.services), booking, house, emailRegex });
+		const script = () => scriptedTurn({ message, history, companyName, services, booking, house, emailRegex });
 		const saveTurn = (botText: string, label: Label | null) => env.DB.prepare(
 			'INSERT INTO chat_logs (client_id, user_message, bot_response, timestamp, session_id, flag, visitor) VALUES (?, ?, ?, ?, ?, ?, ?)'
 		).bind(clientId, message, botText.slice(0, 4000), Date.now(), sessionId, label, visitor).run();
@@ -645,10 +658,12 @@ export default {
 		const own = house ? !!ownPrompt : ownPrompt.length >= 40;
 		let prompt = ownPrompt, guard = ownPrompt;
 		if (!own && house) { prompt = [HOUSE_ABOUT, HOUSE_STEPS, HOUSE_FACTS, HOUSE_RULES].join('\n\n'); guard = `${HOUSE_STEPS}\n\n${HOUSE_RULES}`; }
-		else if (!own) { const [about, rules] = clientDefaultParts(companyName, cleanServices(clientConfig?.services), booking); prompt = `${about}\n\n${rules}`; guard = rules; }
+		else if (!own) { const [about, rules] = clientDefaultParts(companyName, services, booking); prompt = `${about}\n\n${rules}`; guard = rules; }
 		const always = `${companyName ? `\n\nYou represent ${companyName}. Refer to the business as ${companyName}.` : ''}${SECURITY_RULES}${TOPIC_RULES}`;
 		guard += always;
-		const activeSystemPrompt = prompt + always + turnNotes({
+		// Not part of `guard`: the bot may list its services, in these words or any others
+		const choices = services.length ? `\n\nCHOICES\nThe chat box shows the visitor these choices to tap when a chat opens: ${services.join('; ')}. A message that is just one of them is their answer to what they need, so do not ask what they need again.` : '';
+		const activeSystemPrompt = prompt + always + choices + turnNotes({
 			n: sessionCount + 1, email: !!email, asks: history.filter(h => h.role === 'model' && asksForEmail(h.parts[0].text)).length,
 			confirmation: emailNow ? 'now' : email ? 'sent' : 'no',
 			close: own ? 'sum up in one line and say what happens next.' : 'close as in step 6.',

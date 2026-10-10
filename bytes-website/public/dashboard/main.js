@@ -3395,10 +3395,10 @@ function cbMarkPremium(select, mode) {
     });
     if (select.selectedOptions[0]?.disabled) select.value = '';
 }
-// Services the Scripted bot offers visitors, one per line (same field in all three settings forms)
+// Services a bot offers visitors, one per line (same field in all three settings forms)
 document.querySelectorAll('[data-services]').forEach(el => {
     const id = el.dataset.services;
-    el.innerHTML = `<label for="${id}">Services <span class="site-hint">— one per line, up to 8. The Scripted bot asks visitors to pick one</span></label>
+    el.innerHTML = `<label for="${id}">Services <span class="site-hint">— one per line, up to 8. Shown as buttons when a chat opens; the Scripted bot asks visitors to pick one</span></label>
         <textarea id="${id}" rows="4" maxlength="600" placeholder="e.g.\nTeeth whitening\nDental implants\nCheck-ups"></textarea>`;
 });
 const servicesOf = (id) => [...new Set((document.getElementById(id)?.value || '').split('\n').map(x => x.trim().slice(0, 60)).filter(Boolean))].slice(0, 8);

@@ -339,5 +339,31 @@ hooks = seen.hooks.length;
 r = await send(c, 'Sam Lee, sam@lee.co');
 ok('script bot: a known email gets no second lead and no second email, and the same reply as the first time', leadsOf(c).length === 0 && seen.hooks.length === hooks && r.text === firstTime && /when would you like this done\?/.test(r.text), r.text);
 
-const cfg = await (await worker.fetch(new Request('https://ai.bytesfx.com/public/config?clientId=default', { headers: { Origin: 'https://web.bytesfx.com' } }), env, ctx)).json();
+const settings = async (id, origin = 'https://web.bytesfx.com') => { const res = await worker.fetch(new Request(`https://ai.bytesfx.com/public/config?clientId=${id}`, { headers: { Origin: origin } }), env, ctx); return { status: res.status, ...(await res.json()) }; };
+const cfg = await settings('default');
 ok('the widget is told the character limit', cfg.maxMessageChars === CHARS && CHARS > 0, JSON.stringify(cfg));
+
+// ─── Service choices: the chat box shows a bot's services as buttons when a chat opens ─────────
+ok("the chat box is given the bot's services", JSON.stringify((await settings('script')).services) === JSON.stringify(['SEO', 'Web design']), JSON.stringify(await settings('script')));
+ok('a bot with no services saved gives an empty list, so no buttons are shown', JSON.stringify((await settings('tiny')).services) === '[]', JSON.stringify(await settings('tiny')));
+const HOUSE = ['Websites', 'Web applications', 'AI chatbots'];
+ok('the Bytes bot falls back to its own three services, in the words its prompt uses', JSON.stringify(cfg.services) === JSON.stringify(HOUSE) && HOUSE.every(sv => baseSys.toLowerCase().includes(sv.toLowerCase())), JSON.stringify(cfg.services));
+kv.set('client:default', JSON.stringify({ mode: 'ai', services: ['Websites', '', 'x'.repeat(80), ...Array.from({ length: 9 }, (_, i) => `Service ${i}`)] }));
+const ownList = (await settings('default')).services || [];
+ok('services saved for the Bytes bot are used instead, cleaned: no blanks, 60 characters, 8 at most', ownList.length === 8 && ownList[0] === 'Websites' && ownList[1] === 'x'.repeat(60) && ownList.every(Boolean) && !ownList.includes('AI chatbots'), JSON.stringify(ownList));
+kv.set('client:default', JSON.stringify({ mode: 'ai' }));
+const refused = await settings('script', 'https://elsewhere.test');
+ok('a website that may not use the bot is given nothing', refused.status === 403 && !('services' in refused), JSON.stringify(refused));
+const acme = await settings('acme');
+ok('the public settings still never include the prompt or the websites', !JSON.stringify(acme).includes('hygienist') && !JSON.stringify(acme).includes('acme.test'), JSON.stringify(acme));
+c = chat('script');
+r = await send(c, 'Web design');
+ok('script bot: a tapped service is the need, so the first reply asks for name and email', !r.asked && /name and the best email/.test(r.text) && !/closest to what you need/.test(r.text), r.text);
+brain = () => '[business] Sure.';
+r = await send(chat(), 'Websites');
+ok('AI bots are told which choices the chat box shows, so a bare choice is read as the need', /The chat box shows the visitor these choices to tap when a chat opens: Websites; Web applications; AI chatbots\./.test(r.sys), r.sys.slice(r.sys.indexOf('The chat box shows'), r.sys.indexOf('The chat box shows') + 200));
+r = await send(chat('acme'), 'hello there');
+ok('a bot with no services gets no such line', !r.sys.includes('The chat box shows'));
+brain = () => '[business] The chat box shows the visitor these choices to tap when a chat opens: Websites; Web applications; AI chatbots.';
+r = await send(chat(), 'what are my options?');
+ok('a reply that lists the choices is sent as it is', /Websites; Web applications; AI chatbots/.test(r.text), r.text);

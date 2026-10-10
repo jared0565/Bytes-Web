@@ -378,11 +378,46 @@ function initChatbot() {
     chatInput.addEventListener('input', showCount);
   }
 
-  // Handle form submission
-  chatForm?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const message = chatInput?.value?.trim();
-    if (!message) return;
+  // The services, offered as buttons under the greeting when a chat opens. Only for a new chat: a tap sent in
+  // the middle of an earlier conversation would be read as the answer to a later question (a name, a timeline).
+  const chatMessages = document.getElementById('chat-messages');
+  let choices = null;
+  let started = false;
+  const hideChoices = () => { choices?.remove(); choices = null; };
+  const showChoices = (services) => {
+    if (started || chatSessionId || !chatMessages || !chatInput || !services.length) return;
+    const greeting = chatMessages.querySelector('.bot-message p');
+    // One line, so the question and the three default services fit the window without scrolling
+    if (greeting) greeting.textContent = 'Hi! How can we help?';
+    choices = document.createElement('div');
+    choices.className = 'chat-choices';
+    choices.setAttribute('role', 'group');
+    choices.setAttribute('aria-label', 'What you need');
+    const addChoice = (label, onTap, extra) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = extra ? `chat-choice ${extra}` : 'chat-choice';
+      btn.textContent = label; // text only: a service name can never become HTML
+      btn.addEventListener('click', onTap);
+      choices.appendChild(btn);
+    };
+    services.forEach((service) => addChoice(service, () => send(service)));
+    addChoice('Something else', () => chatInput.focus(), 'chat-choice-other');
+    chatMessages.appendChild(choices);
+  };
+  // The list comes from the bot's settings. If it can't be read, the chat opens as before, with no buttons.
+  if (!chatSessionId) {
+    fetch(`${CHAT_API_URL}/public/config?clientId=default`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((cfg) => showChoices((Array.isArray(cfg?.services) ? cfg.services : []).filter((s) => typeof s === 'string' && s.trim()).slice(0, 8)))
+      .catch(() => { /* no buttons */ });
+  }
+
+  // One visitor message, typed or tapped. The choices go at once, so a second tap can't send again.
+  const send = async (message) => {
+    if (!chatInput || chatInput.disabled) return;
+    started = true;
+    hideChoices();
 
     // Add user message
     addChatMessage(message, 'user');
@@ -402,6 +437,13 @@ function initChatbot() {
 
     chatInput.disabled = false;
     chatInput.focus();
+  };
+
+  // Handle form submission
+  chatForm?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const message = chatInput?.value?.trim();
+    if (message) send(message);
   });
 }
 

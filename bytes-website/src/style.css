@@ -1107,6 +1107,69 @@ section {
   border-bottom-right-radius: var(--radius-sm);
 }
 
+/* Choices under the greeting when a chat opens: the services, then a quieter "Something else".
+   They sit on the visitor's side, outlined where a sent message is filled. */
+.chat-choices {
+  align-self: flex-end;
+  width: 85%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  margin-top: calc(var(--spacing-xs) * -1); /* closer to the question than one message is to the next */
+}
+
+.chat-choice {
+  width: 100%;
+  min-height: 44px;
+  padding: var(--spacing-xs) var(--spacing-md);
+  background: transparent;
+  border: 1px solid var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 50%, transparent);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 500;
+  line-height: 1.35;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+}
+
+.chat-choice:hover {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+.chat-choice:active {
+  transform: scale(0.98);
+}
+
+.chat-choice:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.chat-choice-other,
+.chat-choice-other:hover {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.chat-choice-other:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-choice { transition: none; }
+  .chat-choice:active { transform: none; }
+}
+
 .chatbot-input-area {
   padding: var(--spacing-md);
   border-top: 1px solid var(--glass-border);
