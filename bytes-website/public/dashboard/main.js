@@ -1862,7 +1862,8 @@ function renderModelCost() {
     const info = document.getElementById('settings-llm-info');
     if (info && modelCatalog) {
         const m = modelCatalog.models.find(x => x.id === (select?.value || modelCatalog.defaultModel));
-        info.innerHTML = `<strong>${escapeHtml(m ? m.name : 'Default model')}</strong> <span class="cb-hint">· assigned by your Bytes account manager</span>`;
+        const effort = ({ low: 'Low', medium: 'Medium', high: 'High' })[document.getElementById('settings-llm-effort')?.value] || 'Medium';
+        info.innerHTML = `<strong>${escapeHtml(m ? m.name : 'Default model')}</strong> <span class="cb-hint">· ${effort} effort · assigned by your Bytes account manager</span>`;
     }
     if (!select || !costEl || !modelCatalog) return;
     costEl.innerHTML = modelCostHtml(select.value);
@@ -1893,6 +1894,7 @@ function populateChatbotSettings(data) {
     if (llmSelect && llmSelect.dataset.filled) { llmSelect.value = savedLlmModel; if (llmSelect.value !== savedLlmModel) llmSelect.value = ''; cbMarkPremium(llmSelect, cbMode(data.mode)); renderModelCost(); }
     const effortEl = document.getElementById('settings-llm-effort');
     if (effortEl) effortEl.value = ['low', 'medium', 'high'].includes(data.llmEffort) ? data.llmEffort : 'medium';
+    renderModelCost();
 
     if (brandingEl) {
         brandingEl.checked  = data.showBranding !== false;
@@ -2168,7 +2170,7 @@ document.getElementById('settings-save-chatbot-btn').addEventListener('click', a
     settings.services = servicesOf('settings-services');
     // Only send the model once the list loaded, so a failed load can't wipe the saved choice
     // The AI model is never sent from here: admins assign it in Manage Clients
-    settings.llmEffort = document.getElementById('settings-llm-effort')?.value || 'medium';
+    // Model and effort are never sent from here: admins assign them in Manage Clients
 
     const wlSection = document.getElementById('settings-wl-section');
     if (wlSection && wlSection.style.display !== 'none') {

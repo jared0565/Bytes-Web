@@ -650,8 +650,8 @@
                             <p id="settings-llm-cost" style="font-size:0.78rem;color:var(--text-secondary);margin:0.45rem 0 0;line-height:1.5;"></p>
                         </div>
                         <div class="form-group cb-ai-only">
-                            <label for="settings-llm-effort">Effort <span style="font-size:0.75rem;font-weight:400;color:var(--text-secondary);">— how hard the model thinks before replying</span></label>
-                            <select id="settings-llm-effort">
+                            <!-- Effort is assigned by Bytes too; shown in the AI Model line above -->
+                            <select id="settings-llm-effort" hidden aria-hidden="true" tabindex="-1">
                                 <option value="low">Low — fastest, cheapest replies</option>
                                 <option value="medium" selected>Medium — balanced (recommended)</option>
                                 <option value="high">High — most thorough, slower and costs more</option>
