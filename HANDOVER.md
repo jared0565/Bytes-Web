@@ -187,7 +187,7 @@ Old mode names map over: free/standard → scripted, pro → ai, elite → ai_pl
 | Messages per chat | 10 | Later messages get a fixed reply with no AI call. A first email typed then is still saved as a lead |
 | Characters per message | 500 | Both chat boxes stop typing there and show a count; the server refuses longer messages |
 | Messages per visitor per day, per bot | 30 | The visitor is a keyed hash of their network that changes daily (`chat_logs.visitor`) |
-| New leads per visitor per hour, across all bots | 3 | Each new lead sends a confirmation email. A lead over the limit is not saved |
+| New leads per visitor per hour, per bot | 3 | Each new lead sends a confirmation email. A lead over the limit is not saved |
 | Messages per visitor per minute, per bot | 8 | `CHAT_LIMITER` in `chatbot-api/wrangler.jsonc`, not plans.json |
 
 A visitor's network is their IPv4 address, or the first half (/64) of an IPv6 address (`netOf`). All three per-visitor
