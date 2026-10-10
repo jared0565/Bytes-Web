@@ -1865,3 +1865,16 @@ body.light-mode .ld-col-budget.active { color: #2a78d6; }
 .ld-prop-blanks.ld-prop-ready { color: var(--ld-ok); }
 .ld-drawer [data-prop="send"][aria-disabled="true"] { opacity: 0.55; }
 .ld-prop-text, .ld-compose textarea { padding: 0.65rem 0.75rem; border-radius: 10px; box-sizing: border-box; }
+
+/* Files a lead attached (samples, references) */
+.ld-files { margin: 0.4rem 0 0.8rem; }
+.ld-files-head { margin: 0 0 0.4rem; font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); }
+.ld-files ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.45rem; }
+.ld-file { display: flex; align-items: center; gap: 0.65rem; padding: 0.5rem 0.6rem; border: 1px solid var(--cl-line); border-radius: 10px; background: var(--cl-soft); }
+.ld-file-skipped { border-style: dashed; opacity: 0.85; }
+.ld-file-thumb, .ld-file-icon { flex: none; width: 44px; height: 44px; border-radius: 8px; overflow: hidden; display: grid; place-items: center; background: color-mix(in srgb, var(--cl-1) 12%, transparent); font-size: 0.62rem; font-weight: 700; color: var(--cl-1); }
+.ld-file-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ld-file-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; font-size: 0.8rem; }
+.ld-file-meta strong { color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ld-file-meta span { font-size: 0.72rem; color: var(--text-secondary); }
+.ld-file .cl-btn { padding: 0.3rem 0.7rem; font-size: 0.74rem; }
