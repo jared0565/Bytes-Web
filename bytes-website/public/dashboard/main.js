@@ -1858,6 +1858,12 @@ function modelCostHtml(id) {
 function renderModelCost() {
     const select = document.getElementById('settings-llm-model');
     const costEl = document.getElementById('settings-llm-cost');
+    // The model is assigned by Bytes in Manage Clients; the client sees which one runs their bot
+    const info = document.getElementById('settings-llm-info');
+    if (info && modelCatalog) {
+        const m = modelCatalog.models.find(x => x.id === (select?.value || modelCatalog.defaultModel));
+        info.innerHTML = `<strong>${escapeHtml(m ? m.name : 'Default model')}</strong> <span class="cb-hint">· assigned by your Bytes account manager</span>`;
+    }
     if (!select || !costEl || !modelCatalog) return;
     costEl.innerHTML = modelCostHtml(select.value);
 }
@@ -2161,8 +2167,7 @@ document.getElementById('settings-save-chatbot-btn').addEventListener('click', a
     // Bot mode is never sent from here: it follows the plan (admins set it in Manage Clients)
     settings.services = servicesOf('settings-services');
     // Only send the model once the list loaded, so a failed load can't wipe the saved choice
-    const llmSel = document.getElementById('settings-llm-model');
-    if (llmSel?.dataset.filled) settings.llmModel = llmSel.value || '';
+    // The AI model is never sent from here: admins assign it in Manage Clients
     settings.llmEffort = document.getElementById('settings-llm-effort')?.value || 'medium';
 
     const wlSection = document.getElementById('settings-wl-section');

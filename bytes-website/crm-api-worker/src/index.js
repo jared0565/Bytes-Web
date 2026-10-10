@@ -1751,7 +1751,8 @@ app.post('/api/config', requireAuth, async (c) => {
     const { clientId } = scope;
     const planStatus = await getPlanStatus(c.env, clientId);
     // Bot mode: admins only, within what the client's plan includes
-    if ((c.get('user') || {}).role !== 'admin') delete settings.mode;
+    // Bot mode and AI model: admins only (Manage Clients); a client's save never changes them
+    if ((c.get('user') || {}).role !== 'admin') { delete settings.mode; delete settings.llmModel; }
     else if (settings.mode !== undefined) {
         if (!knownMode(settings.mode)) return c.json({ error: 'Unknown bot mode.' }, 400);
         settings.mode = normalizeMode(settings.mode);
