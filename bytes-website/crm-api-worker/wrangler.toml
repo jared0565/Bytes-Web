@@ -9,6 +9,10 @@ ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:3000,https://bytes-web
 AUTH_REDIRECT_URL = "https://crm-api.bmorris0565.workers.dev/api/auth/{{provider}}/callback"
 FRONTEND_ONBOARDING_URL = "https://web.bytesfx.com/onboarding/"
 FRONTEND_DASHBOARD_URL  = "https://web.bytesfx.com/dashboard/"
+# Lead replies come back to reply+<code>@REPLY_DOMAIN (Cloudflare Email Routing rule for
+# reply@REPLY_DOMAIN → this worker, with subaddressing on). Reply tracking switches itself on
+# once that domain's MX records point at Cloudflare.
+REPLY_DOMAIN = "reply.bytesfx.com"
 # Only these emails can sign in to the dashboard (comma-separated)
 ADMIN_EMAILS = "fbmacagba@gmail.com,fbm2k11@gmail.com,jared0565@gmail.com"
 
@@ -29,6 +33,12 @@ preview_id = "8ad06a763d6745d1bbbbd7fce1f4eb6c"
 binding = "CLIENT_SETTINGS"
 id = "cffce7f12c7248f7935c31f7c591c726"
 preview_id = "cffce7f12c7248f7935c31f7c591c726"
+
+# AI drafting/reading for the sales follow-up (chatbot-api's LlmService, Workers RPC)
+[[services]]
+binding = "LLM"
+service = "chatbot-api"
+entrypoint = "LlmService"
 
 # Cron trigger — runs the verification email follow-up worker every minute
 [triggers]

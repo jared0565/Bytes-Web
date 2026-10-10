@@ -11,12 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Deploy CRM API Worker
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          workingDirectory: 'bytes-website/crm-api-worker'
-
+      # chatbot-api first: crm-api binds to its LlmService entrypoint
       - name: Deploy Worker (API)
         uses: cloudflare/wrangler-action@v3
         with:
@@ -24,6 +19,12 @@ jobs:
           # wrangler.jsonc needs Wrangler >= 3.91; the action defaults to 3.90
           wranglerVersion: '4.70.0'
           workingDirectory: 'chatbot-api'
+
+      - name: Deploy CRM API Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: 'bytes-website/crm-api-worker'
           
       - name: Build Website
         working-directory: 'bytes-website'
