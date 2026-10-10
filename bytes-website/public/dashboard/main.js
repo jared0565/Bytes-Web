@@ -857,7 +857,13 @@ function renderLeads(leads) {
     LD_STAGES.forEach(st => {
         document.getElementById(`count-${st}`).innerText = counts[st];
         const mix = ldMoneyMix(values[st]);
-        document.getElementById(`value-${st}`).textContent = mix ? `${mix} in budgets` : ({ lead: 'New leads land here', priority: 'High-budget leads', opportunity: 'Qualified and in talks', campaign: 'Email sequences' })[st];
+        // Say whose budgets make up the total, so it can't read as a figure from nowhere
+        const withBudget = values[st].filter(l => ldBudget(l.budget) > 0);
+        const valueEl = document.getElementById(`value-${st}`);
+        valueEl.textContent = mix
+            ? `${mix} stated by ${withBudget.length === 1 ? (withBudget[0].name || '1 lead') : `${withBudget.length} leads`}`
+            : ({ lead: 'New leads land here', priority: 'High-budget leads', opportunity: 'Qualified and in talks', campaign: 'Email sequences' })[st];
+        valueEl.title = mix ? `Budgets the leads gave: ${withBudget.map(l => `${l.name || 'Unnamed'} (${l.budget})`).join(', ')}` : '';
         if (!counts[st]) cols[st].innerHTML = `<div class="ld-empty">${window.allLeads.length ? (filtered ? 'No leads match the filters.' : 'Drag a lead here or use “Move to…”.') : (st === 'lead' ? 'No leads yet. They appear here when your chatbot captures a contact.' : '')}</div>`;
     });
 
