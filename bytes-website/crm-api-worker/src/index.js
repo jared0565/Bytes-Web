@@ -469,6 +469,41 @@ app.get('/api/chatbot/status', requireAuth, async (c) => {
 const PLANS = ['free', 'starter', 'pro', 'business', 'enterprise'];
 
 // GET /api/admin/clients — every known client with plan, trial, activity and owner email
+// Delete a client and everything stored for it (test accounts, data-deletion requests). Admins only.
+app.delete('/api/admin/clients/:id', requireAuth, async (c) => {
+    if ((c.get('user') || {}).role !== 'admin') return c.json({ error: 'Admins only' }, 403);
+    const clientId = c.req.param('id');
+    if (!clientId || clientId === HOUSE_CLIENT_ID) return c.json({ error: 'The Bytes website can\'t be deleted.' }, 400);
+    let body = {}; try { body = await c.req.json(); } catch (_) {}
+    if (body.confirm !== clientId) return c.json({ error: 'Type the client ID to confirm.' }, 400);
+    try {
+        await ensureSales(c.env);
+        await ensurePageViews(c.env);
+        while (await deleteLeadFiles(c.env, 'client_id = ?', [clientId])) { /* R2 files, in batches */ }
+        const tables = ['lead_messages', 'lead_files', 'email_sequences', 'leads', 'chat_logs', 'automations', 'email_templates', 'roles', 'crm_settings'];
+        const counts = {};
+        for (const t of tables) {
+            try { counts[t] = (await c.env.DB.prepare(`DELETE FROM ${t} WHERE client_id = ?`).bind(clientId).run()).meta?.changes || 0; }
+            catch (e) { counts[t] = 0; } // table not created on this database
+        }
+        await c.env.DB.prepare('DELETE FROM page_views WHERE site = ?').bind(clientId).run().catch(() => {});
+        // KV: chatbot config, email sender, and owner sign-in links that point to this client
+        await c.env.CLIENT_SETTINGS.delete(`client:${clientId}`);
+        await c.env.OAUTH_TOKENS.delete(`mail:${clientId}`);
+        let owners = 0, cursor;
+        do {
+            const page = await c.env.OAUTH_TOKENS.list({ prefix: 'email_client:', cursor, limit: 1000 });
+            for (const k of page.keys) if (await c.env.OAUTH_TOKENS.get(k.name) === clientId) { await c.env.OAUTH_TOKENS.delete(k.name); owners++; }
+            cursor = page.list_complete ? null : page.cursor;
+        } while (cursor);
+        console.log(`[Admin] Deleted client ${clientId}`, counts, { owners });
+        return c.json({ success: true, deleted: { ...counts, ownerLogins: owners } });
+    } catch (err) {
+        console.error('[Admin] Delete client error:', err);
+        return c.json({ error: 'Could not delete this client. Try again.' }, 500);
+    }
+});
+
 app.get('/api/admin/clients', requireAuth, async (c) => {
     if ((c.get('user') || {}).role !== 'admin') return c.json({ error: 'Admins only' }, 403);
     const now = Date.now(), d30 = now - 30 * DAY_MS;

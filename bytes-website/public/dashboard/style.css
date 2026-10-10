@@ -1878,3 +1878,13 @@ body.light-mode .ld-col-budget.active { color: #2a78d6; }
 .ld-file-meta strong { color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ld-file-meta span { font-size: 0.72rem; color: var(--text-secondary); }
 .ld-file .cl-btn { padding: 0.3rem 0.7rem; font-size: 0.74rem; }
+
+/* Manage Clients: delete client */
+.mc-danger { margin-top: 1.5rem; padding: 0.9rem 1rem; border: 1px solid color-mix(in srgb, var(--ld-bad, #ef7a7a) 55%, transparent); border-radius: 12px; background: color-mix(in srgb, var(--ld-bad, #ef7a7a) 6%, transparent); }
+.mc-danger[hidden] { display: none; }
+.mc-danger h4 { margin-top: 0; color: var(--ld-bad, #ef7a7a); }
+.mc-danger label { display: block; margin: 0.5rem 0 0.35rem; font-size: 0.8rem; color: var(--text-secondary); }
+.mc-danger input { flex: 1 1 160px; min-width: 0; margin: 0; padding: 0.45rem 0.6rem; border-radius: 8px; font: inherit; font-size: 0.85rem; }
+.mc-danger .ld-danger { margin-left: 0; }
+.mc-danger .ld-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+.mc-danger .ld-danger:not(:disabled) { color: #fff; background: var(--ld-bad, #ef7a7a); border-color: var(--ld-bad, #ef7a7a); }

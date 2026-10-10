@@ -542,6 +542,17 @@
                             <button id="simulate-lead-btn" class="btn btn-outline" style="width:100%;">Send test lead</button>
                             <p id="sim-status" role="status" style="margin-top:0.75rem;font-size:0.8rem;font-weight:500;"></p>
                         </details>
+
+                        <div class="mc-danger" id="mc-danger" hidden>
+                            <h4>Delete client</h4>
+                            <p class="cb-hint">Permanently removes this client: their chatbot settings, email sender, leads, conversations, files, chat logs and owner sign-in. This can't be undone.</p>
+                            <label for="mc-del-confirm">Type <code id="mc-del-id"></code> to confirm</label>
+                            <div class="ld-row-inline">
+                                <input type="text" id="mc-del-confirm" autocomplete="off" spellcheck="false">
+                                <button type="button" class="cl-btn ld-danger" id="mc-del-btn" disabled>Delete client</button>
+                            </div>
+                            <p class="cb-hint" id="mc-del-msg" role="status"></p>
+                        </div>
                     </div>
                 </aside>
             </section>
