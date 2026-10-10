@@ -44,13 +44,13 @@
             <section id="step-1" class="slide active">
                 <div class="ob-split">
                     <div class="ob-pitch">
-                        <p class="ob-kicker"><span class="ob-pulse" aria-hidden="true"></span>7-day full-access trial</p>
+                        <p class="ob-kicker"><span class="ob-pulse" aria-hidden="true"></span>7-day free trial with AI replies</p>
                         <h1 class="reveal">Your website's best <span class="text-gradient">salesperson.</span></h1>
                         <p class="subtitle reveal">An AI assistant that answers visitors, captures their name, email and budget, and hands you qualified leads around the clock.</p>
                         <ul class="ob-benefits">
                             <li><strong>Set up in four quick steps</strong><span>Create your account, describe your brand, paste one line of code.</span></li>
                             <li><strong>Qualifies leads 24/7</strong><span>Every conversation ends with contact details and a budget, not a bounce.</span></li>
-                            <li><strong>Follow-up built in</strong><span>Leads land in your dashboard with AI email sequences ready to send.</span></li>
+                            <li><strong>Follow-up built in</strong><span>Leads land in your dashboard, and AI drafts the follow-up emails for you.</span></li>
                         </ul>
                     </div>
 
@@ -124,6 +124,11 @@
                         <input type="text" id="company-name" placeholder="e.g. Acme Solutions" autocomplete="organization" maxlength="80">
                     </div>
                     <div class="form-group">
+                        <label for="company-website">Your website</label>
+                        <input type="text" id="company-website" placeholder="e.g. acmesolutions.com" autocomplete="url" inputmode="url" maxlength="200" spellcheck="false">
+                        <p class="ob-hint">Your chatbot answers only on this website (and in your dashboard preview).</p>
+                    </div>
+                    <div class="form-group">
                         <label id="bot-tone-label">Bot tone</label>
                         <div class="tone-picker" id="bot-tone" role="group" aria-labelledby="bot-tone-label">
                             <button type="button" class="tone-option selected" data-value="Professional & Authoritative">Professional &amp; Authoritative</button>
@@ -178,7 +183,7 @@
                             <div style="font-size:0.75rem;color:#64748b;margin-top:0.2rem;">Domain(s)</div>
                         </div>
                     </div>
-                    <p style="font-size:0.78rem;color:#475569;line-height:1.5;margin:0;">Manage your allowed domains from the <strong style="color:#94a3b8;">Dashboard → Chatbot</strong> tab after setup. <a href="/?upgrade=free#pricing" style="color:#6366f1;text-decoration:none;">Upgrade for more →</a></p>
+                    <p style="font-size:0.78rem;color:#475569;line-height:1.5;margin:0;">Manage your allowed domains from the <strong style="color:#94a3b8;">Dashboard → Chatbot</strong> tab after setup. <a href="/?upgrade=starter#pricing" style="color:#6366f1;text-decoration:none;">See plans →</a></p>
                 </div>
 
                 <div class="next-steps">
@@ -211,9 +216,9 @@
                         <label id="branding-label">Show "Powered by BytesAI" badge</label>
                         <div class="tone-picker" id="branding-picker" role="group" aria-labelledby="branding-label">
                             <button type="button" class="tone-option selected" data-value="true">Show badge</button>
-                            <button type="button" class="tone-option" data-value="false" data-locked="true" aria-disabled="true" style="opacity:0.4;cursor:not-allowed;" title="Available on Starter plan and above after your trial">Hide badge <span style="font-size:0.72rem;">🔒 Starter+</span></button>
+                            <button type="button" class="tone-option" data-value="false" data-locked="true" aria-disabled="true" style="opacity:0.4;cursor:not-allowed;" title="Available on the Pro plan and above">Hide badge <span style="font-size:0.72rem;">🔒 Pro+</span></button>
                         </div>
-                        <p style="font-size:0.78rem;color:#64748b;margin-top:0.6rem;line-height:1.4;">Badge is required during your 7-day trial. Remove it on <strong style="color:#94a3b8;">Starter</strong> plan and above.</p>
+                        <p style="font-size:0.78rem;color:#64748b;margin-top:0.6rem;line-height:1.4;">Badge is required during your 7-day trial. Remove it on the <strong style="color:#94a3b8;">Pro</strong> plan and above.</p>
                     </div>
                     <div class="button-group">
                         <button id="btn-back-4" class="btn btn-outline">Back</button>

@@ -1,5 +1,7 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
 import { callChosenModel, callGemini, publicCatalog, modelIsPremium, DEFAULT_MODEL } from './llm';
+// Message limits per bot mode come from the shared plan list (same file the website and dashboard show)
+import PLAN_DATA from '../../bytes-website/public/plans.json';
 
 export interface Env {
 	GEMINI_API_KEY: string;
@@ -14,26 +16,71 @@ export interface Env {
 	ALLOW_LOCALHOST?: string;    // '1' only in local development
 }
 
-const SYSTEM_PROMPT = `
-Persona & Role:
-You are an Elite Onboarding Architect. Your sole objective is to convert website visitors into starting a "30-Day Free Trial" of our services within precisely 7 turns. 
-You are highly persuasive, extremely concise, and laser-focused on moving the user to the trial.
+// Bytes website only (clientId 'default'). Client bots never see this: they get clientDefaultPrompt().
+const HOUSE_PROMPT = `
+You are the assistant on the BytesFX website. BytesFX builds websites, custom web applications and AI chatbots that qualify leads, for small and growing businesses.
 
-The 7-Turn Conversion Framework:
-1. ACKNOWLEDGE & HOOK (Turn 1): When a user states their need, acknowledge it enthusiastically. Immediately tease that they can test-drive a solution for free.
-2. DISCOVERY & NAME (Turn 2): "Before I set up your trial workspace, can I grab your first name?"
-3. EMAIL CAPTURE (Turn 3): "Great to meet you, [Name]. What is the best business email to send your secure 30-Day Free Trial access link to?"
-4. SERVICE MATCHING (Turn 4): Once you have the email, ask 1 specific question to determine EXACTLY which service (Data scraping, Web Dev, AI Automation, etc.) they want to test in the trial.
-5. URGENCY & BUDGET (Turn 5): "Got it. While the first 30 days are 100% free, what is your estimated monthly budget if you decide to keep the [Service] running after the trial?" (You MUST get a number here to qualify them).
-6. THE PITCH (Turn 6): Briefly explain the immense value they will get in the next 30 days for free.
-7. CLOSING (Turn 7): "I've locked in your trial! I just forwarded your details to our deployment team. Expect an email with your secure login in the next few minutes. Is there anything else you need?"
+Goals, in order:
+1. Answer questions about BytesFX's services clearly, in 2-3 short sentences.
+2. When someone is interested, ask for their first name, then their email, then what they need and their rough budget. One question at a time.
+3. For a chatbot of their own, mention they can try one free for 7 days at https://web.bytesfx.com/onboarding/ (plans and prices: https://web.bytesfx.com/#pricing).
+4. For websites or apps, offer a free consultation: the team replies by email within 24 hours.
 
-Strict Rules:
-- STRICT EMAIL VALIDATION: Reject gibberish or non-email inputs politely. Do not proceed until you have a real email.
-- You MUST get their Name, Email, target Service, and Estimated Budget. Do not skip these steps.
-- Be extremely concise. Max 3 short sentences per response.
-- If they say "no" or refuse to answer, pivot immediately: "No problem. If you prefer to chat with a human first, send our team a DM on LinkedIn! [LINKEDIN_BUTTON]"
+Rules:
+- Never invent prices, timelines, discounts or guarantees. Chatbot plans are listed on the pricing page; website and app projects are quoted after a short call.
+- Never say an account, login or proposal has been sent: you can only pass details to the team.
+- Reject made-up emails politely and ask again.
+- If they would rather talk to a person, offer LinkedIn: [LINKEDIN_BUTTON]
 `;
+
+// A client's bot with no prompt (or only unfilled template blanks) gets a neutral one built from their settings
+export function clientDefaultPrompt(companyName: string, services: string[], booking: string): string {
+	const name = companyName || 'this business';
+	return `You are the friendly website assistant for ${name}.
+${services.length ? `${name} offers: ${services.join('; ')}.\n` : ''}
+Goals, in order:
+1. Answer visitors' questions about ${name} clearly, in 2-3 short sentences.
+2. When they're interested, ask for their name, then their email, then what they need, their rough budget and timeline. One question at a time.
+3. Tell them the team will follow up by email.${booking ? ` If they'd like to talk sooner, share this booking link: ${booking}` : ''}
+
+Rules:
+- Only discuss ${name} and its services. If you don't know something (prices, availability, details), say the team will confirm by email. Never invent prices, promises or facts.
+- Never claim anything has been booked, sent or confirmed.`;
+}
+// Template blanks like "[your services]" left in a prompt would be read out or filled with guesses: drop those lines
+const PROMPT_BLANK_RE = /\[[^\]\n]{2,80}\]/;
+export function usablePrompt(prompt: unknown): string {
+	return String(prompt || '').split('\n').filter(l => !PROMPT_BLANK_RE.test(l.replace(/\[LINKEDIN_BUTTON\]/gi, ''))).join('\n').trim();
+}
+
+// Which website a bot may answer on. A client bot with no saved website works only in the Bytes
+// dashboard preview, except that the first real website it is installed on is adopted as its
+// website (once), so older bots keep working; the owner is emailed about it.
+const NOT_CONNECTED = "This chatbot isn't connected to this website yet. The site owner can add it in their BytesFX dashboard.";
+function siteHost(origin: string | null): string {
+	try { const u = new URL(origin || ''); return u.protocol === 'https:' || u.protocol === 'http:' ? u.hostname.toLowerCase() : ''; } catch { return ''; }
+}
+export async function siteGate(env: Env, ctx: ExecutionContext, clientId: string, cfg: any, origin: string | null): Promise<boolean> {
+	const list = Array.isArray(cfg?.allowedDomains) ? cfg.allowedDomains : [];
+	const host = siteHost(origin);
+	if (host && isFirstPartyOrigin(host, env)) return true;
+	if (clientId === HOUSE_CLIENT && !list.length) return true; // the Bytes website has no list of its own
+	if (list.length) return isOriginAllowed(origin, list, env);
+	// No website saved: adopt this one if it looks like a real public site
+	if (!host || !host.includes('.') || /^[\d.]+$/.test(host) || host === 'localhost' || host.endsWith('.local')) return false;
+	const domain = host.replace(/^www\./, '');
+	try {
+		const fresh = JSON.parse(await env.CLIENT_SETTINGS.get(`client:${clientId}`) || '{}');
+		if (Array.isArray(fresh.allowedDomains) && fresh.allowedDomains.length) return isOriginAllowed(origin, fresh.allowedDomains, env);
+		fresh.allowedDomains = [domain];
+		await env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify(fresh));
+		ctx.waitUntil(fetch('https://crm-api.bmorris0565.workers.dev/api/webhooks/domain-adopted', {
+			method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId, domain }),
+		}).catch(e => console.error('[Site] adopt notify', e)));
+		console.log(`[Site] ${clientId} connected to ${domain}`);
+		return true;
+	} catch (e) { console.error('[Site] adopt', e); return false; }
+}
 
 // Public widget routes are called from customers' sites, so echo the caller's origin
 const getPublicCorsHeaders = (origin: string | null) => ({
@@ -49,7 +96,7 @@ const isFirstPartyOrigin = (host: string, env: Env) =>
 
 // allowedDomains entries are hostnames, optionally '*.example.com' (matches subdomains and the apex)
 function isOriginAllowed(origin: string | null, allowedDomains: unknown, env: Env): boolean {
-	if (!Array.isArray(allowedDomains) || allowedDomains.length === 0) return true; // no list saved → unrestricted
+	if (!Array.isArray(allowedDomains) || allowedDomains.length === 0) return false; // no website yet: preview only (see siteGate)
 	if (!origin) return false;
 	let host: string;
 	try { host = new URL(origin).hostname.toLowerCase(); } catch { return false; }
@@ -73,9 +120,10 @@ const CLIENT_ID_RE = /^[a-z0-9][a-z0-9_\-]{0,63}$/i;
 const SESSION_RE = /^[a-z0-9\-]{16,64}$/i;
 const MAX_MESSAGE_CHARS = 2000;      // one visitor message
 const HISTORY_EXCHANGES = 8;         // previous user+bot pairs sent to the model
-const SESSION_MAX_MESSAGES: Record<BotMode, number> = { scripted: 40, ai: 40, ai_plus: 60 }; // per conversation, then hand off
+const MODE_LIMITS = PLAN_DATA.modes as Record<BotMode, { dailyMessages: number, chatMessages: number }>;
+const SESSION_MAX_MESSAGES = { scripted: MODE_LIMITS.scripted.chatMessages, ai: MODE_LIMITS.ai.chatMessages, ai_plus: MODE_LIMITS.ai_plus.chatMessages }; // per conversation, then hand off
 const SESSION_TTL_MS = 6 * 3600000;  // a conversation idle for 6h starts fresh
-const DAILY_MESSAGES: Record<BotMode, number> = { scripted: 400, ai: 2000, ai_plus: 5000 };
+const DAILY_MESSAGES = { scripted: MODE_LIMITS.scripted.dailyMessages, ai: MODE_LIMITS.ai.dailyMessages, ai_plus: MODE_LIMITS.ai_plus.dailyMessages };
 
 // Bot modes, set by plan in crm-api: scripted (Free), ai (Starter, Pro), ai_plus (Business, Enterprise).
 // Older saved names still work: free/standard → scripted, pro → ai, elite → ai_plus.
@@ -265,8 +313,8 @@ export default {
 			if (!raw && clientId !== HOUSE_CLIENT) return json({ error: 'This chatbot is not set up.' }, 404, cors);
 			let cfg: any = {};
 			try { cfg = JSON.parse(raw || '{}'); } catch { cfg = {}; }
-			if (!isOriginAllowed(origin, cfg.allowedDomains, env)) {
-				return new Response(JSON.stringify({ error: 'This website is not allowed to use this chatbot.' }), {
+			if (!(await siteGate(env, ctx, clientId, cfg, origin))) {
+				return new Response(JSON.stringify({ error: NOT_CONNECTED }), {
 					status: 403, headers: { ...cors, 'Content-Type': 'application/json' }
 				});
 			}
@@ -311,7 +359,7 @@ export default {
 
 		// Only sites on the client's Allowed Domains list may use their bot (a browser control;
 		// scripts can fake Origin, which is why the limits below exist)
-		if (!isOriginAllowed(origin, clientConfig?.allowedDomains, env)) return json({ error: 'This website is not allowed to use this chatbot.' }, 403, cors);
+		if (!(await siteGate(env, ctx, clientId, clientConfig, origin))) return json({ error: NOT_CONNECTED }, 403, cors);
 
 		const tier = normalizeMode(clientConfig?.mode);
 		const reply = (text: string, extra: Record<string, unknown> = {}) => json({ response: text, sessionId, ...extra }, 200, cors);
@@ -374,7 +422,10 @@ export default {
 				: HANDOFF);
 		}
 
-		let activeSystemPrompt = clientConfig?.systemPrompt || SYSTEM_PROMPT;
+		const ownPrompt = usablePrompt(clientConfig?.systemPrompt);
+		let activeSystemPrompt = clientId === HOUSE_CLIENT
+			? (ownPrompt || HOUSE_PROMPT)
+			: (ownPrompt.length >= 40 ? ownPrompt : clientDefaultPrompt(companyName, cleanServices(clientConfig?.services), booking));
 		if (companyName) activeSystemPrompt += `\n\nYou represent ${companyName}. Refer to the business as ${companyName}.`;
 		activeSystemPrompt += SECURITY_RULES;
 

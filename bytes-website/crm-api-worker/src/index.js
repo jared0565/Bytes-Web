@@ -3,6 +3,8 @@ import { secureHeaders } from 'hono/secure-headers';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { AuthProvider } from './auth.js';
 import PostalMime from 'postal-mime';
+// The one list of plans (prices, limits, features), shared with the website and dashboard
+import PLAN_DATA from '../../public/plans.json';
 
 // ─── Native Web Crypto JWT (no external library — Workers crypto.subtle) ─────
 async function signJWT(payload, secret, expiresIn = 28800) {
@@ -56,7 +58,7 @@ app.use('*', async (c, next) => {
 // Session cookies are SameSite=None (the API is on another site than the dashboard), so a hostile
 // page could otherwise POST to the API with the user's cookie. Browsers always send Origin on
 // cross-site POST/PUT/DELETE; refuse any that isn't ours. Public beacon/webhook routes are exempt.
-const CSRF_EXEMPT = new Set(['/api/public/pageview', '/api/webhooks/new-lead', '/api/public/website-lead', '/api/verify-email', '/api/unsubscribe']);
+const CSRF_EXEMPT = new Set(['/api/public/pageview', '/api/webhooks/new-lead', '/api/webhooks/domain-adopted', '/api/public/website-lead', '/api/verify-email', '/api/unsubscribe']);
 app.use('/api/*', async (c, next) => {
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(c.req.method) && !CSRF_EXEMPT.has(c.req.path)) {
         const origin = c.req.header('Origin');
@@ -208,11 +210,15 @@ function normalizeMode(m) {
     if (v === 'ai' || v === 'pro') return 'ai';
     return 'scripted';
 }
-function modesForPlan(ps) {
-    if (['business', 'enterprise'].includes(ps.plan) && !ps.inTrial) return ['scripted', 'ai', 'ai_plus'];
-    if (ps.inTrial || ['starter', 'pro', 'business', 'enterprise'].includes(ps.plan)) return ['scripted', 'ai'];
-    return ['scripted'];
+// What a client's plan includes, from plans.json. A trial lifts a Free account to AI replies and
+// AI follow-ups (Free limits otherwise); a paid plan always gets its own entitlements.
+const PLAN_BY_ID = Object.fromEntries(PLAN_DATA.plans.map(p => [p.id, p]));
+function entitlements(ps) {
+    const p = PLAN_BY_ID[ps?.plan] || PLAN_BY_ID.free;
+    if (p.id === 'free' && ps?.inTrial) return { ...p, mode: 'ai', modes: ['scripted', 'ai'], aiFollowUps: true, trial: true };
+    return p;
 }
+const modesForPlan = (ps) => entitlements(ps).modes;
 // The mode a client's bot actually runs: their saved choice, capped at what the plan includes
 function effectiveMode(saved, ps) {
     const allowed = modesForPlan(ps), m = normalizeMode(saved);
@@ -225,12 +231,14 @@ async function syncBotMode(env, clientId, bestForPlan = false) {
     const cfg = JSON.parse(raw);
     const ps = await getPlanStatus(env, clientId);
     const allowed = modesForPlan(ps);
+    const ent = entitlements(ps);
     const mode = bestForPlan ? allowed[allowed.length - 1] : effectiveMode(cfg.mode, ps);
-    if (cfg.mode !== mode) {
-        cfg.mode = mode;
-        if (mode === 'scripted') cfg.showBranding = true;
-        await env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify(cfg));
-    }
+    const before = JSON.stringify(cfg);
+    cfg.mode = mode;
+    // Downgrades lose what the new plan doesn't include: badge back on, custom widget branding off
+    if (!ent.removeBadge || mode === 'scripted') cfg.showBranding = true;
+    if (!ent.whiteLabel) { delete cfg.widgetName; delete cfg.widgetAccentColor; delete cfg.widgetAvatar; }
+    if (JSON.stringify(cfg) !== before) await env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify(cfg));
     return mode;
 }
 // Services a scripted bot offers visitors (one per line in settings)
@@ -256,6 +264,22 @@ async function migrateBotModes(env) {
     } while (cursor);
     await env.OAUTH_TOKENS.put('migr:bot-modes-v1', String(Date.now()));
     console.log(`[Migrate] Bot modes checked for ${n} bots`);
+}
+
+// Lead limits from plans.json; `included` = leads already saved that this check should count
+async function leadLimitError(env, clientId, included = 0) {
+    if (!clientId || clientId === HOUSE_CLIENT_ID) return null;
+    const ent = entitlements(await getPlanStatus(env, clientId));
+    if (ent.leadsPerDay == null && ent.contacts == null) return null;
+    const todayStart = new Date(); todayStart.setUTCHours(0, 0, 0, 0);
+    const [d, t] = await Promise.all([
+        env.DB.prepare('SELECT COUNT(*) AS n FROM leads WHERE client_id = ? AND timestamp >= ?').bind(clientId, todayStart.getTime()).first(),
+        env.DB.prepare('SELECT COUNT(*) AS n FROM leads WHERE client_id = ?').bind(clientId).first(),
+    ]);
+    const daily = (d?.n || 0) + (1 - included), total = (t?.n || 0) + (1 - included);
+    if (ent.leadsPerDay != null && daily > ent.leadsPerDay) return `Daily lead limit reached (${ent.name} plan: ${ent.leadsPerDay} a day). Upgrade for unlimited leads.`;
+    if (ent.contacts != null && total > ent.contacts) return `Contact limit reached (${ent.name} plan: ${ent.contacts} contacts). Upgrade for unlimited leads.`;
+    return null;
 }
 
 // ─── Session helpers ─────────────────────────────────────────────────────────
@@ -364,8 +388,12 @@ app.post('/api/register', async (c) => {
     const existing = await c.env.DB.prepare('SELECT client_id FROM crm_settings WHERE client_id = ?').bind(clientId).first();
     if (existing) return c.json({ error: 'Client already registered' }, 409);
 
+    // The client's website: the bot only answers there (plus the dashboard preview)
+    const website = siteDomain(settings.website);
+    if (!website) return c.json({ error: 'Enter your website address, e.g. yourbusiness.com', field: 'website' }, 400);
+
     const now = Date.now();
-    const trialEndsAt = now + 7 * 24 * 60 * 60 * 1000; // 7 days
+    const trialEndsAt = now + PLAN_DATA.trial.days * 24 * 60 * 60 * 1000;
 
     // Save chatbot config (mode = 'ai' during trial; badge mandatory with pricing link)
     const badgeUrl = 'https://web.bytesfx.com/?upgrade=free#pricing';
@@ -373,7 +401,7 @@ app.post('/api/register', async (c) => {
     const initial = {};
     if (typeof settings.companyName === 'string') initial.companyName = settings.companyName.trim().slice(0, 80);
     if (typeof settings.systemPrompt === 'string') initial.systemPrompt = settings.systemPrompt.trim().slice(0, 20000);
-    await c.env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify({ ...initial, mode: 'ai', showBranding: true, badgeUrl, allowedDomains: [] }));
+    await c.env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify({ ...initial, mode: 'ai', showBranding: true, badgeUrl, allowedDomains: [website] }));
 
     // Create crm_settings row with trial dates
     await c.env.DB.prepare(
@@ -432,13 +460,8 @@ app.get('/api/check-setup', async (c) => {
 
 // ─── Installation / Domain Gating ───────────────────────────────────────────
 
-const INSTALL_LIMITS = {
-    free:       { maxInstalls: 1,  maxDomains: 1  },
-    starter:    { maxInstalls: 3,  maxDomains: 3  },
-    pro:        { maxInstalls: 10, maxDomains: 10 },
-    business:   { maxInstalls: 25, maxDomains: 25 },
-    enterprise: { maxInstalls: -1, maxDomains: -1 }, // -1 = unlimited
-};
+// Websites per plan (plans.json "domains"; -1 = unlimited). One install = one website.
+const installLimits = (ps) => { const n = entitlements(ps).domains; return { maxInstalls: n, maxDomains: n }; };
 
 // GET /api/installations — returns install limits + allowed domains for the authenticated client
 app.get('/api/installations', requireAuth, async (c) => {
@@ -449,8 +472,7 @@ app.get('/api/installations', requireAuth, async (c) => {
         getPlanStatus(c.env, clientId),
     ]);
     const config = kvRaw ? JSON.parse(kvRaw) : {};
-    const effectivePlan = ps.inTrial ? 'free' : (ps.plan || 'free');
-    const limits = INSTALL_LIMITS[effectivePlan] || INSTALL_LIMITS.free;
+    const limits = installLimits(ps);
     return c.json({
         clientId,
         allowedDomains: config.allowedDomains || [],
@@ -478,10 +500,9 @@ app.post('/api/installations', requireAuth, async (c) => {
         .slice(0, 50); // hard cap to prevent abuse
 
     const ps = await getPlanStatus(c.env, clientId);
-    const effectivePlan = ps.inTrial ? 'free' : (ps.plan || 'free');
-    const limits = INSTALL_LIMITS[effectivePlan] || INSTALL_LIMITS.free;
+    const limits = installLimits(ps);
     if (limits.maxDomains !== -1 && clean.length > limits.maxDomains) {
-        return c.json({ error: `Your plan allows up to ${limits.maxDomains} domain(s). Upgrade to add more.` }, 400);
+        return c.json({ error: `Your plan allows up to ${limits.maxDomains} website${limits.maxDomains === 1 ? '' : 's'}. Upgrade to add more.`, planLimited: true }, 400);
     }
 
     const kvRaw = await c.env.CLIENT_SETTINGS.get(`client:${clientId}`);
@@ -528,7 +549,7 @@ app.get('/api/chatbot/status', requireAuth, async (c) => {
 });
 
 // ─── Client directory (admin) ────────────────────────────────────────────────
-const PLANS = ['free', 'starter', 'pro', 'business', 'enterprise'];
+const PLANS = PLAN_DATA.plans.map(p => p.id);
 
 // GET /api/admin/clients — every known client with plan, trial, activity and owner email
 // Delete a client and everything stored for it (test accounts, data-deletion requests). Admins only.
@@ -1137,23 +1158,13 @@ app.post('/api/webhooks/new-lead', async (c) => {
     if (!fresh) return c.json({ error: 'Lead not found or already processed' }, 404);
     const clientId = fresh.client_id, budget = fresh.budget || '';
 
-    // Enforce free-tier limits (10/day, 50 total) for post-trial accounts
+    // Plan lead limits (Free after the trial: 10 a day, 50 in total). chatbot-api has already
+    // inserted this lead, so the counts include it: drop it when over the limit.
     if (clientId) {
-        const planStatus = await getPlanStatus(c.env, clientId);
-        if (!planStatus.inTrial && planStatus.plan === 'free') {
-            const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
-            const [dailyRow, totalRow] = await Promise.all([
-                c.env.DB.prepare('SELECT COUNT(*) as cnt FROM leads WHERE client_id = ? AND timestamp >= ?').bind(clientId, todayStart.getTime()).first(),
-                c.env.DB.prepare('SELECT COUNT(*) as cnt FROM leads WHERE client_id = ?').bind(clientId).first()
-            ]);
-            // chatbot-api has already inserted this lead, so counts include it — drop it when over the limit
-            const daily = dailyRow?.cnt || 0, total = totalRow?.cnt || 0;
-            if (daily > 10 || total > 50) {
-                await c.env.DB.prepare('DELETE FROM leads WHERE id = ? AND client_id = ?').bind(leadId, clientId).run();
-                return daily > 10
-                    ? c.json({ error: 'Daily lead limit reached (Free tier: 10/day)', limited: true }, 429)
-                    : c.json({ error: 'Contact limit reached (Free tier: 50 contacts)', limited: true }, 429);
-            }
+        const over = await leadLimitError(c.env, clientId, 1);
+        if (over) {
+            await c.env.DB.prepare('DELETE FROM leads WHERE id = ? AND client_id = ?').bind(leadId, clientId).run();
+            return c.json({ error: over, limited: true }, 429);
         }
     }
 
@@ -1721,14 +1732,15 @@ app.get('/api/config', requireAuth, async (c) => {
     const config = kvData ? JSON.parse(kvData) : {};
     const planStatus = await getPlanStatus(c.env, clientId);
     // Badge mandatory on free (lifetime), trial, and starter — removable on pro, business, enterprise
-    const brandingMandatory = planStatus.inTrial || planStatus.plan === 'free' || planStatus.plan === 'starter';
+    const ent = entitlements(planStatus);
+    const brandingMandatory = !ent.removeBadge;
     if (brandingMandatory) {
         config.showBranding = true;
     } else if (config.showBranding === undefined) {
         config.showBranding = false;
     }
     // Custom widget branding (name, accent color, avatar) — business and enterprise only
-    const whiteLabelEnabled = ['business', 'enterprise'].includes(planStatus.plan) && !planStatus.inTrial;
+    const whiteLabelEnabled = !!ent.whiteLabel;
     if (!whiteLabelEnabled) {
         delete config.widgetName;
         delete config.widgetAccentColor;
@@ -1752,7 +1764,7 @@ app.post('/api/config', requireAuth, async (c) => {
     const planStatus = await getPlanStatus(c.env, clientId);
     // Bot mode: admins only, within what the client's plan includes
     // Bot mode, AI model and effort: admins only (Manage Clients); a client's save never changes them
-    if ((c.get('user') || {}).role !== 'admin') { delete settings.mode; delete settings.llmModel; delete settings.llmEffort; }
+    if ((c.get('user') || {}).role !== 'admin') { for (const k of ['mode', 'llmModel', 'llmEffort', 'draftModel', 'readModel']) delete settings[k]; }
     else if (settings.mode !== undefined) {
         if (!knownMode(settings.mode)) return c.json({ error: 'Unknown bot mode.' }, 400);
         settings.mode = normalizeMode(settings.mode);
@@ -1763,7 +1775,7 @@ app.post('/api/config', requireAuth, async (c) => {
         settings.services = cleanServicesList(settings.services);
         if (!settings.services) return c.json({ error: 'Services must be a list.' }, 400);
     }
-    if (planStatus.inTrial || planStatus.plan === 'free' || planStatus.plan === 'starter' || settings.mode === 'scripted') {
+    if (!entitlements(planStatus).removeBadge || settings.mode === 'scripted') {
         settings.showBranding = true;
     }
     // Domains go through /api/installations (plan-limited); the badge link and referral are ours to set
@@ -1792,7 +1804,7 @@ app.post('/api/config', requireAuth, async (c) => {
     const prev = JSON.parse(await c.env.CLIENT_SETTINGS.get(`client:${clientId}`) || '{}');
     const merged = { ...prev, ...settings };
     // Strip white-label fields for plans below business
-    const whiteLabelEnabled = ['business', 'enterprise'].includes(planStatus.plan) && !planStatus.inTrial;
+    const whiteLabelEnabled = !!entitlements(planStatus).whiteLabel;
     if (!whiteLabelEnabled) {
         delete merged.widgetName;
         delete merged.widgetAccentColor;
@@ -1812,6 +1824,8 @@ app.post('/api/test-lead', requireAuth, async (c) => {
     const user = c.get('user') || {};
     const target = user.role === 'admin' ? (String(body.clientId || '').trim() || user.clientId || 'agency_demo') : user.clientId;
     if (!target) return c.json({ error: 'No client is linked to this account' }, 403);
+    const over = await leadLimitError(c.env, target, 0);
+    if (over) return c.json({ error: over, limited: true }, 429);
     try {
         await c.env.DB.prepare('INSERT INTO leads (client_id, name, email, service, budget, summary, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)')
             .bind(target, String(body.name || 'Test User').slice(0, 100), body.email, 'Lead Simulator', 'Test Budget', 'Manually simulated lead for system verification.', Date.now()).run();
@@ -1849,6 +1863,33 @@ function cleanSocials(input) {
 }
 const SITE_MODES = BOT_MODES;
 const DOMAIN_RE = /^(\*\.)?[a-zA-Z0-9][a-zA-Z0-9\-\.]{0,252}[a-zA-Z0-9]$/;
+// "https://www.Shop.com/about" → "shop.com"; null unless it looks like a public hostname
+function siteDomain(v) {
+    let t = String(v || '').trim().toLowerCase();
+    if (!t) return null;
+    try { t = new URL(/^https?:\/\//.test(t) ? t : `https://${t}`).hostname; } catch { return null; }
+    t = t.replace(/^www\./, '');
+    return t.includes('.') && DOMAIN_RE.test(t) && !/^[\d.]+$/.test(t) && t !== 'web.bytesfx.com' ? t : null;
+}
+
+// chatbot-api adopted the first website an unconnected bot was installed on: tell the owner.
+// Public, so it only acts when the bot's saved list really is that one domain, and once per domain.
+app.post('/api/webhooks/domain-adopted', async (c) => {
+    let body; try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+    const clientId = String(body.clientId || ''), domain = siteDomain(body.domain);
+    if (!/^[a-z0-9][a-z0-9_\-]{0,63}$/i.test(clientId) || !domain || clientId === HOUSE_CLIENT_ID) return c.json({ ok: false }, 400);
+    const cfg = JSON.parse(await c.env.CLIENT_SETTINGS.get(`client:${clientId}`) || '{}');
+    if (!(Array.isArray(cfg.allowedDomains) && cfg.allowedDomains.length === 1 && cfg.allowedDomains[0] === domain)) return c.json({ ok: false }, 409);
+    const flag = `adopted:${clientId}:${domain}`;
+    if (await c.env.OAUTH_TOKENS.get(flag)) return c.json({ ok: true, duplicate: true });
+    await c.env.OAUTH_TOKENS.put(flag, '1', { expirationTtl: 90 * 86400 });
+    const mail = await getMailSettings(c.env, clientId);
+    const to = alertAddress(c.env, clientId, await clientConfig(c.env, clientId), mail);
+    if (to) {
+        await sendMail(mail, to, `Your chatbot is now connected to ${domain}`, emailShell(`<p>Your BytesFX chatbot was installed on <strong>${escapeHtml(domain)}</strong>, so we saved it as your chatbot's website. From now on it only answers there.</p><p>If that isn't your website, remove it in your dashboard under Chatbot → Install, and add the right one.</p><p><a href="${DASH(c.env)}" style="display:inline-block;background:#3987e5;color:#fff;padding:0.6rem 1.1rem;border-radius:8px;text-decoration:none;">Open the dashboard</a></p>`)).catch(e => console.error('[Adopt] mail', e));
+    }
+    return c.json({ ok: true });
+});
 
 function requireAdmin(c) {
     return (c.get('user') || {}).role === 'admin' ? null : c.json({ error: 'Admins only' }, 403);
@@ -2146,8 +2187,8 @@ app.post('/api/generate-sequence', requireAuth, async (c) => {
     if (!lead) return c.json({ error: 'Lead not found' }, 404);
     // Plan limits apply to clients; agency admins aren't on a plan
     const planStatus = user?.role === 'admin' ? { plan: 'agency', inTrial: false } : await getPlanStatus(c.env, user?.clientId);
-    if (!planStatus.inTrial && planStatus.plan === 'free') {
-        return c.json({ error: 'AI features are not available on the Free tier. Upgrade your plan to unlock AI campaign generation.', planLimited: true }, 403);
+    if (!entitlements(planStatus).aiFollowUps) {
+        return c.json({ error: 'AI campaigns are included from the Starter plan. Upgrade to unlock them.', planLimited: true }, 403);
     }
 
     try {
@@ -2220,6 +2261,10 @@ app.post('/api/sequences/approve', requireAuth, async (c) => {
         const lead = await accessibleLead(c, leadId);
         if (!lead) return c.json({ error: 'Lead not found' }, 404);
         if (lead.is_verified === 0) return c.json({ error: 'Cannot approve sequence: lead email is not verified.' }, 400);
+        // Sending campaigns is a paid feature (the dashboard hides it on Free; this enforces it)
+        if ((c.get('user') || {}).role !== 'admin' && !entitlements(await getPlanStatus(c.env, lead.client_id)).aiFollowUps) {
+            return c.json({ error: 'Approving and sending campaigns is included from the Starter plan. Upgrade to unlock it.', planLimited: true }, 403);
+        }
 
         await c.env.DB.batch([
             c.env.DB.prepare("UPDATE email_sequences SET status = 'approved' WHERE lead_id = ? AND status = 'draft'").bind(leadId),
@@ -2807,7 +2852,7 @@ async function autoSequence(env, lead, settings, afterReply) {
     let mode = settings?.default_campaign_mode || 'ai';
     if (mode === 'manual') return;
     const approve = settings?.auto_approve_campaigns === 1;
-    if (mode === 'ai') { const ps = await getPlanStatus(env, lead.client_id); if (!ps.inTrial && ps.plan === 'free') mode = 'rule'; }
+    if (mode === 'ai' && !entitlements(await getPlanStatus(env, lead.client_id)).aiFollowUps) mode = 'rule';
     try {
         if (mode === 'ai') await generateAiSequence(env, lead.id, approve, { afterReply });
         else await generateRuleSequence(env, lead.id, approve);
