@@ -38,6 +38,14 @@ ok('a described need is accepted even when a services list exists', !/closest to
 o = run(['hi there'], { services: [] });
 ok('a greeting is not a need', /What can we help you with today\?/.test(o[0][1]), o[0][1]);
 
+// A service tapped in the chat box arrives as its exact name
+const tapped = (list) => list.filter(sv => { const t = run([sv, 'Sam Lee, sam@x.com'], { services: list }); return !/name and the best email/.test(t[0][1]) || t[1][2]?.service !== sv; });
+ok('every listed service sent as it is goes straight to name and email, and becomes the lead\'s service', !tapped(DENTAL).length && !tapped(AGENCY).length, [...tapped(DENTAL), ...tapped(AGENCY)].join());
+const OVERLAP = ['Web design and hosting', 'Web design', 'Our service', 'SEO for you'];
+ok('an exact name wins over a longer service that shares its words, and a name made of common words still matches', !tapped(OVERLAP).length, tapped(OVERLAP).join());
+o = run(['  web   DESIGN ', 'Sam sam@x.com'], { services: OVERLAP });
+ok('the exact match ignores case and spacing', o[1][2]?.service === 'Web design', JSON.stringify(o[1][2]));
+
 // Questions and names
 o = run(['how much is teeth whitening?', 'tom@x.com']);
 ok('a question gets an honest reply, not "that\'s helpful"', /can't answer that here/.test(o[0][1]) && !/helpful/.test(o[0][1]) && /name and the best email/.test(o[0][1]), o[0][1]);

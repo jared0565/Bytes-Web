@@ -221,6 +221,51 @@
         }
         .chatbot-widget-container .chat-count.at-limit { color: var(--widget-text); }
 
+        /* Choices offered when a chat opens: the bot's services, then a quieter "Something else". They sit on the
+           visitor's side, outlined where a sent message is filled. Text colour only, so they read on any accent a
+           client picks; every property is set, so a host page's own button styles don't leak in. */
+        .chatbot-widget-container .chat-choices {
+            align-self: flex-end;
+            width: 85%;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin: -0.3rem 0 0; /* closer to the question than one message is to the next */
+            padding: 0;
+        }
+        .chatbot-widget-container .chat-choice {
+            appearance: none;
+            display: block;
+            width: 100%;
+            min-height: 44px;
+            margin: 0;
+            padding: 0.65rem 1rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.24);
+            border-radius: 12px;
+            box-shadow: none;
+            color: var(--widget-text);
+            font-family: inherit;
+            font-size: 0.95rem;
+            font-weight: 500;
+            line-height: 1.35;
+            letter-spacing: normal;
+            text-transform: none;
+            text-align: left;
+            overflow-wrap: anywhere;
+            cursor: pointer;
+            transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .chatbot-widget-container .chat-choice:hover { background: rgba(255, 255, 255, 0.1); border-color: var(--widget-text); }
+        .chatbot-widget-container .chat-choice:active { transform: scale(0.98); }
+        .chatbot-widget-container .chat-choice:focus-visible { outline: 2px solid var(--widget-text); outline-offset: 2px; }
+        .chatbot-widget-container .chat-choice-other { background: none; border-color: transparent; color: var(--widget-text-secondary); font-weight: 400; }
+        .chatbot-widget-container .chat-choice-other:hover { background: none; border-color: transparent; color: var(--widget-text); text-decoration: underline; }
+        @media (prefers-reduced-motion: reduce) {
+            .chatbot-widget-container .chat-choice { transition: none; }
+            .chatbot-widget-container .chat-choice:active { transform: none; }
+        }
+
         .chat-link { color: inherit; text-decoration: underline; overflow-wrap: anywhere; }
         .chat-link:hover { opacity: 0.85; }
         .chat-link:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
@@ -342,6 +387,10 @@
         const widgetAvatar = /^https?:\/\//i.test(config.widgetAvatar || '') ? escapeAttr(config.widgetAvatar) : '';
         // One message has a character limit, set on the server (which enforces it too)
         const maxChars = Number(config.maxMessageChars) > 0 ? Math.floor(config.maxMessageChars) : 500;
+        // The bot's services, offered as buttons when a chat opens. Only for a new chat: a tap sent in the middle of
+        // an earlier conversation would be read as the answer to a later question (a name, a timeline).
+        const services = sessionId ? [] : (Array.isArray(config.services) ? config.services : []).filter(s => typeof s === 'string' && s.trim()).slice(0, 8);
+        const greeting = services.length ? 'Hi! How can we help?' : `Hi there! I'm ${widgetName}. How can I help you scale today?`;
 
         const container = document.createElement('div');
         container.className = 'chatbot-widget-container';
@@ -368,9 +417,7 @@
                     <button class="btn-close-chat" id="btn-close-chat">&times;</button>
                 </div>
                 <div class="chatbot-messages" id="chatbot-messages">
-                    <div class="chat-message bot-message">
-                        Hi there! I'm ${widgetName}. How can I help you scale today?
-                    </div>
+                    <div class="chat-message bot-message">${greeting}</div>
                 </div>
                 <div class="chatbot-input-area">
                     <form class="chat-form" id="chatbot-form">
@@ -391,10 +438,10 @@
         `;
         document.body.appendChild(container);
 
-        setupEventListeners();
+        setupEventListeners(services);
     }
 
-    function setupEventListeners() {
+    function setupEventListeners(services) {
         const launcher = document.getElementById('chatbot-launcher');
         const windowEl = document.getElementById('chatbot-window');
         const closeBtn = document.getElementById('btn-close-chat');
@@ -402,11 +449,14 @@
         const input = document.getElementById('chatbot-input');
         const messagesContainer = document.getElementById('chatbot-messages');
 
+        let choices = null; // the buttons offered when a chat opens, until the first message
+
         launcher.addEventListener('click', () => {
             windowEl.classList.toggle('hidden');
             if (!windowEl.classList.contains('hidden')) {
                 input.focus();
-                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                // A long list of choices opens at the question above it, not at the last button
+                messagesContainer.scrollTop = choices ? 0 : messagesContainer.scrollHeight;
             }
         });
 
@@ -424,11 +474,36 @@
         };
         input.addEventListener('input', showCount);
 
-        form.addEventListener('submit', async (e) => {
+        // Service names are typed by the client: built as buttons with text only, never as HTML
+        const hideChoices = () => { if (choices) { choices.remove(); choices = null; } };
+        if (services.length) {
+            choices = document.createElement('div');
+            choices.className = 'chat-choices';
+            choices.setAttribute('role', 'group');
+            choices.setAttribute('aria-label', 'What you need');
+            const addChoice = (label, onTap, extra) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = extra ? `chat-choice ${extra}` : 'chat-choice';
+                btn.textContent = label;
+                btn.addEventListener('click', onTap);
+                choices.appendChild(btn);
+            };
+            services.forEach((service) => addChoice(service, () => send(service)));
+            addChoice('Something else', () => input.focus(), 'chat-choice-other');
+            messagesContainer.appendChild(choices);
+        }
+
+        form.addEventListener('submit', (e) => {
             e.preventDefault();
             const message = input.value.trim();
-            if (!message) return;
+            if (message) send(message);
+        });
 
+        // One visitor message, typed or tapped. The choices go at once, so a second tap can't send again.
+        async function send(message) {
+            if (input.disabled) return;
+            hideChoices();
             appendMessage(message, 'user-message');
             input.value = '';
             showCount();
@@ -462,7 +537,7 @@
                 input.disabled = false;
                 input.focus();
             }
-        });
+        }
     }
 
     function appendMessage(text, className) {

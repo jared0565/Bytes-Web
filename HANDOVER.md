@@ -224,6 +224,17 @@ the daily allowance. The one exception is a first email typed after the chat lim
 - **Question order (every bot):** need, then name and email in one question, then timeline, then budget. The email is
   asked for twice at most. Design and evidence: "Chatbot Conversion Design"
   (https://claude.ai/code/artifact/dc745756-cf9a-4083-99c7-3dc8d084490c).
+- **Service choices:** when a chat opens, both chat boxes (the site's own in `src/main.js`, and `widget.js`) show
+  the bot's Services as buttons under a one-line greeting ("Hi! How can we help?"), then "Something else", which
+  puts the cursor in the text box.
+  - The list comes from `/public/config` (`services`: 8 at most, 60 characters each). The Bytes bot falls back to
+    Websites, Web applications, AI chatbots (`HOUSE_SERVICES`) when none are saved. A bot with no services keeps the
+    old greeting and shows no buttons, and so does the site chat when the settings can't be read.
+  - A tap sends the service name as an ordinary first message, so it counts toward the 10 per chat and 30 per day.
+    Script bots match it exactly (`matchService`) and go straight to name and email. AI bots are told which choices
+    the chat box shows (the `CHOICES` part of the prompt), so they don't ask what the visitor needs again.
+  - The buttons show only for a new chat (no session id stored in the tab) and go the moment a message is sent,
+    tapped or typed. Later in a chat a tap would be read as the answer to a different question.
 - **Prompts:**
   - The Bytes prompt (`HOUSE_ABOUT`, `HOUSE_STEPS`, `HOUSE_FACTS`, `HOUSE_RULES`) is used only for `default`. Its
     plan prices and trial length are filled in from plans.json.
