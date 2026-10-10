@@ -230,7 +230,9 @@ the daily allowance. The one exception is a first email typed after the chat lim
   - Client bots without a usable prompt get `clientDefaultPrompt()`, built from company name, services and booking link.
   - Prompt lines with unfilled `[blanks]` are dropped.
   - Every AI bot, clients' own prompts included, also gets the security rules, the topic rules and a `THIS TURN`
-    block (message number, whether an email was given, whether a confirmation email will be sent).
+    block (message number, whether an email was given, and the confirmation sentence to say when the email arrives).
+    The sentence is given word for word and later messages say not to repeat it or take it back: in a live test the
+    bot, left to its own words, withdrew its confirmation one message later.
   - The leak guard (`leaksPrompt`) covers the instructions only, so a reply can quote prices and links.
 - **Off-topic and spam:** the AI starts each reply with a hidden label, `[business]`, `[offtopic]` or `[spam]`. The
   code removes it and stores it in `chat_logs.flag`. Spam closes the chat at once, and so does a second off-topic
