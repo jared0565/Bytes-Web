@@ -4,7 +4,7 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { AuthProvider } from './auth.js';
 import PostalMime from 'postal-mime';
 // The one list of plans (prices, limits, features), shared with the website and dashboard
-import PLAN_DATA from '../../public/plans.json' with { type: 'json' };
+import PLAN_DATA from '../../public/plans.json';
 
 // ─── Native Web Crypto JWT (no external library — Workers crypto.subtle) ─────
 async function signJWT(payload, secret, expiresIn = 28800) {
