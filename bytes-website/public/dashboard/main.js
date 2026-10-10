@@ -861,9 +861,12 @@ function renderLeads(leads) {
         const withBudget = values[st].filter(l => ldBudget(l.budget) > 0);
         const valueEl = document.getElementById(`value-${st}`);
         valueEl.textContent = mix
-            ? `${mix} stated by ${withBudget.length === 1 ? (withBudget[0].name || '1 lead') : `${withBudget.length} leads`}`
+            ? `${mix} · from ${withBudget.length} lead${withBudget.length === 1 ? '' : 's'}`
             : ({ lead: 'New leads land here', priority: 'High-budget leads', opportunity: 'Qualified and in talks', campaign: 'Email sequences' })[st];
-        valueEl.title = mix ? `Budgets the leads gave: ${withBudget.map(l => `${l.name || 'Unnamed'} (${l.budget})`).join(', ')}` : '';
+        // Full breakdown on hover (first 15, then a count), so the label itself stays one short line
+        const names = withBudget.slice(0, 15).map(l => `${l.name || 'Unnamed'}: ${l.budget}`);
+        if (withBudget.length > 15) names.push(`…and ${withBudget.length - 15} more`);
+        valueEl.title = mix ? `Budgets stated by leads in this column\n${names.join('\n')}` : '';
         if (!counts[st]) cols[st].innerHTML = `<div class="ld-empty">${window.allLeads.length ? (filtered ? 'No leads match the filters.' : 'Drag a lead here or use “Move to…”.') : (st === 'lead' ? 'No leads yet. They appear here when your chatbot captures a contact.' : '')}</div>`;
     });
 
