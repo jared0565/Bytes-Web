@@ -2284,10 +2284,11 @@ async function loadAnalytics(force = false) {
             if (visitorsData) renderVisitorsTrend(visitorsData);
         }));
         document.getElementById('viz-onboard-btn').addEventListener('click', () => switchView('chatbot'));
-        document.querySelectorAll('.viz-seg-btn').forEach(btn => {
+        // Only the chatbot trend's metric buttons (the Website visitors chart has its own)
+        document.querySelectorAll('.viz-seg-btn[data-metric]').forEach(btn => {
             btn.addEventListener('click', () => {
                 analyticsMetric = btn.dataset.metric;
-                document.querySelectorAll('.viz-seg-btn').forEach(b => {
+                document.querySelectorAll('.viz-seg-btn[data-metric]').forEach(b => {
                     b.classList.toggle('active', b === btn);
                     b.setAttribute('aria-selected', b === btn ? 'true' : 'false');
                 });
@@ -2331,15 +2332,20 @@ async function loadAnalytics(force = false) {
         const res = await apiFetch(`${API_BASE}/api/analytics?${params}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         analyticsData = await res.json();
-        renderAnalytics(analyticsData);
     } catch (err) {
         console.error('[Analytics]', err);
         if (kpis) {
             kpis.innerHTML = '<div class="viz-kpi"><span class="viz-kpi-label">Could not load analytics</span><span class="viz-kpi-help">Check your connection and try again.</span><button type="button" class="cl-btn viz-retry">Retry</button></div>';
             kpis.querySelector('.viz-retry').onclick = () => loadAnalytics(true);
         }
+        return;
     } finally {
         document.getElementById('analytics-view')?.removeAttribute('aria-busy');
+    }
+    // Drawing problems are reported as such (not as a connection error)
+    try { renderAnalytics(analyticsData); } catch (err) {
+        console.error('[Analytics] render error', err);
+        if (kpis) kpis.innerHTML = '<div class="viz-kpi"><span class="viz-kpi-label">Could not show analytics</span><span class="viz-kpi-help">The data loaded but a chart failed to draw. Reload the page (Ctrl+F5).</span></div>';
     }
 }
 
@@ -2437,8 +2443,9 @@ function renderTrend(d) {
     const title = document.getElementById('viz-trend-title');
     const legend = document.getElementById('viz-legend');
     if (!el) return;
-    const m = analyticsMetric;
     const names = { leads: 'Leads', conversations: 'Conversations', rate: 'Chat → lead rate' };
+    if (!names[analyticsMetric]) analyticsMetric = 'leads';
+    const m = analyticsMetric;
     if (title) title.textContent = `${names[m]} per ${d.bucket}`;
     const val = (s, prev) => {
         const L = prev ? s.prevLeads : s.leads, C = prev ? s.prevConversations : s.conversations;
