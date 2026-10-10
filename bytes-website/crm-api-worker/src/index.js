@@ -1109,7 +1109,7 @@ app.put('/api/leads/:id/stage', requireAuth, async (c) => {
     }
 });
 
-// Delete a lead and its email sequence (e.g. a data-deletion request). Owner or admin only.
+// Delete a lead, its email sequence and its email conversation (e.g. a data-deletion request). Owner or admin only.
 app.delete('/api/leads/:id', requireAuth, async (c) => {
     const leadId = parseInt(c.req.param('id'), 10);
     if (!leadId) return c.json({ error: 'Invalid lead ID' }, 400);
@@ -1117,8 +1117,10 @@ app.delete('/api/leads/:id', requireAuth, async (c) => {
     try {
         const lead = await c.env.DB.prepare('SELECT id, client_id FROM leads WHERE id = ?').bind(leadId).first();
         if (!lead || (user.role !== 'admin' && lead.client_id !== user.clientId)) return c.json({ error: 'Lead not found' }, 404);
+        await ensureSales(c.env);
         await c.env.DB.batch([
             c.env.DB.prepare('DELETE FROM email_sequences WHERE lead_id = ?').bind(leadId),
+            c.env.DB.prepare('DELETE FROM lead_messages WHERE lead_id = ?').bind(leadId),
             c.env.DB.prepare('DELETE FROM leads WHERE id = ?').bind(leadId),
         ]);
         return c.json({ success: true });
