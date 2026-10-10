@@ -35,6 +35,14 @@ export const MODEL_CATALOG: ModelInfo[] = [
 ];
 
 export const DEFAULT_MODEL = 'gemini-2.5-flash';
+// Premium models (output above $15 per 1M tokens) are reserved for the AI Plus bot mode
+export const PREMIUM_OUTPUT_PRICE = 15;
+export const isPremium = (m: { outputPrice: number } | undefined) => !!m && m.outputPrice > PREMIUM_OUTPUT_PRICE;
+export async function modelIsPremium(id: unknown): Promise<boolean> {
+	if (typeof id !== 'string' || !id) return false;
+	if (id.startsWith(OPENROUTER_PREFIX)) return isPremium((await openRouterModels()).find((m) => m.id === id));
+	return isPremium(findModel(id));
+}
 export const EFFORTS: Effort[] = ['low', 'medium', 'high'];
 
 export interface LlmEnv {
@@ -236,6 +244,6 @@ export async function publicCatalog(env: LlmEnv) {
 	return {
 		defaultModel: DEFAULT_MODEL,
 		efforts: EFFORTS,
-		models: models.map((m) => ({ ...m, providerName: PROVIDER_NAMES[m.provider], available: providerAvailable(env, m.provider) })),
+		models: models.map((m) => ({ ...m, providerName: PROVIDER_NAMES[m.provider], available: providerAvailable(env, m.provider), premium: isPremium(m) })),
 	};
 }

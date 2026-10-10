@@ -1065,7 +1065,8 @@ function mcbStatus(text, kind = 'info') {
 function mcbRefreshUI() {
     const mode = configMode.value;
     mcbEl('config-mode-note').textContent = (typeof CB_MODE_NOTES !== 'undefined' && CB_MODE_NOTES[mode]) || '';
-    const scripted = ['free', 'standard'].includes(mode);
+    const scripted = mode === 'scripted';
+    cbMarkPremium(mcbEl('config-llm-model'), mode);
     document.querySelectorAll('#mc-bot .mc-ai-only').forEach(g => { g.classList.toggle('cb-muted', scripted); g.querySelectorAll('select').forEach(x => { x.disabled = scripted; }); });
     mcbEl('config-llm-cost').innerHTML = modelCatalog ? modelCostHtml(mcbEl('config-llm-model').value) : '';
     const len = configPrompt.value.length;
@@ -1093,12 +1094,12 @@ async function mcbHealth(cid) {
     try { const res = await apiFetch(`${API_BASE}/api/chatbot/status?clientId=${encodeURIComponent(cid)}`); if (res.ok) d = await res.json(); } catch (_) {}
     if (!d || MCB.cid !== cid) return;
     const fresh = d.lastChatAt && Date.now() - d.lastChatAt < 7 * 86400000;
-    const ai = ['ai', 'pro', 'elite'].includes(d.mode);
+    const ai = cbMode(d.mode) !== 'scripted';
     const item = (state, title, text) => `<div class="cb-stat cb-${state}"><span class="cb-stat-dot" aria-hidden="true"></span><span class="cb-stat-text"><strong>${title}</strong><span>${text}</span></span></div>`;
     el.innerHTML = [
         d.lastChatAt ? item(fresh ? 'ok' : 'warn', fresh ? 'Widget live' : 'Widget quiet', `Last chat ${cbAgo(d.lastChatAt)} · ${d.messages7d} message${d.messages7d === 1 ? '' : 's'} this week`)
             : item('warn', 'Not detected yet', 'No conversations yet. Is the install code on their site?'),
-        item(ai ? 'ok' : 'info', ai ? 'AI replies on' : 'Scripted replies', ai ? `${escapeHtml(d.mode)} · ${d.llmModel ? escapeHtml(d.llmModel.replace(/^openrouter:/, '')) : 'default model'}` : `Mode: ${escapeHtml(d.mode)}`),
+        item(ai ? 'ok' : 'info', ai ? 'AI replies on' : 'Scripted replies', ai ? `${CB_MODE_NAMES[cbMode(d.mode)]} · ${d.llmModel ? escapeHtml(d.llmModel.replace(/^openrouter:/, '')) : 'default model'}` : 'Scripted (guided questions)'),
         item(d.mailReady ? 'ok' : 'bad', d.mailReady ? 'Emails sending' : 'Emails not sending', d.mailReady ? `${d.leads7d} lead${d.leads7d === 1 ? '' : 's'} this week` : escapeHtml(d.mailIssue || 'No email sender set up')),
     ].join('');
 }
@@ -1123,14 +1124,15 @@ async function mcbLoad(cid) {
         MCB.inTrial = !!(data.inTrial ?? crm.inTrial);
 
         configCompanyName.value = data.companyName || '';
-        // Post-trial Free clients can only run the Free bot (the API refuses anything else)
-        const locked = !MCB.inTrial && MCB.plan === 'free';
+        // Only the modes this client's plan includes (the API refuses anything else)
+        const allowed = data.modesAllowed || ['scripted'];
         [...configMode.options].forEach(o => {
             const base = o.dataset.label || (o.dataset.label = o.textContent);
-            o.disabled = locked && o.value !== 'free';
-            o.textContent = o.disabled ? `${base} (paid plan)` : base;
+            o.disabled = !allowed.includes(o.value);
+            o.textContent = o.disabled ? `${base} · not in this plan` : base;
         });
-        configMode.value = data.mode || 'free';
+        configMode.value = cbMode(data.mode);
+        servicesFill('config-services', data.services);
         const modelSel = mcbEl('config-llm-model');
         if (modelCatalog) populateModelSelect(modelSel, data.llmModel || '');
         else { modelSel.innerHTML = '<option value="">Default model (could not load the model list)</option>'; delete modelSel.dataset.filled; }
@@ -1188,6 +1190,7 @@ saveConfigBtn.addEventListener('click', async () => {
     const settings = {
         companyName: configCompanyName.value.trim(),
         mode: configMode.value,
+        services: servicesOf('config-services'),
         llmEffort: mcbEl('config-llm-effort').value,
         systemPrompt: configPrompt.value.trim(),
         allowedDomains: domainListOf(mcbEl('config-domains').value),
@@ -1838,6 +1841,7 @@ async function loadModelCatalog() {
         return;
     }
     populateModelSelect(select, savedLlmModel);
+    cbModeChanged();
     renderModelCost();
 }
 
@@ -1868,13 +1872,19 @@ function populateChatbotSettings(data) {
     const wlSection  = document.getElementById('settings-wl-section');
 
     if (nameEl)   nameEl.value   = data.companyName  || '';
-    if (modeEl)   modeEl.value   = data.mode         || 'free';
+    if (modeEl)   modeEl.value   = cbMode(data.mode);
+    servicesFill('settings-services', data.services);
+    const info = document.getElementById('settings-mode-info');
+    if (info) {
+        const m = cbMode(data.mode), up = { scripted: 'Upgrade to Starter or Pro for AI replies.', ai: 'Business and Enterprise plans add AI Plus.', ai_plus: '' }[m];
+        info.innerHTML = `<strong>${CB_MODE_NAMES[m]}</strong> <span class="cb-hint">· included in your plan. ${up}</span>`;
+    }
     if (promptEl) promptEl.value = data.systemPrompt || '';
 
     savedLlmModel = data.llmModel || '';
     cbApplyModeLocks();
     const llmSelect = document.getElementById('settings-llm-model');
-    if (llmSelect && llmSelect.dataset.filled) { llmSelect.value = savedLlmModel; if (llmSelect.value !== savedLlmModel) llmSelect.value = ''; renderModelCost(); }
+    if (llmSelect && llmSelect.dataset.filled) { llmSelect.value = savedLlmModel; if (llmSelect.value !== savedLlmModel) llmSelect.value = ''; cbMarkPremium(llmSelect, cbMode(data.mode)); renderModelCost(); }
     const effortEl = document.getElementById('settings-llm-effort');
     if (effortEl) effortEl.value = ['low', 'medium', 'high'].includes(data.llmEffort) ? data.llmEffort : 'medium';
 
@@ -2148,8 +2158,8 @@ document.getElementById('settings-save-chatbot-btn').addEventListener('click', a
         systemPrompt: document.getElementById('settings-prompt')?.value.trim() || '',
         showBranding: document.getElementById('settings-branding')?.checked !== false,
     };
-    const modeVal = document.getElementById('settings-mode')?.value;
-    if (modeVal) settings.mode = modeVal;
+    // Bot mode is never sent from here: it follows the plan (admins set it in Manage Clients)
+    settings.services = servicesOf('settings-services');
     // Only send the model once the list loaded, so a failed load can't wipe the saved choice
     const llmSel = document.getElementById('settings-llm-model');
     if (llmSel?.dataset.filled) settings.llmModel = llmSel.value || '';
@@ -2860,7 +2870,8 @@ async function loadSiteSettings() {
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
         const d = await res.json();
         document.getElementById('site-company-name').value = d.companyName || '';
-        document.getElementById('site-mode').value = d.mode || 'free';
+        document.getElementById('site-mode').value = cbMode(d.mode);
+        servicesFill('site-services', d.services);
         document.getElementById('site-llm-effort').value = ['low', 'medium', 'high'].includes(d.llmEffort) ? d.llmEffort : 'medium';
         document.getElementById('site-domains').value = (d.allowedDomains || []).join('\n');
         document.getElementById('site-prompt').value = d.systemPrompt || '';
@@ -2892,6 +2903,7 @@ document.getElementById('site-save-btn')?.addEventListener('click', async () => 
     const body = {
         companyName: document.getElementById('site-company-name').value.trim(),
         mode: document.getElementById('site-mode').value,
+        services: servicesOf('site-services'),
         llmEffort: document.getElementById('site-llm-effort').value,
         allowedDomains: siteDomainList(),
         systemPrompt: document.getElementById('site-prompt').value.trim(),
@@ -3352,12 +3364,33 @@ function startLogsBadge() {
 
 // ─── Chatbot page: health strip, mode guidance, prompt helper, unsaved-change guard ───
 const CB_MODE_NOTES = {
-    free: 'Scripted replies only, no AI. The AI model and effort below are not used.',
-    standard: 'Smarter scripted flows, no AI. The AI model and effort below are not used.',
-    ai: 'Replies are written by the AI model you choose below.',
-    pro: 'AI replies tuned for sales conversations, using the model below.',
-    elite: 'Advanced AI with higher limits, using the model below.',
+    scripted: 'Guided questions, no AI: what they need (from the services list), name, email, budget and timeline. 400 messages a day. The AI model below is not used.',
+    ai: 'Replies are written by the AI model below. 2,000 messages a day; premium models need AI Plus.',
+    ai_plus: 'AI replies with higher limits (5,000 messages a day, longer conversations) and premium models.',
 };
+const CB_MODE_NAMES = { scripted: 'Scripted', ai: 'AI', ai_plus: 'AI Plus' };
+// Older saved names: free/standard → scripted, pro → ai, elite → ai_plus
+const cbMode = (m) => (m === 'ai_plus' || m === 'elite' ? 'ai_plus' : m === 'ai' || m === 'pro' ? 'ai' : 'scripted');
+// Premium models (AI Plus only) are marked, and disabled for other modes
+function cbMarkPremium(select, mode) {
+    if (!select || !modelCatalog) return;
+    [...select.options].forEach(o => {
+        const m = modelCatalog.models.find(x => x.id === o.value);
+        if (!m || !m.premium) return;
+        if (!o.dataset.base) o.dataset.base = o.textContent;
+        o.disabled = !m.available || mode !== 'ai_plus';
+        o.textContent = `${o.dataset.base} · AI Plus`;
+    });
+    if (select.selectedOptions[0]?.disabled) select.value = '';
+}
+// Services the Scripted bot offers visitors, one per line (same field in all three settings forms)
+document.querySelectorAll('[data-services]').forEach(el => {
+    const id = el.dataset.services;
+    el.innerHTML = `<label for="${id}">Services <span class="site-hint">— one per line, up to 8. The Scripted bot asks visitors to pick one</span></label>
+        <textarea id="${id}" rows="4" maxlength="600" placeholder="e.g.\nTeeth whitening\nDental implants\nCheck-ups"></textarea>`;
+});
+const servicesOf = (id) => [...new Set((document.getElementById(id)?.value || '').split('\n').map(x => x.trim().slice(0, 60)).filter(Boolean))].slice(0, 8);
+const servicesFill = (id, list) => { const el = document.getElementById(id); if (el) el.value = (Array.isArray(list) ? list : []).join('\n'); };
 
 function cbAgo(ts) {
     const m = Math.round((Date.now() - ts) / 60000);
@@ -3373,35 +3406,27 @@ async function loadChatbotStatus() {
     try { const res = await apiFetch(`${API_BASE}/api/chatbot/status`); if (res.ok) d = await res.json(); } catch (_) {}
     if (!d) { el.innerHTML = ''; return; }
     const fresh = d.lastChatAt && Date.now() - d.lastChatAt < 7 * 86400000;
-    const ai = ['ai', 'pro', 'elite'].includes(d.mode);
+    const ai = cbMode(d.mode) !== 'scripted';
     const item = (state, title, text, href) => `<a class="cb-stat cb-${state}" href="${href}"><span class="cb-stat-dot" aria-hidden="true"></span><span class="cb-stat-text"><strong>${title}</strong><span>${text}</span></span></a>`;
     el.innerHTML = [
         d.lastChatAt
             ? item(fresh ? 'ok' : 'warn', fresh ? 'Widget live' : 'Widget quiet', `Last conversation ${cbAgo(d.lastChatAt)} · ${d.messages7d} message${d.messages7d === 1 ? '' : 's'} this week`, '#cb-install')
             : item('warn', 'Not detected yet', 'No conversations yet. Install the snippet and send a test message.', '#cb-install'),
-        item(ai ? 'ok' : 'info', ai ? 'AI replies on' : 'Scripted replies', ai ? `Mode: ${escapeHtml(d.mode)} · ${d.llmModel ? escapeHtml(d.llmModel.replace(/^openrouter:/, '')) : 'default model'}` : `Mode: ${escapeHtml(d.mode)}. Switch to AI for smarter answers.`, '#chatbot-settings-card'),
+        item(ai ? 'ok' : 'info', ai ? 'AI replies on' : 'Scripted replies', ai ? `${CB_MODE_NAMES[cbMode(d.mode)]} · ${d.llmModel ? escapeHtml(d.llmModel.replace(/^openrouter:/, '')) : 'default model'}` : 'Guided questions. AI replies come with the Starter plan and above.', '#chatbot-settings-card'),
         item(d.mailReady ? 'ok' : 'bad', d.mailReady ? 'Email sending ready' : 'Emails not sending', d.mailReady ? `${d.leads7d} lead${d.leads7d === 1 ? '' : 's'} this week` : `${escapeHtml(d.mailIssue)}. Verification and campaign emails are waiting.`, '#cb-email'),
     ].join('');
 }
 
-function cbApplyModeLocks() {
-    const sel = document.getElementById('settings-mode');
-    if (!sel) return;
-    const locked = typeof isFreeLocked === 'function' && isFreeLocked();
-    [...sel.options].forEach(o => {
-        const base = o.dataset.label || (o.dataset.label = o.textContent);
-        o.disabled = locked && o.value !== 'free';
-        o.textContent = o.disabled ? `${base} (upgrade)` : base;
-    });
-    cbModeChanged();
-}
+// The bot mode is set by plan (admins change it in Manage Clients); clients only see it
+function cbApplyModeLocks() { cbModeChanged(); }
 
 function cbModeChanged() {
     const sel = document.getElementById('settings-mode');
     if (!sel) return;
     const note = document.getElementById('settings-mode-note');
     if (note) note.textContent = CB_MODE_NOTES[sel.value] || '';
-    const scripted = ['free', 'standard'].includes(sel.value);
+    const scripted = cbMode(sel.value) === 'scripted';
+    cbMarkPremium(document.getElementById('settings-llm-model'), cbMode(sel.value));
     document.querySelectorAll('#chatbot-settings-card .cb-ai-only').forEach(g => {
         g.classList.toggle('cb-muted', scripted);
         g.querySelectorAll('select').forEach(x => { x.disabled = scripted; });
@@ -3571,7 +3596,7 @@ function renderClients() {
         <tr data-cid="${escapeHtml(c.clientId)}" tabindex="0" aria-label="Open ${escapeHtml(c.companyName || c.clientId)}">
             <td data-label="Client"><div class="mc-name">${escapeHtml(c.companyName || c.clientId)}</div><div class="mc-sub"><code>${escapeHtml(c.clientId)}</code>${c.ownerEmail ? ` · ${escapeHtml(c.ownerEmail)}` : ''}</div></td>
             <td data-label="Plan">${mcPlanBadge(c)}</td>
-            <td data-label="Bot"><span class="mc-sub">${c.hasConfig ? escapeHtml(c.mode || 'free') : 'not set up'}${c.domains ? ` · ${c.domains} domain${c.domains === 1 ? '' : 's'}` : ''}</span></td>
+            <td data-label="Bot"><span class="mc-sub">${c.hasConfig ? CB_MODE_NAMES[cbMode(c.mode)] : 'not set up'}${c.domains ? ` · ${c.domains} domain${c.domains === 1 ? '' : 's'}` : ''}</span></td>
             <td data-label="Leads 30d" class="num">${c.leads30d}<span class="mc-sub"> / ${c.leadsTotal}</span></td>
             <td data-label="Chats 30d" class="num">${c.messages30d}</td>
             <td data-label="Last activity"><span class="${c.lastActivity && Date.now() - c.lastActivity < 7 * 86400000 ? '' : 'mc-sub'}">${mcAgo(c.lastActivity)}</span></td>
@@ -3681,8 +3706,9 @@ async function mcPlan(body, okMsg) {
         const res = await apiFetch(`${API_BASE}/api/admin/clients/${encodeURIComponent(id)}/plan`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-        msg.textContent = `✓ ${okMsg}`; msg.style.color = 'var(--success)';
+        msg.textContent = `✓ ${okMsg}${data.mode ? ` Bot mode: ${CB_MODE_NAMES[data.mode]}.` : ''}`; msg.style.color = 'var(--success)';
         await loadClients(true);
+        if (MC.open === id) mcbLoad(id);
     } catch (err) { msg.textContent = `Failed: ${err.message}`; msg.style.color = 'var(--error)'; }
 }
 
@@ -3718,13 +3744,13 @@ async function siteHealth() {
     const s = sales.status === 'fulfilled' ? sales.value : null;
     if (s) salesStatusCache = s;
     const fresh = d.lastChatAt && Date.now() - d.lastChatAt < 7 * 86400000;
-    const ai = ['ai', 'pro', 'elite'].includes(d.mode);
+    const ai = cbMode(d.mode) !== 'scripted';
     const item = (state, title, text, target) => `<a class="cb-stat cb-${state}" href="#" data-target="${target}"><span class="cb-stat-dot" aria-hidden="true"></span><span class="cb-stat-text"><strong>${title}</strong><span>${text}</span></span></a>`;
     el.innerHTML = [
         d.lastChatAt
             ? item(fresh ? 'ok' : 'warn', fresh ? 'Website chat active' : 'Website chat quiet', `Last conversation ${cbAgo(d.lastChatAt)} · ${d.messages7d} message${d.messages7d === 1 ? '' : 's'} this week`, 'site-card')
             : item('warn', 'No website chats yet', 'Open the website and send a test message.', 'site-card'),
-        item(ai ? 'ok' : 'bad', ai ? 'AI replies on' : 'Scripted replies only', ai ? `Mode: ${escapeHtml(d.mode)} · ${d.llmModel ? escapeHtml(d.llmModel.replace(/^openrouter:/, '')) : 'default model'}` : `Mode: ${escapeHtml(d.mode)}. Visitors get canned answers. Set Bot Mode to AI below.`, 'site-mode'),
+        item(ai ? 'ok' : 'bad', ai ? 'AI replies on' : 'Scripted replies only', ai ? `${CB_MODE_NAMES[cbMode(d.mode)]} · ${d.llmModel ? escapeHtml(d.llmModel.replace(/^openrouter:/, '')) : 'default model'}` : 'Scripted: visitors get guided questions. Set Bot Mode to AI below.', 'site-mode'),
         item(d.mailReady ? 'ok' : 'bad', d.mailReady ? 'Lead emails ready' : 'Lead emails not sending', d.mailReady ? `${d.leads7d} website lead${d.leads7d === 1 ? '' : 's'} this week` : `${escapeHtml(d.mailIssue)}. Set it up in Website email sender below.`, 'site-mail-card'),
         s ? item(s.replyTracking && !s.files?.warn ? 'ok' : 'warn', s.replyTracking ? 'Reply tracking on' : 'Reply tracking off', (s.replyTracking ? 'Lead replies appear in each lead\'s conversation' : `Replies go to your alerts email. Turn on Email Routing for ${escapeHtml(s.replyDomain || 'the reply domain')}.`) + (s.files ? ` · Files: ${salesGB(s.files.bytes)}${s.files.warn ? ', nearly full' : ''}` : ''), 'site-sales-tracking') : '',
     ].join('');
@@ -3742,7 +3768,8 @@ function siteModeChanged() {
     const sel = document.getElementById('site-mode');
     if (!sel) return;
     document.getElementById('site-mode-note').textContent = (typeof CB_MODE_NOTES !== 'undefined' && CB_MODE_NOTES[sel.value]) || '';
-    const scripted = ['free', 'standard'].includes(sel.value);
+    const scripted = sel.value === 'scripted';
+    cbMarkPremium(document.getElementById('site-llm-model'), sel.value);
     document.querySelectorAll('#site-settings-view .site-ai-only').forEach(g => {
         g.classList.toggle('cb-muted', scripted);
         g.querySelectorAll('select').forEach(x => { x.disabled = scripted; });
