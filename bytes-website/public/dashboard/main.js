@@ -3639,6 +3639,7 @@ function openClientDrawer(cid) {
     document.getElementById('sim-client-id').value = cid || '';
     document.getElementById('config-status').textContent = '';
     document.getElementById('mc-plan-msg').textContent = '';
+    mcDangerReset(cid);
     mcIdHint();
     mcFillHeader(c);
     document.getElementById('mc-backdrop').hidden = false;
@@ -4155,3 +4156,31 @@ function renderSales(d) {
         item('Revenue won', fmtMoney(c.revenueWon), deltaHtml(c.revenueWon, p.revenueWon, d), other ? `plus ${other}` : 'From deal amounts on won leads') +
         item('Time to close', days, '', 'From capture to won or lost');
 }
+
+// ─── Manage Clients: delete a client (typed confirmation) ─────────────────────
+function mcDangerReset(cid) {
+    const box = document.getElementById('mc-danger');
+    if (!box) return;
+    box.hidden = !cid;
+    document.getElementById('mc-del-id').textContent = cid || '';
+    document.getElementById('mc-del-confirm').value = '';
+    document.getElementById('mc-del-btn').disabled = true;
+    document.getElementById('mc-del-msg').textContent = '';
+}
+document.getElementById('mc-del-confirm')?.addEventListener('input', (e) => {
+    document.getElementById('mc-del-btn').disabled = e.target.value.trim() !== MC.open;
+});
+document.getElementById('mc-del-btn')?.addEventListener('click', async (e) => {
+    const cid = MC.open, msg = document.getElementById('mc-del-msg');
+    if (!cid || document.getElementById('mc-del-confirm').value.trim() !== cid) return;
+    e.target.disabled = true;
+    msg.textContent = 'Deleting…';
+    try {
+        const res = await apiFetch(`${API_BASE}/api/admin/clients/${encodeURIComponent(cid)}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirm: cid }) });
+        const d = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+        mcbSetDirty(false);
+        closeClientDrawer();
+        await loadClients();
+    } catch (err) { msg.textContent = `Not deleted: ${err.message}`; e.target.disabled = false; }
+});
