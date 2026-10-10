@@ -1857,3 +1857,11 @@ body.light-mode .ld-col-budget.active { color: #2a78d6; }
 /* Narrower board columns: the Move picker and Campaign button wrap instead of clipping */
 #leads-view .ld-card-foot { flex-wrap: wrap; }
 #leads-view .ld-card-foot select { min-width: 104px; }
+
+/* Proposal review (email-first leads): a person checks and sends every proposal */
+.ld-prop-tag { margin-left: 0.4rem; padding: 0.1rem 0.45rem; border-radius: 999px; font-size: 0.64rem; letter-spacing: 0.02em; text-transform: none; color: #fff; background: var(--ld-warn); }
+.ld-prop-text { width: 100%; margin: 0.25rem 0 0; resize: vertical; font: inherit; font-size: 0.85rem; line-height: 1.55; }
+.ld-prop-blanks { margin: 0.35rem 0 0.5rem; font-size: 0.76rem; font-weight: 600; color: var(--ld-warn); }
+.ld-prop-blanks.ld-prop-ready { color: var(--ld-ok); }
+.ld-drawer [data-prop="send"][aria-disabled="true"] { opacity: 0.55; }
+.ld-prop-text, .ld-compose textarea { padding: 0.65rem 0.75rem; border-radius: 10px; box-sizing: border-box; }

@@ -900,8 +900,9 @@ function renderLeads(leads) {
     document.querySelectorAll('.manage-campaign-btn').forEach(btn => btn.addEventListener('click', (e) => { e.stopPropagation(); openSequenceModal(btn.getAttribute('data-id')); }));
     const open = document.getElementById('ld-drawer').dataset.leadId;
     // Don't redraw the open lead while the owner is writing a reply in it
-    const ta = document.getElementById('ld-compose-text');
-    if (open && !document.getElementById('ld-drawer').hidden && !(ta && (ta.value.trim() || document.activeElement === ta))) openLeadDrawer(open, true);
+    // …or editing a proposal draft
+    const busy = ['ld-compose-text', 'ld-prop-text'].some(id => { const ta = document.getElementById(id); return ta && (document.activeElement === ta || (id === 'ld-compose-text' && ta.value.trim())); });
+    if (open && !document.getElementById('ld-drawer').hidden && !busy) openLeadDrawer(open, true);
 }
 
 async function moveLead(id, toStage) {
@@ -962,6 +963,7 @@ function openLeadDrawer(id, keepFocus = false) {
         ${l.summary ? `<h4>Conversation summary</h4><p class="ld-d-summary">${escapeHtml(l.summary)}</p>` : ''}
         ${l.next_best_action ? `<h4>Suggested next step</h4><p class="ld-d-summary">${escapeHtml(l.next_best_action)}</p>` : ''}
         ${ldBriefHtml(l)}
+        ${ldProposalHtml(l)}
         ${col === 'closed' ? '' : `<h4>Stage</h4>
         <div class="ld-stage-pick" role="group" aria-label="Stage">
             ${LD_STAGES.map(st => `<button type="button" class="cl-seg-btn${st === col ? ' active' : ''}" data-stage-pick="${st}" aria-pressed="${st === col}">${LD_STAGE_NAMES[st]}</button>`).join('')}
@@ -3890,11 +3892,18 @@ async function salesTrackingNote(p) {
 // ─── Leads: conversation thread, brief, won / lost ────────────────────────────
 const LD_OUTCOME = { won: 'Won', lost: 'Lost' };
 const ldFmtWhen = (ts) => new Date(ts).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-const LD_KIND = { questions: 'Questions', reminder: 'Reminder', followup: 'Follow-up', manual: 'You', reply: 'Reply' };
+const LD_KIND = { questions: 'Questions', reminder: 'Reminder', followup: 'Follow-up', manual: 'You', reply: 'Reply', proposal: 'Proposal', nudge: 'Follow-up' };
+const ldProposal = (l) => { try { const p = JSON.parse(l.proposal || 'null'); return p && typeof p === 'object' ? p : null; } catch (_) { return null; } };
+// [PRICE], [START DATE]…: blanks that must be filled before a proposal can be sent (same rule as the server)
+const ldBlanks = (t) => [...new Set(String(t || '').match(/\[[^\]\n]{2,40}\]/g) || [])];
 
 function ldSalesChips(l) {
     if (l.outcome === 'won') return `<span class="ld-chip ld-chip-ok">Won${l.deal_value ? ` · ${escapeHtml(l.deal_value)}` : ''}</span>`;
     if (l.outcome === 'lost') return '<span class="ld-chip ld-chip-muted">Lost</span>';
+    const p = ldProposal(l);
+    if (p?.acceptedAt) return '<span class="ld-chip ld-chip-ok">Said yes to proposal</span>';
+    if (p?.status === 'draft') return '<span class="ld-chip ld-chip-reply">Proposal to review</span>';
+    if (p?.status === 'sent') return '<span class="ld-chip ld-chip-info">Proposal sent</span>' + (l.unsubscribed ? '<span class="ld-chip ld-chip-muted">Unsubscribed</span>' : '');
     return (l.replied_at ? '<span class="ld-chip ld-chip-reply">Replied: follow up now</span>' : l.thread_token ? '<span class="ld-chip ld-chip-info">Questions sent</span>' : '')
         + (l.unsubscribed ? '<span class="ld-chip ld-chip-muted">Unsubscribed</span>' : '');
 }
@@ -3903,7 +3912,60 @@ function ldBriefHtml(l) {
     let b = null; try { b = JSON.parse(l.brief || 'null'); } catch (_) {}
     if (!b) return '';
     const r = (k, v) => v ? `<div class="ld-row"><dt>${k}</dt><dd>${escapeHtml(v)}</dd></div>` : '';
-    return `<h4>Their answers</h4><dl class="ld-dl ld-brief">${r('Need', b.need)}${r('Goals', b.goals)}${r('Budget', b.budget)}${r('Timeline', b.timeline)}${b.wantsCall ? r('Call', 'Open to a call') : ''}</dl>`;
+    return `<h4>Their answers</h4><dl class="ld-dl ld-brief">${r('Need', b.need)}${r('Goals', b.goals)}${r('Budget', b.budget)}${r('Timeline', b.timeline)}${r('Prefers', b.wantsCall ? 'A call' : b.contact === 'email' ? 'Email (no call needed)' : 'Email')}</dl>`;
+}
+
+function ldProposalHtml(l) {
+    const p = ldProposal(l);
+    const fmtDay = (ts) => new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    if (p?.status === 'sent') {
+        return `<h4>Proposal</h4><div class="ld-outcome${p.acceptedAt ? ' ld-outcome-won' : ''}">
+            <strong>${p.acceptedAt ? 'They said yes' : 'Sent'}</strong> <span class="ld-muted">${p.acceptedAt ? `on ${fmtDay(p.acceptedAt)} · confirm the details, then mark won` : `on ${fmtDay(p.sentAt)} · it's in the conversation below`}</span>
+            ${l.outcome ? '' : '<button type="button" class="cl-btn" data-prop="draft">Draft a revised one</button>'}</div>`;
+    }
+    if (p?.status === 'draft') {
+        return `<h4>Proposal <span class="ld-prop-tag">Needs your review</span></h4>
+            <p class="ld-thread-note">${p.ai ? 'Drafted by AI from their answers.' : 'Draft.'} Check it, adjust anything you like, and fill in every [bracketed] blank such as the price. Nothing is sent until you press Send.</p>
+            <label class="sr-only" for="ld-prop-text">Proposal to ${escapeHtml(l.name || 'the lead')}</label>
+            <textarea id="ld-prop-text" class="ld-prop-text" rows="14" maxlength="8000">${escapeHtml(p.body || '')}</textarea>
+            <p class="ld-prop-blanks" id="ld-prop-blanks" role="status"></p>
+            <div class="ld-row-inline">
+                <button type="button" class="cl-btn ld-primary" data-prop="send">Send proposal</button>
+                <button type="button" class="cl-btn" data-prop="save">Save draft</button>
+                <button type="button" class="cl-btn" data-prop="draft">Redraft with AI</button>
+                <span class="cb-hint" id="ld-prop-status" role="status"></span>
+            </div>`;
+    }
+    if (!l.email || l.unsubscribed || l.outcome) return '';
+    return `<h4>Proposal</h4><div class="ld-row-inline"><button type="button" class="cl-btn" data-prop="draft">Draft a proposal</button><span class="cb-hint" id="ld-prop-status" role="status">Writes one from what they've told you, for you to review before anything is sent.</span></div>`;
+}
+
+function ldWireProposal(l, body) {
+    const ta = body.querySelector('#ld-prop-text'), st = () => body.querySelector('#ld-prop-status');
+    const blanks = () => {
+        const el = body.querySelector('#ld-prop-blanks'), b = ldBlanks(ta.value);
+        el.textContent = b.length ? `Fill in before sending: ${b.join(', ')}` : '✓ No blanks left';
+        el.classList.toggle('ld-prop-ready', !b.length);
+        body.querySelector('[data-prop="send"]').setAttribute('aria-disabled', String(!!b.length));
+    };
+    if (ta) { blanks(); ta.addEventListener('input', blanks); }
+    body.querySelectorAll('[data-prop]').forEach(btn => btn.addEventListener('click', async () => {
+        const action = btn.dataset.prop;
+        if (action === 'send') {
+            const b = ldBlanks(ta.value);
+            if (b.length) { st().textContent = `Fill in ${b[0]} first.`; ta.focus(); return; }
+            if (!confirm(`Send this proposal to ${l.name || l.email}?`)) return;
+        }
+        if (action === 'draft' && ta && ta.value.trim() && !confirm('Replace this draft with a new AI draft? Your edits will be lost.')) return;
+        btn.disabled = true;
+        if (st()) st().textContent = action === 'draft' ? 'Drafting… (up to a minute)' : action === 'send' ? 'Sending…' : 'Saving…';
+        try {
+            const d = await ldPost(`/api/leads/${l.id}/proposal`, { action, body: ta ? ta.value : '' });
+            l.proposal = JSON.stringify(d.proposal);
+            if (action === 'save') { st().textContent = '✓ Draft saved'; btn.disabled = false; return; }
+            await loadLeads();
+        } catch (err) { btn.disabled = false; if (st()) st().textContent = `Not ${action === 'send' ? 'sent' : action === 'save' ? 'saved' : 'drafted'}: ${err.message}`; }
+    }));
 }
 
 function ldOutcomeHtml(l) {
@@ -3932,6 +3994,7 @@ async function ldPost(path, payload) {
 }
 
 function ldWireSales(l, body) {
+    ldWireProposal(l, body);
     const form = body.querySelector('.ld-outcome-form');
     body.querySelectorAll('[data-outcome-form]').forEach(b => b.addEventListener('click', () => {
         const kind = b.dataset.outcomeForm;
