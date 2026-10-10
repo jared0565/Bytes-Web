@@ -81,6 +81,7 @@ body {
 .site-footer h3, .site-footer h4 { font-family: var(--font-display); letter-spacing: -0.01em; }
 .site-footer a:hover { color: var(--amber); }
 .chatbot-launcher { background: linear-gradient(135deg, var(--amber), var(--coral)); color: #1a0f02; box-shadow: var(--shadow-amber); }
+.user-message { color: #1a0f02; } /* the same warm ink as the other amber surfaces */
 
 /* ── Layout ────────────────────────────────────────────────────────────── */
 .hx-container { width: min(1180px, 100% - 2.5rem); margin-inline: auto; }
