@@ -1784,3 +1784,11 @@ body.light-mode #sequence-modal textarea { color: var(--text-primary) !important
 .site-mail-source.cb-bad { border-color: color-mix(in srgb, var(--cb-bad) 45%, transparent); }
 .site-mail-fields.cb-muted input { cursor: not-allowed; }
 #site-mail-test:disabled, #site-mail-save:disabled { opacity: 0.6; cursor: progress; }
+
+/* Leads: column budget total doubles as a "with a budget" filter */
+.ld-col-budget { max-width: 100%; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-decoration: underline dotted; text-underline-offset: 3px; transition: color 0.15s ease; }
+.ld-col-budget:hover { color: var(--text-primary); }
+.ld-col-budget:active { opacity: 0.7; }
+.ld-col-budget:focus-visible { outline: 2px solid #3987e5; outline-offset: 2px; border-radius: 4px; }
+.ld-col-budget.active { color: #6da7ec; text-decoration-style: solid; }
+body.light-mode .ld-col-budget.active { color: #2a78d6; }
