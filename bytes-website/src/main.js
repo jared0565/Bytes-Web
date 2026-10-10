@@ -1,5 +1,7 @@
 import './style.css';
 import './home.css';
+// The one plan list (also served as /plans.json to onboarding and the dashboard, and bundled into the API)
+import PLAN_DATA from '../public/plans.json';
 
 // Global state
 let lastHash = '#home';
@@ -50,6 +52,9 @@ function init() {
 
   // Initialize modal
   initModal();
+
+  // Pricing: "Choose <plan>" fills in the contact form
+  initPricing();
 
   // Check for upgrade params
   checkUpgradeParams();
@@ -220,14 +225,93 @@ function initCounters() {
   counters.forEach(counter => observer.observe(counter));
 }
 
+// ?upgrade=<plan> (from the dashboard, onboarding and the chatbot badge) opens Pricing on that plan.
+// Badge clicks arrive as ?upgrade=free, so they land on the first paid plan.
 function checkUpgradeParams() {
-  const upgradeParam = new URLSearchParams(window.location.search).get('upgrade');
-  if (upgradeParam || window.location.hash === '#pricing') {
-    requestAnimationFrame(() => {
-      const el = document.getElementById('pricing');
-      if (el) el.scrollIntoView({ behavior: 'smooth' });
-    });
-  }
+  const qs = new URLSearchParams(window.location.search);
+  let want = String(qs.get('upgrade') || '').toLowerCase();
+  if (!want && window.location.hash !== '#pricing') return;
+  if (want === 'free' || !PLAN_DATA.plans.some(p => p.id === want)) want = want ? 'starter' : '';
+  requestAnimationFrame(() => {
+    const card = want && document.querySelector(`[data-plan="${want}"]`);
+    if (card) card.classList.add('is-target');
+    (card || document.getElementById('pricing'))?.scrollIntoView({ behavior: 'smooth', block: card ? 'center' : 'start' });
+  });
+}
+
+// ── Pricing: every number comes from plans.json ─────────────────────────────
+const fmtNum = (n) => Number(n).toLocaleString('en-GB');
+function planPrice(p) {
+  if (p.price === null) return '<span class="hx-price-num">Custom</span>';
+  return `<span class="hx-price-num">${PLAN_DATA.currency}${p.price}</span><span class="hx-price-per">${p.price === 0 ? 'forever' : '/ month'}</span>`;
+}
+function planFeatures(p) {
+  const mode = PLAN_DATA.modes[p.mode];
+  const yes = (t) => `<li>${t}</li>`;
+  const no = (t) => `<li class="is-off"><span class="sr-only">Not included: </span>${t}</li>`;
+  return [
+    yes(`<strong>${mode.name} chatbot</strong>: ${mode.summary}`),
+    yes(`${fmtNum(mode.dailyMessages)} chatbot messages a day`),
+    yes(p.domains === -1 ? 'Unlimited websites' : `${p.domains} website${p.domains === 1 ? '' : 's'}`),
+    yes(p.leadsPerDay == null ? 'Unlimited leads in your dashboard' : `${p.leadsPerDay} leads a day, ${p.contacts} contacts`),
+    p.aiFollowUps ? yes('AI email follow-ups, proposals and campaigns') : no('AI email campaigns'),
+    p.removeBadge ? yes('Remove the “Powered by BytesAI” badge') : no('Remove the “Powered by BytesAI” badge'),
+    p.whiteLabel ? yes('Custom bot name, colour and avatar') : no('Custom bot name, colour and avatar'),
+    ...(p.mode === 'ai_plus' ? [yes('Premium AI models')] : []),
+  ].join('');
+}
+function renderPricing() {
+  const cards = PLAN_DATA.plans.filter(p => p.price !== null);
+  const ent = PLAN_DATA.plans.find(p => p.price === null);
+  const cta = (p) => p.price === 0
+    ? `<a href="/onboarding/" class="hx-btn hx-btn-ghost hx-btn-full">Start free trial</a>`
+    : `<button type="button" class="hx-btn ${p.featured ? 'hx-btn-primary' : 'hx-btn-ghost'} hx-btn-full" data-request-plan="${p.id}">Choose ${p.name}</button>`;
+  return `
+    <section id="pricing" class="hx-section hx-pricing" aria-labelledby="pricingTitle">
+      <div class="hx-container">
+        <header class="hx-head reveal">
+          <p class="hx-kicker">Chatbot plans</p>
+          <h2 id="pricingTitle">Pick a plan. <em>Upgrade anytime.</em></h2>
+          <p>${PLAN_DATA.trial.summary}</p>
+        </header>
+        <div class="hx-plans">
+          ${cards.map((p, i) => `
+          <article class="hx-plan reveal${p.featured ? ' is-featured' : ''}" data-plan="${p.id}" style="--d:${i}">
+            ${p.featured ? '<p class="hx-plan-badge">Most popular</p>' : ''}
+            <h3>${p.name}</h3>
+            <p class="hx-price">${planPrice(p)}</p>
+            <p class="hx-plan-tag">${p.tagline}</p>
+            ${cta(p)}
+            <ul class="hx-plan-list">${planFeatures(p)}</ul>
+          </article>`).join('')}
+        </div>
+        ${ent ? `
+        <article class="hx-plan hx-plan-wide reveal" data-plan="${ent.id}">
+          <div>
+            <h3>${ent.name}</h3>
+            <p class="hx-plan-tag">${ent.tagline}</p>
+          </div>
+          <ul class="hx-plan-list hx-plan-list-inline">${planFeatures(ent)}</ul>
+          <button type="button" class="hx-btn hx-btn-ghost" data-request-plan="${ent.id}">Talk to us</button>
+        </article>` : ''}
+        <p class="hx-plan-note">Prices in US dollars. Plans are set up by our team: choose one and we'll reply within 24 hours to get you started.</p>
+      </div>
+    </section>`;
+}
+// "Choose <plan>": fill in the contact form, so the request reaches us as an enquiry
+function initPricing() {
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-request-plan]');
+    if (!btn) return;
+    const plan = PLAN_DATA.plans.find(p => p.id === btn.dataset.requestPlan);
+    const client = new URLSearchParams(location.search).get('client');
+    const service = document.getElementById('leadService');
+    const msg = document.getElementById('leadMessage');
+    if (service) service.value = 'chatbot';
+    if (msg) msg.value = `I'd like the ${plan.name} plan${plan.price ? ` (${PLAN_DATA.currency}${plan.price}/month)` : ''}.${client && /^[\w-]{1,64}$/.test(client) ? ` My client ID is ${client}.` : ''}`;
+    document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' });
+    setTimeout(() => document.getElementById('leadName')?.focus({ preventScroll: true }), 600);
+  });
 }
 
 // ============================================================================
@@ -619,6 +703,8 @@ function renderHomePage() {
         </ol>
       </div>
     </section>
+
+    ${renderPricing()}
 
     <!-- CTA -->
     <section class="hx-section hx-cta-wrap">

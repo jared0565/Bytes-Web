@@ -290,9 +290,13 @@ next2.addEventListener('click', async () => {
             + '<!-- BytesAI Chatbot Widget End -->';
 
         // Populate install limits card (trial = 1 domain / 1 installation)
-        const planLimits = { free: [1,1], trial: [1,1], starter: [3,3], pro: [10,10], business: [25,25], enterprise: ['∞','∞'] };
+        // A new account has the Free plan's website limit during the trial (see /plans.json)
         const trialDaysLeft = resData.trialDaysLeft || 7;
-        const [maxSites, maxDomains] = planLimits.trial;
+        const [maxSites, maxDomains] = [1, 1];
+        fetch('/plans.json').then(r => r.json()).then(d => {
+            const n = d.plans.find(p => p.id === 'free')?.domains;
+            if (n) { const a = document.getElementById('install-max-sites'), b = document.getElementById('install-max-domains'); if (a) a.textContent = n; if (b) b.textContent = n; }
+        }).catch(() => {});
         const sitesEl = document.getElementById('install-max-sites');
         const domsEl = document.getElementById('install-max-domains');
         const badge = document.getElementById('install-plan-badge');

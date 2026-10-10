@@ -469,12 +469,12 @@ function renderPlanBanner() {
         banner.style.background = 'linear-gradient(90deg, rgba(245,158,11,0.15) 0%, rgba(245,158,11,0.05) 100%)';
         banner.style.color = '#f59e0b';
         const days = planStatus.trialDaysLeft;
-        banner.innerHTML = `⚡ <strong>Free Trial Active</strong> — ${days} day${days !== 1 ? 's' : ''} remaining. Enjoy full access to all features including AI campaign generation.`;
+        banner.innerHTML = `⚡ <strong>Free Trial Active</strong> — ${days} day${days !== 1 ? 's' : ''} remaining. Your bot uses AI replies and AI email campaigns; websites and the badge follow Free limits until you choose a plan.`;
     } else if (planStatus.plan === 'free') {
         banner.style.display = 'block';
         banner.style.background = 'linear-gradient(90deg, rgba(239,68,68,0.12) 0%, rgba(239,68,68,0.04) 100%)';
         banner.style.color = '#f87171';
-        banner.innerHTML = `🔒 <strong>Free Plan</strong> — AI features are disabled. Max 10 leads/day · 50 contacts. <a href="/?upgrade=free#pricing" style="color:#fb923c;text-decoration:underline;margin-left:8px;">Upgrade your plan →</a>`;
+        banner.innerHTML = `🔒 <strong>Free Plan</strong> — Scripted chatbot, no AI replies or AI campaigns. Max 10 leads a day · 50 contacts. <a href="${upgradeUrl('starter')}" target="_blank" rel="noopener" style="color:#fb923c;text-decoration:underline;margin-left:8px;">See plans →</a>`;
     }
 }
 
@@ -535,7 +535,7 @@ document.addEventListener('click', () => {
 // Dropdown actions
 document.getElementById('dd-upgrade').addEventListener('click', () => {
     const plan = planStatus.plan || 'free';
-    window.open(`https://web.bytesfx.com/?upgrade=${plan}#pricing`, '_blank');
+    window.open(upgradeUrl(plan), '_blank');
     document.getElementById('user-dropdown-menu').classList.remove('open');
 });
 // Settings (sidebar cog) is the Bytes website's own chatbot, separate from every client. Admin only;
@@ -1074,7 +1074,7 @@ function mcbRefreshUI() {
     mcbEl('config-campaign-note').textContent = MCB_CAMPAIGN_NOTES[configCampaignMode.value] || '';
     // Domains against the plan's limit (trials use Free limits)
     const list = domainListOf(mcbEl('config-domains').value);
-    const lim = (PLAN_INSTALL_LIMITS[MCB.inTrial ? 'free' : MCB.plan] || PLAN_INSTALL_LIMITS.free).maxDomains;
+    const lim = (PLAN_INSTALL_LIMITS[MCB.plan] || PLAN_INSTALL_LIMITS.free).maxDomains; // a trial on Free keeps Free limits
     const note = mcbEl('config-domains-note');
     note.classList.toggle('cb-warn', lim !== -1 && list.length > lim);
     note.textContent = !list.length
@@ -1146,7 +1146,7 @@ async function mcbLoad(cid) {
         configBranding.checked = brandingLocked ? true : data.showBranding !== false;
         configBranding.disabled = !!brandingLocked;
         mcbEl('config-branding-note').textContent = brandingLocked
-            ? (MCB.inTrial ? 'Required during the trial' : `Required on the ${mcPlanName(MCB.plan).replace(/<[^>]*>/g, '')} plan; Pro and above can hide it`)
+            ? (MCB.inTrial && MCB.plan === 'free' ? 'Required during the trial' : `Required on the ${mcPlanName(MCB.plan).replace(/<[^>]*>/g, '')} plan; Pro and above can hide it`)
             : 'Optional on this plan';
 
         // White label: Business and Enterprise
@@ -1379,12 +1379,12 @@ function isFreeLocked() {
 const UPGRADE_FEATURES = {
     ai_campaigns: {
         title: 'AI Campaign Generation',
-        subtitle: 'Let Gemini AI write personalised email sequences based on each lead\'s chat history — automatically.',
+        subtitle: 'Let AI write personalised email sequences from each lead\'s chat and answers.',
         features: [
             '✨ AI-written email sequences per lead',
-            '🚀 Auto-approve and deploy campaigns',
-            '📈 Unlimited campaigns per month',
-            '🎯 PAS framework optimised copy',
+            '🚀 Auto-approve and send campaigns',
+            '🤖 AI chatbot replies (Scripted on Free)',
+            '📝 AI-drafted proposals for your review',
         ],
         plan: 'Starter',
     },
@@ -1392,20 +1392,19 @@ const UPGRADE_FEATURES = {
         title: 'Approve & Deploy Campaigns',
         subtitle: 'Instantly deploy email sequences to start the drip campaign to your lead.',
         features: [
-            '📤 One-click campaign deployment',
+            '📤 One-click campaign sending',
             '⏱️ Automated drip scheduling',
-            '📊 Campaign performance tracking',
+            '🛑 Stops automatically when the lead replies',
         ],
         plan: 'Starter',
     },
     remove_branding: {
         title: 'Remove "Powered by BytesAI" Badge',
-        subtitle: 'White-label the chatbot widget — no BytesAI attribution visible to your visitors.',
+        subtitle: 'Hide the "Powered by BytesAI" badge so visitors only see your brand.',
         features: [
-            '🏷️ Full white-label widget',
-            '🎨 Your brand, your identity',
-            '💼 Professional client deployments',
-            '📎 Free & Starter plans keep the badge as a referral link',
+            '🏷️ No BytesAI badge on your widget (Pro and above)',
+            '🎨 Custom bot name, colour and avatar on Business and Enterprise',
+            '📎 Free and Starter plans keep the badge',
         ],
         plan: 'Pro',
     },
@@ -1413,8 +1412,7 @@ const UPGRADE_FEATURES = {
         title: 'More Installation Domains',
         subtitle: 'Install your chatbot on multiple websites and subdomains simultaneously.',
         features: [
-            '🌐 3 domains on Starter, 10 on Pro, 50 on Business',
-            '✱ Wildcard subdomain support (*.yoursite.com)',
+            '🌐 Websites: PLAN_DOMAINS, unlimited on Enterprise',
             '🔄 Manage all installations from one dashboard',
         ],
         plan: 'Starter',
@@ -1432,7 +1430,7 @@ function showUpgradeModal(featureKey) {
 
     const featureList = document.getElementById('upgrade-modal-features');
     featureList.innerHTML = feature.features.map(f =>
-        `<div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0.75rem;background:rgba(255,255,255,0.04);border-radius:8px;font-size:0.83rem;color:#cbd5e1;">${escapeHtml(f)}</div>`
+        `<div style="display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0.75rem;background:rgba(255,255,255,0.04);border-radius:8px;font-size:0.83rem;color:#cbd5e1;">${escapeHtml(f.replace('PLAN_DOMAINS', planDomainsLine()))}</div>`
     ).join('');
 
     modal.style.display = 'flex';
@@ -1454,7 +1452,7 @@ document.getElementById('upgrade-modal')?.addEventListener('click', (e) => {
 });
 document.getElementById('upgrade-modal-cta')?.addEventListener('click', () => {
     const plan = planStatus.plan || 'free';
-    window.open(`https://web.bytesfx.com/?upgrade=${plan}#pricing`, '_blank');
+    window.open(upgradeUrl(plan), '_blank');
     hideUpgradeModal();
 });
 // Remove the old inline banner button
@@ -1736,13 +1734,20 @@ approveSequenceBtn.addEventListener('click', async () => {
 
 // ─── Chatbot & Installations View ────────────────────────────────────────────
 
+// Websites per plan, from /plans.json (the same list the API enforces); these values are only a fallback
 const PLAN_INSTALL_LIMITS = {
     free:       { maxInstalls: 1,  maxDomains: 1  },
     starter:    { maxInstalls: 3,  maxDomains: 3  },
     pro:        { maxInstalls: 10, maxDomains: 10 },
-    business:   { maxInstalls: 50, maxDomains: 50 },
+    business:   { maxInstalls: 25, maxDomains: 25 },
     enterprise: { maxInstalls: -1, maxDomains: -1 },
 };
+fetch('/plans.json').then(r => (r.ok ? r.json() : null)).then(d => {
+    if (d) d.plans.forEach(p => { PLAN_INSTALL_LIMITS[p.id] = { maxInstalls: p.domains, maxDomains: p.domains }; });
+}).catch(() => {});
+const planDomainsLine = () => ['starter', 'pro', 'business'].map(id => `${PLAN_INSTALL_LIMITS[id].maxDomains} on ${id[0].toUpperCase()}${id.slice(1)}`).join(', ');
+// Upgrade links open the website's Pricing on that plan, with the client ID so the request is quick
+const upgradeUrl = (plan) => `https://web.bytesfx.com/?upgrade=${encodeURIComponent(plan || 'starter')}${installationData?.clientId ? `&client=${encodeURIComponent(installationData.clientId)}` : ''}#pricing`;
 
 let installationData = { clientId: '', allowedDomains: [], maxInstalls: 1, maxDomains: 1, plan: 'free', inTrial: true };
 
@@ -1905,7 +1910,7 @@ function populateChatbotSettings(data) {
         const noteEl = document.getElementById('settings-branding-note');
         if (noteEl) {
             if (locked) {
-                noteEl.textContent = data.inTrial ? 'Required during your trial'
+                noteEl.textContent = data.inTrial && data.plan === 'free' ? 'Required during your trial (remove it on Pro and above)'
                     : data.plan === 'starter' ? 'Required on Starter — upgrade to Pro to remove'
                     : 'Required on Free — upgrade to Pro to remove';
                 noteEl.style.color = '#f59e0b';
@@ -3866,7 +3871,7 @@ function salesFieldsHtml(p) {
                 <input type="email" id="${p}-alert" maxlength="200" placeholder="Defaults to the sender address" autocomplete="off">
             </div>
         </div>
-        <div class="sales-grid">
+        <div class="sales-grid sales-models">
             <div class="form-group">
                 <label for="${p}-draft-model">Email drafting model <span class="site-hint">— writes questions and closing emails</span></label>
                 <select id="${p}-draft-model"><option value="">${SALES_DEFAULT_LABEL}</option></select>
@@ -3883,6 +3888,8 @@ document.querySelectorAll('[data-sales]').forEach(el => { el.innerHTML = salesFi
 async function salesFill(p, d = {}) {
     const q = (s) => document.getElementById(`${p}-${s}`);
     if (!q('ask')) return;
+    // The email models are chosen by Bytes admins; clients don't see the pickers (the API ignores them too)
+    q('ask').closest('[data-sales]')?.querySelector('.sales-models')?.toggleAttribute('hidden', userRole !== 'admin');
     q('ask').checked = d.askQuestions !== false;
     q('booking').value = d.bookingUrl || '';
     q('alert').value = d.alertEmail || '';
@@ -3904,8 +3911,8 @@ function salesCollect(p) {
     if (alertTo && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(alertTo)) return { error: 'The lead alerts email isn\'t a valid address.', field: q('alert') };
     const values = { askQuestions: q('ask').checked, bookingUrl: booking, alertEmail: alertTo };
     // Only send models once the list loaded, so a failed load can't wipe saved choices
-    if (q('draft-model').dataset.filled) values.draftModel = q('draft-model').value;
-    if (q('read-model').dataset.filled) values.readModel = q('read-model').value;
+    if (userRole === 'admin' && q('draft-model').dataset.filled) values.draftModel = q('draft-model').value;
+    if (userRole === 'admin' && q('read-model').dataset.filled) values.readModel = q('read-model').value;
     return { values };
 }
 

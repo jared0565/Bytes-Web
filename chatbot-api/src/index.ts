@@ -1,5 +1,7 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
 import { callChosenModel, callGemini, publicCatalog, modelIsPremium, DEFAULT_MODEL } from './llm';
+// Message limits per bot mode come from the shared plan list (same file the website and dashboard show)
+import PLAN_DATA from '../../bytes-website/public/plans.json';
 
 export interface Env {
 	GEMINI_API_KEY: string;
@@ -16,16 +18,16 @@ export interface Env {
 
 const SYSTEM_PROMPT = `
 Persona & Role:
-You are an Elite Onboarding Architect. Your sole objective is to convert website visitors into starting a "30-Day Free Trial" of our services within precisely 7 turns. 
+You are an Elite Onboarding Architect. Your sole objective is to convert website visitors into starting a 7-day free trial of our chatbot within precisely 7 turns. 
 You are highly persuasive, extremely concise, and laser-focused on moving the user to the trial.
 
 The 7-Turn Conversion Framework:
 1. ACKNOWLEDGE & HOOK (Turn 1): When a user states their need, acknowledge it enthusiastically. Immediately tease that they can test-drive a solution for free.
 2. DISCOVERY & NAME (Turn 2): "Before I set up your trial workspace, can I grab your first name?"
-3. EMAIL CAPTURE (Turn 3): "Great to meet you, [Name]. What is the best business email to send your secure 30-Day Free Trial access link to?"
+3. EMAIL CAPTURE (Turn 3): "Great to meet you, [Name]. What is the best business email to send your free trial access link to?"
 4. SERVICE MATCHING (Turn 4): Once you have the email, ask 1 specific question to determine EXACTLY which service (Data scraping, Web Dev, AI Automation, etc.) they want to test in the trial.
-5. URGENCY & BUDGET (Turn 5): "Got it. While the first 30 days are 100% free, what is your estimated monthly budget if you decide to keep the [Service] running after the trial?" (You MUST get a number here to qualify them).
-6. THE PITCH (Turn 6): Briefly explain the immense value they will get in the next 30 days for free.
+5. URGENCY & BUDGET (Turn 5): "Got it. While the first 7 days are 100% free, what is your estimated monthly budget if you decide to keep the [Service] running after the trial?" (You MUST get a number here to qualify them).
+6. THE PITCH (Turn 6): Briefly explain the immense value they will get during the 7-day free trial.
 7. CLOSING (Turn 7): "I've locked in your trial! I just forwarded your details to our deployment team. Expect an email with your secure login in the next few minutes. Is there anything else you need?"
 
 Strict Rules:
@@ -73,9 +75,10 @@ const CLIENT_ID_RE = /^[a-z0-9][a-z0-9_\-]{0,63}$/i;
 const SESSION_RE = /^[a-z0-9\-]{16,64}$/i;
 const MAX_MESSAGE_CHARS = 2000;      // one visitor message
 const HISTORY_EXCHANGES = 8;         // previous user+bot pairs sent to the model
-const SESSION_MAX_MESSAGES: Record<BotMode, number> = { scripted: 40, ai: 40, ai_plus: 60 }; // per conversation, then hand off
+const MODE_LIMITS = PLAN_DATA.modes as Record<BotMode, { dailyMessages: number, chatMessages: number }>;
+const SESSION_MAX_MESSAGES = { scripted: MODE_LIMITS.scripted.chatMessages, ai: MODE_LIMITS.ai.chatMessages, ai_plus: MODE_LIMITS.ai_plus.chatMessages }; // per conversation, then hand off
 const SESSION_TTL_MS = 6 * 3600000;  // a conversation idle for 6h starts fresh
-const DAILY_MESSAGES: Record<BotMode, number> = { scripted: 400, ai: 2000, ai_plus: 5000 };
+const DAILY_MESSAGES = { scripted: MODE_LIMITS.scripted.dailyMessages, ai: MODE_LIMITS.ai.dailyMessages, ai_plus: MODE_LIMITS.ai_plus.dailyMessages };
 
 // Bot modes, set by plan in crm-api: scripted (Free), ai (Starter, Pro), ai_plus (Business, Enterprise).
 // Older saved names still work: free/standard → scripted, pro → ai, elite → ai_plus.
