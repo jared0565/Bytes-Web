@@ -245,10 +245,12 @@ the daily allowance. The one exception is a first email typed after the chat lim
     Two places are allowed: the chat worker's repair of badge links saved under `web.bytesai.com`, and the
     data fix below.
   - Stored email text is not changed by a deploy. `crm-api-worker/data-fixes/2026-10-11-bytesfx-name.sql`
-    updates the stored follow-up template and the Bytes emails and proposals not sent yet. It is run once by hand
+    updates the stored follow-up template and the Bytes emails and proposals not sent yet. It is run by hand
     with the owner's OK, from `bytes-website/crm-api-worker`:
     `npx wrangler d1 execute chatbot-db --remote --config wrangler.toml --file data-fixes/2026-10-11-bytesfx-name.sql`.
-    Not run yet as of 2026-10-11.
+    It was run on the live database on 2026-10-11 and changed nothing: a count straight after found no stored
+    template, unsent email or proposal with the old name. The first try failed with "Authentication error
+    [code: 10000]" on the upload step; `npx wrangler login` again fixed it.
   - Saved settings are edited in the dashboard, not here: the Company name, the bot's prompt and the sender name.
   - The chat's session key in the tab is `bytesfx_chat_<clientId>`.
 - **Prompts:**
@@ -431,3 +433,8 @@ gitignored).
    the Bytes bot to web.bytesfx.com.
 10. **Chat limits are starting points:** the 10-message limit is a judgement, not a research figure. Review it after
     about 100 real chats (the design document says how to read the data).
+11. **No stored follow-up template on the live database:** `email_templates` was empty on 2026-10-11 (counted, not
+    read). `generateRuleSequence` needs the row "Standard Web Design Sequence" for the Bytes site, and throws
+    "Standard template not found" without it. `autoSequence` swallows that, so a Bytes lead gets no follow-up
+    emails when the campaign mode is not AI, or when the AI write fails. The row is seeded by
+    `migrations/0001_init.sql` under client `agency_demo`. Why it is gone is not known.
