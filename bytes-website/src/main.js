@@ -255,7 +255,7 @@ function planFeatures(p) {
     yes(p.domains === -1 ? 'Unlimited websites' : `${p.domains} website${p.domains === 1 ? '' : 's'}`),
     yes(p.leadsPerDay == null ? 'Unlimited leads in your dashboard' : `${p.leadsPerDay} leads a day, ${p.contacts} contacts`),
     p.aiFollowUps ? yes('AI email follow-ups, proposals and campaigns') : no('AI email campaigns'),
-    p.removeBadge ? yes('Remove the “Powered by BytesAI” badge') : no('Remove the “Powered by BytesAI” badge'),
+    p.removeBadge ? yes('Remove the “Powered by BytesFX” badge') : no('Remove the “Powered by BytesFX” badge'),
     p.whiteLabel ? yes('Custom bot name, colour and avatar') : no('Custom bot name, colour and avatar'),
     ...(p.mode === 'ai_plus' ? [yes('Premium AI models')] : []),
   ].join('');
@@ -507,7 +507,7 @@ const LINKEDIN_URL = 'https://www.linkedin.com/in/fbmacagba/';
 
 // The conversation is kept on the server; this tab only holds its opaque id
 let chatSessionId = null;
-try { chatSessionId = sessionStorage.getItem('bytesai_chat_default'); } catch (_) { /* storage blocked */ }
+try { chatSessionId = sessionStorage.getItem('bytesfx_chat_default'); } catch (_) { /* storage blocked */ }
 
 // Ask the AI backend, falling back to canned replies if it's unreachable
 async function generateChatResponse(userMessage) {
@@ -520,7 +520,7 @@ async function generateChatResponse(userMessage) {
     const data = await res.json();
     if (data.sessionId && data.sessionId !== chatSessionId) {
       chatSessionId = data.sessionId;
-      try { sessionStorage.setItem('bytesai_chat_default', chatSessionId); } catch (_) { /* storage blocked */ }
+      try { sessionStorage.setItem('bytesfx_chat_default', chatSessionId); } catch (_) { /* storage blocked */ }
     }
     if (res.ok && data.response) {
       return data.response;

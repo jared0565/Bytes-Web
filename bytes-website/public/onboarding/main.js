@@ -290,9 +290,9 @@ next2.addEventListener('click', async () => {
         document.getElementById('settings-prompt').value = prompt;
 
         // Generate the Embed Code
-        embedCode.textContent = '<!-- BytesAI Chatbot Widget Start -->\n'
+        embedCode.textContent = '<!-- BytesFX Chatbot Widget Start -->\n'
             + `<script src="https://web.bytesfx.com/widget.js"\n  data-client-id="${registrationData.clientId}"></scr` + 'ipt>\n'
-            + '<!-- BytesAI Chatbot Widget End -->';
+            + '<!-- BytesFX Chatbot Widget End -->';
 
         // Populate install limits card (trial = 1 domain / 1 installation)
         // A new account has the Free plan's website limit during the trial (see /plans.json)
@@ -394,8 +394,8 @@ copyBtn.addEventListener('click', async () => {
 
 // Email to developer — opens the visitor's own email app with the code and install steps
 document.getElementById('btn-email-dev').addEventListener('click', () => {
-    const subject = `Please add our ${registrationData.company || 'BytesAI'} chatbot to the website`;
-    const body = `Hi,\n\nPlease add our BytesAI chatbot to every page of the website. Paste this code just before the closing </body> tag:\n\n`
+    const subject = `Please add our ${registrationData.company || 'BytesFX'} chatbot to the website`;
+    const body = `Hi,\n\nPlease add our BytesFX chatbot to every page of the website. Paste this code just before the closing </body> tag:\n\n`
         + `${embedCode.textContent}\n\n`
         + `WordPress: footer.php before </body>, or a "header and footer scripts" plugin.\n`
         + `Shopify: Online Store > Themes > Edit code > theme.liquid, before </body>.\n`

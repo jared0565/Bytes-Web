@@ -684,8 +684,8 @@ app.get('/api/auth/totp/setup', async (c) => {
     const secret = base32Encode(bytes);
     await c.env.OAUTH_TOKENS.put('totp:secret', secret); // no TTL — permanent
 
-    const label = encodeURIComponent('BytesAI:admin');
-    const issuer = encodeURIComponent('BytesAI');
+    const label = encodeURIComponent('BytesFX:admin');
+    const issuer = encodeURIComponent('BytesFX');
     const uri = `otpauth://totp/${label}?secret=${secret}&issuer=${issuer}&algorithm=SHA1&digits=6&period=30`;
 
     return c.html(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>TOTP Setup</title>
@@ -693,7 +693,7 @@ app.get('/api/auth/totp/setup', async (c) => {
         img{border:8px solid #fff;border-radius:8px;margin:1.5rem 0}
         code{background:#1e1e2e;padding:.3rem .6rem;border-radius:4px;font-size:.85rem;word-break:break-all}
         p{color:#aaa;font-size:.9rem}</style></head>
-        <body><h2>BytesAI — TOTP Setup</h2>
+        <body><h2>BytesFX — TOTP Setup</h2>
         <p>In <strong>Google Authenticator</strong> or <strong>Authy</strong>, choose "Enter a setup key" and type this secret:</p>
         <code>${secret}</code>
         <p>Or open this link on the phone with the app: <code>${escapeHtml(uri)}</code></p>
@@ -1037,8 +1037,8 @@ app.get('/api/auth/totp/user-setup', async (c) => {
         await c.env.OAUTH_TOKENS.put(`totp:pending-secret:${userId}`, secret, { expirationTtl: 600 });
     }
 
-    const label = encodeURIComponent(`BytesAI:${email || userId}`);
-    const issuer = encodeURIComponent('BytesAI');
+    const label = encodeURIComponent(`BytesFX:${email || userId}`);
+    const issuer = encodeURIComponent('BytesFX');
     const uri = `otpauth://totp/${label}?secret=${secret}&issuer=${issuer}&algorithm=SHA1&digits=6&period=30`;
     // The QR code is drawn in the browser: the secret is never sent to a third-party QR service
     return c.json({ uri, secret });
@@ -2166,7 +2166,7 @@ async function companyNameFor(env, clientId) {
         const cfg = JSON.parse(await env.CLIENT_SETTINGS.get(`client:${clientId}`) || '{}');
         if (typeof cfg.companyName === 'string' && cfg.companyName.trim()) return cfg.companyName.trim().slice(0, 80);
     } catch (_) {}
-    return clientId === HOUSE_CLIENT_ID || clientId === 'agency_demo' ? 'BytesAI' : '';
+    return clientId === HOUSE_CLIENT_ID || clientId === 'agency_demo' ? 'BytesFX' : '';
 }
 
 // Admins reach every lead; a client only its own. Returns the lead row or null.
@@ -2434,7 +2434,7 @@ async function sendMailOnce(s, to, subject, html, opts = {}) {
     if (!s.fromEmail) return { ok: false, error: 'From Email is required.' };
     if (s.provider === 'smtp') return { ok: false, error: 'SMTP sending is not supported yet. Use Resend, SendGrid or Mailgun.' };
     if (!s.apiKey) return { ok: false, error: 'API Key is required.' };
-    const from = `${s.fromName || 'BytesAI'} <${s.fromEmail}>`;
+    const from = `${s.fromName || 'BytesFX'} <${s.fromEmail}>`;
 
     if (s.provider === 'resend') {
         const res = await fetch('https://api.resend.com/emails', {
@@ -2453,7 +2453,7 @@ async function sendMailOnce(s, to, subject, html, opts = {}) {
             headers: { 'Authorization': `Bearer ${s.apiKey}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 personalizations: [{ to: [{ email: to }] }],
-                from: { email: s.fromEmail, name: s.fromName || 'BytesAI' },
+                from: { email: s.fromEmail, name: s.fromName || 'BytesFX' },
                 subject,
                 content: [...(opts.text ? [{ type: 'text/plain', value: opts.text }] : []), { type: 'text/html', value: html }],
                 ...(opts.replyTo ? { reply_to: { email: opts.replyTo } } : {}),
@@ -2597,14 +2597,14 @@ app.post('/api/mail-settings/test', requireAuth, async (c) => {
     const userRow = await c.env.DB.prepare('SELECT email FROM users WHERE id = ?').bind(user.userId).first().catch(() => null);
     const toEmail = userRow?.email || s.fromEmail;
 
-    const subject = 'BytesAI — Email Sender Test ✅';
+    const subject = 'BytesFX — Email Sender Test ✅';
     const html = `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:2rem;background:#0f0f1a;color:#f0f0f5;border-radius:12px;">
         <h2 style="color:#8b5cf6;margin:0 0 1rem;">Test Email ✅</h2>
         <p style="margin:0 0 0.5rem;">Your email sender is configured and working correctly.</p>
         <p style="color:#9aa0a6;font-size:0.85rem;margin:0 0 0.25rem;">Provider: <strong style="color:#f0f0f5;">${escapeHtml(s.provider)}</strong></p>
         <p style="color:#9aa0a6;font-size:0.85rem;margin:0;">From: <strong style="color:#f0f0f5;">${escapeHtml(s.fromName || '')} &lt;${escapeHtml(s.fromEmail)}&gt;</strong></p>
         <hr style="border:none;border-top:1px solid rgba(255,255,255,0.08);margin:1.5rem 0;">
-        <p style="font-size:0.75rem;color:#9aa0a6;margin:0;">Sent via BytesAI Dashboard</p>
+        <p style="font-size:0.75rem;color:#9aa0a6;margin:0;">Sent via BytesFX Dashboard</p>
     </div>`;
 
     try {

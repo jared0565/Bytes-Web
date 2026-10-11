@@ -9,7 +9,7 @@
 
     // --- State ---
     // The conversation is kept on the server; the browser only holds an opaque id for this tab's chat
-    const SESSION_KEY = `bytesai_chat_${clientId}`;
+    const SESSION_KEY = `bytesfx_chat_${clientId}`;
     let sessionId = null;
     try { sessionId = sessionStorage.getItem(SESSION_KEY); } catch (e) { /* storage blocked */ }
 
@@ -382,7 +382,7 @@
             : baseBadgeUrl);
 
         // White-label customization (business+ only — enforced by backend)
-        const widgetName = escapeAttr(config.widgetName || 'BytesAI');
+        const widgetName = escapeAttr(config.widgetName || 'BytesFX');
         const widgetAccentColor = config.widgetAccentColor || '#6366f1';
         const widgetAvatar = /^https?:\/\//i.test(config.widgetAvatar || '') ? escapeAttr(config.widgetAvatar) : '';
         // One message has a character limit, set on the server (which enforces it too)
@@ -429,7 +429,7 @@
                     <div class="chat-count" id="chatbot-count" hidden></div>
                 </div>
                 <div class="branding-area" id="branding-area" style="display: ${showBranding ? 'block' : 'none'}">
-                    Powered by <a href="${brandingUrl}" target="_blank" rel="noopener noreferrer">BytesAI</a>
+                    Powered by <a href="${brandingUrl}" target="_blank" rel="noopener noreferrer">BytesFX</a>
                 </div>
             </div>
             <button class="chatbot-launcher" id="chatbot-launcher">
