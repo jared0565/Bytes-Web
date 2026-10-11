@@ -54,7 +54,8 @@ bytes-website/
     src/index.js               ~3.3k lines: auth, leads, sales flow, mail, analytics, admin, crons
     src/auth.js                OAuth providers (Google, Facebook, LinkedIn)
     migrations/                Early D1 schema (later tables are created lazily, see §5)
-    test/                      node test/run.mjs (9 suites, ~130 checks)
+    data-fixes/                One-off SQL for the live database, run by hand (see §7, Brand name)
+    test/                      node test/run.mjs (10 suites, ~145 checks)
 research/                      Notes
 ```
 
@@ -235,6 +236,21 @@ the daily allowance. The one exception is a first email typed after the chat lim
     the chat box shows (the `CHOICES` part of the prompt), so they don't ask what the visitor needs again.
   - The buttons show only for a new chat (no session id stored in the tab) and go the moment a message is sent,
     tapped or typed. Later in a chat a tap would be read as the answer to a different question.
+- **Brand name:** the product is BytesFX in everything a client sees: emails, the widget badge, the dashboard,
+  onboarding, the login setup page and authenticator apps. The old name, BytesAI, was replaced on 2026-10-11.
+  - Emails name the business from the bot's saved Company name (`companyNameFor`). Only the Bytes bot with none
+    saved falls back to "BytesFX". A sender with no name saved also goes out as "BytesFX".
+  - The crm-api `brand` suite fails if the old name appears anywhere under `chatbot-api/` or `bytes-website/`,
+    including split across tags, as the dashboard and onboarding logos were (`Bytes</span><span>AI`).
+    Two places are allowed: the chat worker's repair of badge links saved under `web.bytesai.com`, and the
+    data fix below.
+  - Stored email text is not changed by a deploy. `crm-api-worker/data-fixes/2026-10-11-bytesfx-name.sql`
+    updates the stored follow-up template and the Bytes emails and proposals not sent yet. It is run once by hand
+    with the owner's OK, from `bytes-website/crm-api-worker`:
+    `npx wrangler d1 execute chatbot-db --remote --config wrangler.toml --file data-fixes/2026-10-11-bytesfx-name.sql`.
+    Not run yet as of 2026-10-11.
+  - Saved settings are edited in the dashboard, not here: the Company name, the bot's prompt and the sender name.
+  - The chat's session key in the tab is `bytesfx_chat_<clientId>`.
 - **Prompts:**
   - The Bytes prompt (`HOUSE_ABOUT`, `HOUSE_STEPS`, `HOUSE_FACTS`, `HOUSE_RULES`) is used only for `default`. Its
     plan prices and trial length are filled in from plans.json.
@@ -344,7 +360,7 @@ Hourly at :07:
 Requires **Node 22.5+** (uses `node:sqlite`). Run `npm install` first in each worker folder.
 
 ```
-cd bytes-website/crm-api-worker && node test/run.mjs        # all 9 suites, or: node test/run.mjs flow plans
+cd bytes-website/crm-api-worker && node test/run.mjs        # all 10 suites, or: node test/run.mjs flow plans
 cd chatbot-api && node test/run.mjs                         # website gate, prompts, scripted flow, chat endpoint
 cd chatbot-api && npx tsc --noEmit -p .                     # typecheck
 cd bytes-website/crm-api-worker && npx wrangler deploy --dry-run --config wrangler.toml   # bundle check, nothing is deployed
@@ -367,6 +383,7 @@ instead: without `--config wrangler.toml`, Wrangler (seen on 4.72) uses the `wra
 | `modes` | Plan-based modes |
 | `plans` | Plan limits |
 | `site` | Signup website, adoption email |
+| `brand` | The BytesFX name in emails and code, the one-off data fix |
 
 They run the worker in Node with node:sqlite and mocked KV, R2, mail and LLM, against a scratch copy (`test/.build`,
 gitignored).

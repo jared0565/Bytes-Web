@@ -1399,10 +1399,10 @@ const UPGRADE_FEATURES = {
         plan: 'Starter',
     },
     remove_branding: {
-        title: 'Remove "Powered by BytesAI" Badge',
-        subtitle: 'Hide the "Powered by BytesAI" badge so visitors only see your brand.',
+        title: 'Remove "Powered by BytesFX" Badge',
+        subtitle: 'Hide the "Powered by BytesFX" badge so visitors only see your brand.',
         features: [
-            '🏷️ No BytesAI badge on your widget (Pro and above)',
+            '🏷️ No BytesFX badge on your widget (Pro and above)',
             '🎨 Custom bot name, colour and avatar on Business and Enterprise',
             '📎 Free and Starter plans keep the badge',
         ],
@@ -2014,7 +2014,7 @@ function renderChatbotView() {
     // Embed code
     const embedEl = document.getElementById('dash-embed-code');
     if (embedEl && clientId) {
-        embedEl.textContent = `<!-- BytesAI Chatbot Widget Start -->\n<script src="https://web.bytesfx.com/widget.js"\n  data-client-id="${clientId.replace(/"/g, '')}"></` + `script>\n<!-- BytesAI Chatbot Widget End -->`;
+        embedEl.textContent = `<!-- BytesFX Chatbot Widget Start -->\n<script src="https://web.bytesfx.com/widget.js"\n  data-client-id="${clientId.replace(/"/g, '')}"></` + `script>\n<!-- BytesFX Chatbot Widget End -->`;
     }
 
     // Plan badge
