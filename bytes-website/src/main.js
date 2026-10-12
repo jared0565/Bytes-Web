@@ -354,17 +354,50 @@ function initChatbot() {
 
   if (!btnOpen || !chatWindow) return;
 
+  // A phone or tablet brings up its keyboard when the text box is selected, and the keyboard covers half the
+  // screen. There the text box is selected only when the visitor asks for it: by tapping it or "Something else",
+  // or by sending a message they typed. With a mouse it is selected as soon as the chat opens.
+  const keyboardOnScreen = () => window.matchMedia('(pointer: coarse)').matches;
+
+  // On a phone the chat fills the screen, but the keyboard covers the lower part of it and the page is not made
+  // shorter for it. The chat is sized to the part still in view (the phone rule in style.css reads these two
+  // values), so the header stays at the top and the text box sits on the keyboard.
+  const view = window.visualViewport;
+  let viewHeight = 0;
+  const fitToView = () => {
+    if (!view) return;
+    // Closed, or zoomed by hand (which also changes the part in view): back to the whole screen
+    if (chatWindow.classList.contains('hidden') || Math.abs(view.scale - 1) > 0.01) {
+      chatWindow.style.removeProperty('--chat-top');
+      chatWindow.style.removeProperty('--chat-height');
+      viewHeight = 0;
+      return;
+    }
+    chatWindow.style.setProperty('--chat-top', `${view.offsetTop}px`);
+    chatWindow.style.setProperty('--chat-height', `${view.height}px`);
+    // The keyboard came up: keep what the visitor is answering in view, which is the question above the choices
+    // or the last message
+    const messages = document.getElementById('chat-messages');
+    if (messages && view.height < viewHeight) messages.scrollTop = messages.querySelector('.chat-choices') ? 0 : messages.scrollHeight;
+    viewHeight = view.height;
+  };
+  view?.addEventListener('resize', fitToView);
+  view?.addEventListener('scroll', fitToView);
+
   // Open chatbot
   btnOpen.addEventListener('click', () => {
     chatWindow.classList.remove('hidden');
     btnOpen.classList.add('hidden');
-    chatInput?.focus();
+    if (!keyboardOnScreen()) chatInput?.focus();
+    fitToView();
   });
 
-  // Close chatbot
+  // Close chatbot. The text box is let go, so the keyboard goes with the chat.
   btnClose?.addEventListener('click', () => {
     chatWindow.classList.add('hidden');
     btnOpen.classList.remove('hidden');
+    chatInput?.blur();
+    fitToView();
   });
 
   // One message has a character limit (plans.json "chat"; the server enforces it too).
@@ -419,7 +452,7 @@ function initChatbot() {
   }
 
   // One visitor message, typed or tapped. The choices go at once, so a second tap can't send again.
-  const send = async (message) => {
+  const send = async (message, typed = false) => {
     if (!chatInput || chatInput.disabled) return;
     started = true;
     hideChoices();
@@ -441,14 +474,16 @@ function initChatbot() {
     addChatMessage(response, 'bot');
 
     chatInput.disabled = false;
-    chatInput.focus();
+    // Back to the text box for the next message. Where the keyboard is on screen, only after a typed message:
+    // after a tapped choice it would come up over the reply.
+    if (typed || !keyboardOnScreen()) chatInput.focus();
   };
 
   // Handle form submission
   chatForm?.addEventListener('submit', (e) => {
     e.preventDefault();
     const message = chatInput?.value?.trim();
-    if (message) send(message);
+    if (message) send(message, true);
   });
 }
 

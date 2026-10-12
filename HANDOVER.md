@@ -251,6 +251,23 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
   - The site chat is styled by two stylesheets that are both loaded: `bytes-website/style.css` (linked from
     index.html; it holds the phone rules) and `bytes-website/src/style.css` (imported by main.js). A limit set in
     one can undo a rule in the other, so check both.
+- **Keyboard on phones:** where the keyboard is on screen (`(pointer: coarse)`: phones and tablets), neither chat
+  selects its text box when it opens, so the keyboard stays down and the greeting and choices have the screen.
+  - The text box is selected when the visitor taps it or "Something else", and again after the reply to a message
+    they typed. Not after a tapped choice: the keyboard would come up over the reply. With a mouse it is selected on
+    opening and after every reply, as before. Closing the chat lets go of the text box, so the keyboard goes too.
+  - While the keyboard is up, the full-screen chat is sized to the part of the screen still in view (`fitToView`
+    in `src/main.js` and in `widget.js`). A phone browser does not make the page shorter for the keyboard; it
+    scrolls the text box into view, which pushed the header, greeting and choices off the top. `fitToView` copies
+    `visualViewport.height` and `offsetTop` into two CSS values that only the phone rules read (`--chat-top` and
+    `--chat-height` on the site, `--bfx-chat-top` and `--bfx-chat-height` in the widget). They are dropped when
+    the chat closes and while the page is pinch-zoomed, which also changes `visualViewport`.
+  - Both text boxes are 16px on touch devices. An iPhone zooms the page in when a smaller text box is tapped. The
+    site's phone rule already asked for 1rem, but `src/style.css` set 0.95rem after it and won.
+  - A desktop browser has no on-screen keyboard, so none of this shows there. It was checked with touch emulation
+    and a stand-in for `visualViewport` whose height the test set. The proof is a real phone.
+  - On a phone the site hides its chat (`opacity: 0`) while the cookie banner is up (`public/consent.js`, 560px and
+    under). A local check has to answer the banner first, or it measures a chat nobody can see.
 - **Site menu on phones:** the burger menu covers the screen and closes when one of its links is tapped (the
   listener is in the mobile-menu code in `src/main.js`). Links to a section scroll there without changing the page
   address (`initSmoothScroll`), so nothing that waits for the address to change will run after a tap on one.
