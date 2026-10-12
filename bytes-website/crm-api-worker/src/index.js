@@ -1163,7 +1163,7 @@ app.post('/api/webhooks/new-lead', async (c) => {
     if (!fresh) return c.json({ error: 'Lead not found or already processed' }, 404);
     const clientId = fresh.client_id, budget = fresh.budget || '';
 
-    // Plan lead limits (Free after the trial: 10 a day, 50 in total). chatbot-api has already
+    // Plan lead limits (Free, during its trial too: 10 a day, 50 in total). chatbot-api has already
     // inserted this lead, so the counts include it: drop it when over the limit.
     if (clientId) {
         const over = await leadLimitError(c.env, clientId, 1);

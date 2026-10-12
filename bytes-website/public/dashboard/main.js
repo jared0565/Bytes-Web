@@ -1412,7 +1412,7 @@ const UPGRADE_FEATURES = {
         title: 'More Installation Domains',
         subtitle: 'Install your chatbot on multiple websites and subdomains simultaneously.',
         features: [
-            '🌐 Websites: PLAN_DOMAINS, unlimited on Enterprise',
+            '🌐 Websites: PLAN_DOMAINS',
             '🔄 Manage all installations from one dashboard',
         ],
         plan: 'Starter',
@@ -1740,12 +1740,12 @@ const PLAN_INSTALL_LIMITS = {
     starter:    { maxInstalls: 3,  maxDomains: 3  },
     pro:        { maxInstalls: 10, maxDomains: 10 },
     business:   { maxInstalls: 25, maxDomains: 25 },
-    enterprise: { maxInstalls: -1, maxDomains: -1 },
+    enterprise: { maxInstalls: 50, maxDomains: 50 },
 };
 fetch('/plans.json').then(r => (r.ok ? r.json() : null)).then(d => {
     if (d) d.plans.forEach(p => { PLAN_INSTALL_LIMITS[p.id] = { maxInstalls: p.domains, maxDomains: p.domains }; });
 }).catch(() => {});
-const planDomainsLine = () => ['starter', 'pro', 'business'].map(id => `${PLAN_INSTALL_LIMITS[id].maxDomains} on ${id[0].toUpperCase()}${id.slice(1)}`).join(', ');
+const planDomainsLine = () => ['starter', 'pro', 'business', 'enterprise'].map(id => `${PLAN_INSTALL_LIMITS[id].maxDomains === -1 ? 'unlimited' : PLAN_INSTALL_LIMITS[id].maxDomains} on ${id[0].toUpperCase()}${id.slice(1)}`).join(', ');
 // Upgrade links open the website's Pricing on that plan, with the client ID so the request is quick
 const upgradeUrl = (plan) => `https://web.bytesfx.com/?upgrade=${encodeURIComponent(plan || 'starter')}${installationData?.clientId ? `&client=${encodeURIComponent(installationData.clientId)}` : ''}#pricing`;
 
@@ -2037,10 +2037,10 @@ function renderChatbotView() {
                 : `Your <strong style="color:#e2e8f0;">${escapeHtml(plan.charAt(0).toUpperCase() + plan.slice(1))}</strong> plan allows ${domLabel}.`;
     }
 
-    // Upgrade button
+    // Upgrade button (Enterprise is the top plan: nothing to upgrade to)
     const upgBtn = document.getElementById('dash-upgrade-install-btn');
     if (upgBtn) {
-        upgBtn.style.display = (maxDomains === -1 || userRole === 'admin') ? 'none' : 'block';
+        upgBtn.style.display = (maxDomains === -1 || plan === 'enterprise' || userRole === 'admin') ? 'none' : 'block';
         upgBtn.onclick = () => showUpgradeModal('more_domains');
     }
 
@@ -2093,6 +2093,12 @@ document.getElementById('dash-add-domain-btn').addEventListener('click', () => {
     }
     const { maxDomains, allowedDomains } = installationData;
     if (maxDomains !== -1 && allowedDomains.length >= maxDomains) {
+        // The top plan has no upgrade to offer: say what the limit is
+        if (installationData.plan === 'enterprise') {
+            document.getElementById('dash-domains-status').textContent = `Your plan allows up to ${maxDomains} websites. Remove one to add another.`;
+            document.getElementById('dash-domains-status').style.color = '#f59e0b';
+            return;
+        }
         showUpgradeModal('more_domains');
         return;
     }
