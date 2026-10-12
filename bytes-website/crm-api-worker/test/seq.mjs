@@ -34,7 +34,7 @@ const follow = async (id, { mode = 'rule', templates = [] } = {}) => {
   await verify(`tok-${id}`);
   return db.prepare('SELECT email_number, subject, body FROM email_sequences WHERE lead_id = ? ORDER BY id').all(id);
 };
-const builtIn = (rows) => rows.length === 3 && rows.every(r => r.body.includes('Hi Priya Shah') && r.body.endsWith('The BytesFX team'));
+const builtIn = (rows) => rows.length === 3 && rows.every(r => r.body.startsWith('Hi Priya,') && r.body.endsWith('The BytesFX team'));
 const seen = (rows) => `${rows.length} emails${rows.length ? ': ' + rows.map(r => r.subject).join(' | ') : ''}`;
 
 let rows = await follow(1);
@@ -43,7 +43,7 @@ ok('they name the service the lead asked about', rows[0]?.subject === 'Thanks fo
 rows = await follow(2, { mode: 'ai' });
 ok('a Bytes lead gets them when the AI write fails', builtIn(rows), seen(rows));
 rows = await follow(3, { templates: [['agency_demo', JSON.stringify([{ email_number: 1, subject: 'Stored subject', body: 'Hi {name}, stored body' }])]] });
-ok('a stored Bytes template is still used', rows.length === 1 && rows[0].subject === 'Stored subject' && rows[0].body === 'Hi Priya Shah, stored body', seen(rows));
+ok('a stored Bytes template is still used', rows.length === 1 && rows[0].subject === 'Stored subject' && rows[0].body === 'Hi Priya, stored body', seen(rows));
 rows = await follow(4, { templates: [['acme', JSON.stringify([{ email_number: 1, subject: 'Acme only', body: 'Acme text' }])]] });
 ok('another client\'s template with the same name is not used', builtIn(rows), seen(rows));
 rows = await follow(5, { templates: [['agency_demo', 'not a list']] });
