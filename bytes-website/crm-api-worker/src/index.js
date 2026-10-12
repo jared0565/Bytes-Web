@@ -2287,64 +2287,128 @@ app.post('/api/sequences/approve', requireAuth, async (c) => {
     }
 });
 
-// Email verification link
-// Opening the link only shows a Confirm button; the POST does the verifying. Email security
-// scanners open every link in a message, and must not be able to verify (and start campaigns).
-const verifyPage = (inner) => `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Confirm your email</title></head><body style="font-family:system-ui,sans-serif;text-align:center;margin:60px 16px;color:#111">${inner}</body></html>`;
+// ─── Screens a lead reaches from a link in one of our emails ─────────────────
+// Confirm, confirmed, a link that cannot be used, an error, and the two unsubscribe screens share this
+// frame: a dark page in the website's own colours and fonts (bytes-website/src/home.css). The business's
+// name stands at the top, so a client's lead sees their business and never BytesFX.
+// No script runs on these screens. Opening a link only shows a button and the POST does the work: email
+// security scanners open every link in a message, and must not be able to confirm (and start campaigns).
+const PAGE_CSS = `
+:root{color-scheme:dark;--ink-0:#071216;--ink-1:#0b1a1f;--ink-2:#102429;--ink-3:#16313a;--line:rgba(155,214,205,.1);--line-strong:rgba(155,214,205,.2);--text:#eaf2ef;--dim:#9db3ae;--amber:#ffb547;--mint:#57e3bf;--display:'Bricolage Grotesque','Segoe UI',system-ui,sans-serif;--body:'Geist','Segoe UI',system-ui,sans-serif;--spring:cubic-bezier(.34,1.56,.64,1)}
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding:1.5rem 1rem;background:var(--ink-0);color:var(--dim);font:400 1rem/1.7 var(--body);-webkit-font-smoothing:antialiased}
+body::before,body::after{content:"";position:fixed;inset:0;pointer-events:none}
+body::before{background:radial-gradient(44rem 32rem at 100% 0%,rgba(255,181,71,.18),transparent 62%),radial-gradient(40rem 30rem at 0% 100%,rgba(87,227,191,.12),transparent 62%)}
+body::after{opacity:.07;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+main{position:relative;z-index:1;width:100%;max-width:30rem;padding:2rem 1.5rem;border:1px solid var(--line);border-radius:1.5rem;background:radial-gradient(120% 60% at 50% 0%,rgba(255,181,71,.07),transparent 60%),var(--ink-1);box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 24px 48px -24px rgba(0,10,12,.75),0 8px 16px -8px rgba(0,8,10,.5)}
+.biz{margin:0 0 2rem;padding-bottom:1rem;border-bottom:1px solid var(--line);font:600 .9375rem/1.3 var(--body);color:var(--text);overflow-wrap:anywhere}
+h1{margin:0 0 .75rem;font:700 clamp(1.875rem,7.5vw,2.375rem)/1.08 var(--display);letter-spacing:-.03em;color:var(--text);text-wrap:balance}
+p{margin:0 0 1rem}
+p:last-child{margin-bottom:0}
+.lead{font-size:1.0625rem;color:var(--text)}
+.tick{width:3.5rem;height:3.5rem;margin:.625rem 0 2rem .625rem;display:grid;place-items:center;border-radius:50%;background:var(--mint);color:#062018;box-shadow:0 0 0 .625rem rgba(87,227,191,.12);animation:pop .6s var(--spring)}
+.tick svg{width:1.75rem;height:1.75rem}
+@keyframes pop{from{transform:scale(.4);opacity:0}}
+form,.acts{margin:1.5rem 0 0}
+.btn{display:inline-flex;align-items:center;justify-content:center;width:100%;min-height:3rem;padding:.95rem 1.5rem;border:1px solid transparent;border-radius:999px;font:600 1rem/1 var(--body);letter-spacing:-.005em;text-decoration:none;cursor:pointer;transition:transform .35s var(--spring)}
+.btn-main{background:var(--amber);color:#1f1203;box-shadow:0 10px 30px -10px rgba(255,181,71,.55),0 2px 6px -2px rgba(242,140,40,.5)}
+.btn-ghost{background:rgba(255,255,255,.02);border-color:var(--line-strong);color:var(--text)}
+.btn:hover{transform:translateY(-2px)}
+.btn-main:hover{background:#ffc365}
+.btn-ghost:hover{border-color:rgba(255,181,71,.5);color:var(--amber)}
+.btn:active{transform:translateY(0) scale(.97);transition-duration:.1s}
+.btn:focus-visible{outline:2px solid var(--amber);outline-offset:3px}
+.next{margin:1.5rem 0 0;padding-top:1.5rem;border-top:1px solid var(--line)}
+.mail{display:grid;grid-template-columns:auto 1fr auto;align-items:start;gap:.125rem .75rem;margin:0 0 1rem;padding:.875rem 1rem;border:1px solid var(--line-strong);border-radius:.875rem;background:var(--ink-2);box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 12px 24px -16px rgba(0,8,10,.7)}
+.mail-icon{grid-row:1/3;display:grid;place-items:center;width:2.25rem;height:2.25rem;margin-top:.25rem;border-radius:50%;background:var(--ink-3);color:var(--amber)}
+.mail-icon svg{width:1.125rem;height:1.125rem}
+.mail-from{font:600 .9375rem/1.4 var(--body);color:var(--text);overflow-wrap:anywhere}
+.mail-when{font-size:.8125rem;line-height:1.615}
+.mail-title{grid-column:2/4;font:500 .9375rem/1.4 var(--body);color:var(--text);overflow-wrap:anywhere}
+.fine{margin:1.5rem 0 0;font-size:.875rem}
+@media (min-width:30rem){main{padding:2.5rem}.btn{width:auto}}
+@media (prefers-reduced-motion:reduce){.tick{animation:none}.btn{transition:none}.btn:hover,.btn:active{transform:none}}
+`;
+const TICK_ICON = '<div class="tick" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></div>';
+const MAIL_ICON = '<span class="mail-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M4 7.5l8 6 8-6"/></svg></span>';
+// title: the browser tab's, one per screen, always one of the fixed texts below. business: shown at the
+// top when the screen knows whose lead this is.
+const verifyPage = (title, inner, business = '') => `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><meta name="theme-color" content="#071216"><title>${title}</title><link rel="icon" href="data:,"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700&amp;family=Geist:wght@400;500;600&amp;display=swap"><style>${PAGE_CSS}</style></head><body><main>${business ? `<p class="biz">${escapeHtml(business)}</p>` : ''}${inner}</main></body></html>`;
+// A link whose token is missing or cut short, and one that was pressed before (a used token is erased,
+// so "used" and "never existed" cannot be told apart: the wording covers both)
+const brokenLinkPage = () => verifyPage('This link is incomplete', '<h1>This link is incomplete</h1><p>Open the link in your email again, or copy the whole address into your browser.</p>');
+const usedLinkPage = () => verifyPage('Link already used', '<h1>Link already used</h1><p>This link has already been used or has expired. If you\'ve already confirmed, you\'re all set.</p>');
+// A lead never sees the API's own error reply (app.onError answers in JSON): these routes catch and show this
+const errorPage = () => verifyPage('Something went wrong', '<h1>Something went wrong</h1><p>It went wrong on our side, not yours. Please try the link in your email again in a few minutes.</p>');
+
 app.get('/api/verify-email', async (c) => {
     const token = c.req.query('token');
-    if (!token || typeof token !== 'string' || token.length > 64) return c.html(verifyPage('<h1>Invalid Verification Link</h1><p>No token provided.</p>'), 400);
-    const lead = await c.env.DB.prepare('SELECT id FROM leads WHERE verification_token = ?').bind(token).first();
-    if (!lead) return c.html(verifyPage('<h1>Invalid or Expired Link</h1><p>This link is invalid or already used.</p>'), 400);
-    return c.html(verifyPage(`<h1>Confirm your email</h1><p>Press the button to confirm this is your email address.</p>
-        <form method="post" action="/api/verify-email"><input type="hidden" name="token" value="${escapeHtml(token)}">
-        <button type="submit" style="font:inherit;font-weight:600;padding:12px 28px;border:0;border-radius:999px;background:#3987e5;color:#fff;cursor:pointer">Confirm my email</button></form>`));
+    if (!token || typeof token !== 'string' || token.length > 64) return c.html(brokenLinkPage(), 400);
+    try {
+        const lead = await c.env.DB.prepare('SELECT id, client_id FROM leads WHERE verification_token = ?').bind(token).first();
+        if (!lead) return c.html(usedLinkPage(), 400);
+        const business = (await companyNameFor(c.env, lead.client_id)) || '';
+        return c.html(verifyPage('Confirm your email', `<h1>Confirm your email</h1>
+            <p>${business ? `Press the button so ${escapeHtml(business)} knows this address is yours and can reply to your enquiry.` : 'Press the button to confirm this address is yours, so we can reply to your enquiry.'}</p>
+            <form method="post" action="/api/verify-email"><input type="hidden" name="token" value="${escapeHtml(token)}">
+            <button type="submit" class="btn btn-main">Confirm my email</button></form>
+            <p class="fine">Not you? Just close this page.</p>`, business));
+    } catch (err) {
+        console.error('[Verify] Error:', err);
+        return c.html(errorPage(), 500);
+    }
 });
 
-// What the page says comes next. It follows the rules startCloseFlow and sendThreadEmail follow, so it
-// promises nothing that will not happen: a lead already closed as Won or Lost gets no email and nobody
-// is alerted, and an unsubscribed lead gets no automatic email. A mailbox may file the questions email
-// away from the inbox, so the page names it by its title (worked out as sendThreadEmail works it out)
-// and says where else to look. If the lead's state cannot be read, the page says what a new lead sees.
-async function confirmedNote(env, lead, cfg) {
-    let state = null, title = '';
+// What the confirmed screen says comes next. It follows the rules startCloseFlow and sendThreadEmail
+// follow, so it promises nothing that will not happen: a lead already closed as Won or Lost gets no
+// email and nobody is alerted, and an unsubscribed lead gets no automatic email. A mailbox may file the
+// questions email away from the inbox, so the screen shows it as it will appear there (the sender's name
+// as sendMail writes it, the title as sendThreadEmail works it out) and says where else to look.
+// If the lead's state cannot be read, the screen says what a new lead sees, without the email's details.
+async function confirmedNext(env, lead, cfg) {
+    let state = null, title = '', sender = '';
     try {
         await ensureSales(env);
         state = await env.DB.prepare('SELECT unsubscribed, outcome FROM leads WHERE id = ?').bind(lead.id).first();
         if (cfg.askQuestions !== false && !state?.outcome && !state?.unsubscribed) {
             const { results: prev } = await env.DB.prepare("SELECT subject FROM lead_messages WHERE lead_id = ? AND direction IN ('in', 'out') AND status = 'sent' ORDER BY id").bind(lead.id).all();
             title = threadTitle(prev, (await companyNameFor(env, lead.client_id)) || '');
+            const mail = await getMailSettings(env, lead.client_id);
+            sender = mail?.provider ? senderName(mail) : '';
         }
     } catch (e) { console.error('[Verify] Next step:', e); }
     if (state?.outcome) return '';
-    if (cfg.askQuestions === false || state?.unsubscribed) return 'Our team will be in touch shortly.';
-    return `We've just emailed you a few questions about your project. ${title ? `Look for the email titled <strong>${escapeHtml(title)}</strong>. ` : ''}If it isn't in your inbox, look in Promotions or Spam. Reply to it and we'll take it from there.`;
+    if (cfg.askQuestions === false || state?.unsubscribed) return '<div class="next"><p>Our team will be in touch shortly.</p></div>';
+    const shown = title ? `<div class="mail">${MAIL_ICON}${sender ? `<span class="mail-from">${escapeHtml(sender)}</span><span class="mail-when">now</span>` : ''}<span class="mail-title">${escapeHtml(title)}</span></div>` : '';
+    return `<div class="next"><p>We've just emailed you a few questions about your project.${shown ? ' It looks like this:' : ''}</p>${shown}
+            <p>If it isn't in your inbox, look in Promotions or Spam. Reply to it and we'll take it from there.</p></div>`;
 }
 
 app.post('/api/verify-email', async (c) => {
     let token = '';
     try { token = String((await c.req.parseBody()).token || ''); } catch { token = ''; }
-    if (!token || token.length > 64) return c.html(verifyPage('<h1>Invalid Verification Link</h1><p>No token provided.</p>'), 400);
+    if (!token || token.length > 64) return c.html(brokenLinkPage(), 400);
 
     try {
         const lead = await c.env.DB.prepare('SELECT id, name, client_id FROM leads WHERE verification_token = ?').bind(token).first();
-        if (!lead) return c.html(verifyPage('<h1>Invalid or Expired Link</h1><p>This link is invalid or already used.</p>'), 400);
+        if (!lead) return c.html(usedLinkPage(), 400);
 
         await c.env.DB.prepare('UPDATE leads SET is_verified = 1, verification_token = NULL WHERE id = ?').bind(lead.id).run();
 
         // Thread: questions email + owner alert, or (questions switched off) the usual campaign
         c.executionCtx.waitUntil(startCloseFlow(c.env, lead.id).catch(e => console.error('[Close flow]', e)));
         const cfg = await clientConfig(c.env, lead.client_id);
-        const booking = cfg.bookingUrl ? `<p><a href="${escapeHtml(cfg.bookingUrl)}" rel="noopener" style="display:inline-block;margin-top:0.5rem;font-weight:600;padding:12px 24px;border-radius:999px;background:#3987e5;color:#fff;text-decoration:none">Book a call</a></p>` : '';
+        const booking = cfg.bookingUrl ? `<p class="acts"><a class="btn btn-ghost" href="${escapeHtml(cfg.bookingUrl)}" rel="noopener">Book a call</a></p>` : '';
 
-        // No note means a closed lead: the page then offers nothing more, the booking link included
-        const note = await confirmedNote(c.env, lead, cfg);
-        return c.html(verifyPage(`<h1 style="color:#16a34a">&#x2705; Email Verified!</h1>
-            <p>Welcome${knownName(lead.name) ? `, ${escapeHtml(knownName(lead.name))}` : ''}! Your email has been verified.</p>${note ? `
-            <p style="max-width:34rem;margin:1em auto">${note}</p>${booking}` : ''}`));
+        // Nothing next means a closed lead: the screen then offers nothing more, the booking link included
+        const next = await confirmedNext(c.env, lead, cfg);
+        return c.html(verifyPage('Email confirmed', `${TICK_ICON}<h1>Email confirmed</h1>
+            <p class="lead">Welcome${knownName(lead.name) ? `, ${escapeHtml(knownName(lead.name))}` : ''}!</p>${next ? `
+            ${next}${booking}` : ''}`, (await companyNameFor(c.env, lead.client_id)) || ''));
     } catch (err) {
         console.error('[Verify] Error:', err);
-        return c.html(verifyPage('<h1>Server Error</h1><p>Please try again later.</p>'), 500);
+        return c.html(errorPage(), 500);
     }
 });
 
@@ -2459,13 +2523,16 @@ async function sendMail(s, to, subject, html, opts = {}) {
     return first;
 }
 
+// The name an email shows as its sender. The confirmed screen shows the same one (confirmedNext).
+const senderName = (s) => s.fromName || 'BytesFX';
+
 async function sendMailOnce(s, to, subject, html, opts = {}) {
     const headers = opts.headers || {};
     if (!s || !s.provider) return { ok: false, error: 'Select an email provider first.' };
     if (!s.fromEmail) return { ok: false, error: 'From Email is required.' };
     if (s.provider === 'smtp') return { ok: false, error: 'SMTP sending is not supported yet. Use Resend, SendGrid or Mailgun.' };
     if (!s.apiKey) return { ok: false, error: 'API Key is required.' };
-    const from = `${s.fromName || 'BytesFX'} <${s.fromEmail}>`;
+    const from = `${senderName(s)} <${s.fromEmail}>`;
 
     if (s.provider === 'resend') {
         const res = await fetch('https://api.resend.com/emails', {
@@ -2484,7 +2551,7 @@ async function sendMailOnce(s, to, subject, html, opts = {}) {
             headers: { 'Authorization': `Bearer ${s.apiKey}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 personalizations: [{ to: [{ email: to }] }],
-                from: { email: s.fromEmail, name: s.fromName || 'BytesFX' },
+                from: { email: s.fromEmail, name: senderName(s) },
                 subject,
                 content: [...(opts.text ? [{ type: 'text/plain', value: opts.text }] : []), { type: 'text/html', value: html }],
                 ...(opts.replyTo ? { reply_to: { email: opts.replyTo } } : {}),
@@ -3312,22 +3379,27 @@ app.get('/api/sales/status', requireAuth, async (c) => {
 // ── Unsubscribe (link in every automatic email): a page with a button, the POST does it
 app.get('/api/unsubscribe', async (c) => {
     const t = String(c.req.query('t') || '');
-    if (!/^[a-z2-7]{12,40}$/.test(t)) return c.html(verifyPage('<h1>Invalid link</h1>'), 400);
-    return c.html(verifyPage(`<h1>Unsubscribe</h1><p>Stop receiving follow-up emails about this enquiry?</p>
+    if (!/^[a-z2-7]{12,40}$/.test(t)) return c.html(brokenLinkPage(), 400);
+    return c.html(verifyPage('Unsubscribe', `<h1>Unsubscribe</h1><p>Stop receiving follow-up emails about this enquiry?</p>
         <form method="post" action="/api/unsubscribe"><input type="hidden" name="t" value="${t}">
-        <button type="submit" style="font:inherit;font-weight:600;padding:12px 28px;border:0;border-radius:999px;background:#3987e5;color:#fff;cursor:pointer">Unsubscribe me</button></form>`));
+        <button type="submit" class="btn btn-main">Unsubscribe me</button></form>`));
 });
 app.post('/api/unsubscribe', async (c) => {
     let t = '';
     try { t = String((await c.req.parseBody()).t || ''); } catch (_) {}
-    if (!/^[a-z2-7]{12,40}$/.test(t)) return c.html(verifyPage('<h1>Invalid link</h1>'), 400);
-    await ensureSales(c.env);
-    const lead = await c.env.DB.prepare('SELECT id FROM leads WHERE thread_token = ?').bind(t).first();
-    if (lead) {
-        await c.env.DB.prepare('UPDATE leads SET unsubscribed = 1, updated_at = ? WHERE id = ?').bind(Date.now(), lead.id).run();
-        await cancelAutomation(c.env, lead.id);
+    if (!/^[a-z2-7]{12,40}$/.test(t)) return c.html(brokenLinkPage(), 400);
+    try {
+        await ensureSales(c.env);
+        const lead = await c.env.DB.prepare('SELECT id FROM leads WHERE thread_token = ?').bind(t).first();
+        if (lead) {
+            await c.env.DB.prepare('UPDATE leads SET unsubscribed = 1, updated_at = ? WHERE id = ?').bind(Date.now(), lead.id).run();
+            await cancelAutomation(c.env, lead.id);
+        }
+        return c.html(verifyPage('You\'re unsubscribed', '<h1>You\'re unsubscribed</h1><p>You won\'t receive any more follow-up emails about this enquiry.</p>'));
+    } catch (err) {
+        console.error('[Unsubscribe] Error:', err);
+        return c.html(errorPage(), 500);
     }
-    return c.html(verifyPage('<h1>You\'re unsubscribed</h1><p>You won\'t receive any more follow-up emails about this enquiry.</p>'));
 });
 
 // Files are kept while a deal is live or won: removed 90 days after Lost, or after 90 days with no activity

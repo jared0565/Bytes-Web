@@ -36,8 +36,8 @@ console.error = () => {}; console.warn = () => {};
 const addr = id => `lead${id}@clinic.com`;
 const to = (address) => sent.filter(e => e.to[0] === address);
 const verify = async (id) => { const r = await mod.__app.fetch(new Request('http://x/api/verify-email', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: `token=tok-${id}` }), env, ctx); const page = await r.text(); await settle(); return page; };
-// What the page says about the next email: its last paragraph of text before any booking button
-const says = page => (page.match(/<p[^>]*>(?:(?!<\/p>).)*questions(?:(?!<\/p>).)*<\/p>/s) || page.match(/<p[^>]*>[^<]*in touch[^<]*<\/p>/) || ['(nothing)'])[0];
+// What the page says comes next: the text of its "next" block, which holds the note and the email to look for
+const says = page => (page.match(/<div class="next">[\s\S]*?<\/p><\/div>/) || ['(nothing)'])[0].replace(/<svg[\s\S]*?<\/svg>/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 // What the page promises comes next, and its last paragraph for the failure line
 const promise = page => [/emailed you|Promotions|Spam/.test(page) ? 'an email' : '', /in touch/.test(page) ? 'in touch' : ''].filter(Boolean).join(' + ') || 'nothing';
 const lastP = page => (page.match(/<p[^>]*>(?:(?!<\/p>).)*<\/p>/gs) || ['(no paragraph)']).pop();
@@ -91,7 +91,7 @@ ok('a business name with markup in it is shown as text', page.includes('Your enq
 // 7. A lead closed as Won or Lost before confirming: nothing is sent and nobody is alerted, so the page promises nothing
 db.exec("UPDATE leads SET outcome = 'lost' WHERE id IN (6, 7)"); sent.length = 0;
 page = await verify(6);
-ok('a closed lead: the address is confirmed and nothing is sent', /has been verified/.test(page) && db.prepare('SELECT is_verified AS v FROM leads WHERE id = 6').get().v === 1 && sent.length === 0, sent.map(e => `${e.to[0]}: ${e.subject}`).join(' | '));
+ok('a closed lead: the address is confirmed and nothing is sent', /<h1>Email confirmed<\/h1>/.test(page) &&db.prepare('SELECT is_verified AS v FROM leads WHERE id = 6').get().v === 1 && sent.length === 0, sent.map(e => `${e.to[0]}: ${e.subject}`).join(' | '));
 ok('a closed lead: the page promises no email and no contact', promise(page) === 'nothing', lastP(page));
 page = await verify(7);
 ok('a closed lead of a business that does not ask questions: the same', promise(page) === 'nothing' && sent.length === 0, lastP(page));
