@@ -55,7 +55,7 @@ bytes-website/
     src/auth.js                OAuth providers (Google, Facebook, LinkedIn)
     migrations/                Early D1 schema (later tables are created lazily, see §5)
     data-fixes/                One-off SQL for the live database, run by hand (see §7, Brand name)
-    test/                      node test/run.mjs (12 suites, ~165 checks)
+    test/                      node test/run.mjs (13 suites, ~180 checks)
 research/                      Notes
 ```
 
@@ -251,6 +251,11 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
   - The site chat is styled by two stylesheets that are both loaded: `bytes-website/style.css` (linked from
     index.html; it holds the phone rules) and `bytes-website/src/style.css` (imported by main.js). A limit set in
     one can undo a rule in the other, so check both.
+- **Greetings in emails:** every email to a lead opens with their first name (`firstName` in crm-api), and so does
+  `{name}` in a follow-up template. The chat saves a lead who gave no name as "Visitor"; that is a label for the
+  dashboard, which the chat later replaces with a real name. `knownName` treats it, and an empty name, as no name:
+  emails say "Hi there,", the AI is told the name is not given, and the owner's alerts use the email address.
+  Follow-ups written before 2026-10-12 and not yet sent keep the greeting they were written with.
 - **Brand name:** the product is BytesFX in everything a client sees: emails, the widget badge, the dashboard,
   onboarding, the login setup page and authenticator apps. The old name, BytesAI, was replaced on 2026-10-11.
   - Emails name the business from the bot's saved Company name (`companyNameFor`). Only the Bytes bot with none
@@ -387,7 +392,7 @@ Hourly at :07:
 Requires **Node 22.5+** (uses `node:sqlite`). Run `npm install` first in each worker folder.
 
 ```
-cd bytes-website/crm-api-worker && node test/run.mjs        # all 12 suites, or: node test/run.mjs flow plans
+cd bytes-website/crm-api-worker && node test/run.mjs        # all 13 suites, or: node test/run.mjs flow plans
 cd chatbot-api && node test/run.mjs                         # website gate, prompts, scripted flow, chat endpoint
 cd chatbot-api && npx tsc --noEmit -p .                     # typecheck
 cd bytes-website/crm-api-worker && npx wrangler deploy --dry-run --config wrangler.toml   # bundle check, nothing is deployed
@@ -413,6 +418,7 @@ instead: without `--config wrangler.toml`, Wrangler (seen on 4.72) uses the `wra
 | `brand` | The BytesFX name in emails and code, the one-off data fix |
 | `seq` | Follow-up emails that are not AI-written |
 | `pv` | Page views from the website |
+| `greet` | How emails greet a lead, with and without a name |
 
 They run the worker in Node with node:sqlite and mocked KV, R2, mail and LLM, against a scratch copy (`test/.build`,
 gitignored).
