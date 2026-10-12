@@ -2337,10 +2337,11 @@ app.post('/api/verify-email', async (c) => {
         const cfg = await clientConfig(c.env, lead.client_id);
         const booking = cfg.bookingUrl ? `<p><a href="${escapeHtml(cfg.bookingUrl)}" rel="noopener" style="display:inline-block;margin-top:0.5rem;font-weight:600;padding:12px 24px;border-radius:999px;background:#3987e5;color:#fff;text-decoration:none">Book a call</a></p>` : '';
 
+        // No note means a closed lead: the page then offers nothing more, the booking link included
         const note = await confirmedNote(c.env, lead, cfg);
         return c.html(verifyPage(`<h1 style="color:#16a34a">&#x2705; Email Verified!</h1>
             <p>Welcome${knownName(lead.name) ? `, ${escapeHtml(knownName(lead.name))}` : ''}! Your email has been verified.</p>${note ? `
-            <p style="max-width:34rem;margin:1em auto">${note}</p>` : ''}${booking}`));
+            <p style="max-width:34rem;margin:1em auto">${note}</p>${booking}` : ''}`));
     } catch (err) {
         console.error('[Verify] Error:', err);
         return c.html(verifyPage('<h1>Server Error</h1><p>Please try again later.</p>'), 500);

@@ -270,11 +270,12 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
     confirming (`questionsNote` in crm-api), which names the questions email by its title (`threadTitle`, the same
     one `sendThreadEmail` uses). The chat's other lines only say the team will reply by email, and carry no hint.
   - The page after confirming (`confirmedNote`) promises only what will happen. A lead already closed as Won or
-    Lost sees just "Your email has been verified." (nothing is sent and nobody is alerted). An unsubscribed lead,
-    or a business with questions switched off, sees "Our team will be in touch shortly.", and the owner's alert
-    for an unsubscribed lead says why no questions went out. One limit stays: the page shows before the email
-    goes out (writing it can take a few seconds), so a send that then fails still leaves "We've just emailed
-    you" on the page. The owner is alerted when that happens.
+    Lost sees just "Your email has been verified.", with no booking link (nothing is sent and nobody is alerted).
+    An unsubscribed lead, or a business with questions switched off, sees "Our team will be in touch shortly.",
+    and the owner's alert for an unsubscribed lead says why no questions went out. One limit stays: the page shows
+    before the email goes out (writing it can take a few seconds), so a send that then fails still leaves "We've
+    just emailed you" on the page. The failed send shows on the lead's thread in the dashboard ("not sent:" and
+    the reason). The alert email uses the same sender, so it arrives only if that sender can send at all.
   - The questions email carries no unsubscribe link or `List-Unsubscribe` header (`optOut: false`): it answers the
     enquiry the lead has just confirmed, and the link and header are what a mailbox reads as bulk mail. Every later
     automatic email keeps both, and an unsubscribed lead is still sent nothing automatic.

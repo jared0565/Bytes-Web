@@ -7,15 +7,15 @@ const mod = await import('./src/index.js');
 const db = new DatabaseSync(':memory:'); const now = Date.now();
 // acme and tags ask their questions by email; plain goes straight to follow-ups
 db.exec(`CREATE TABLE crm_settings (client_id TEXT PRIMARY KEY, default_campaign_mode TEXT, auto_approve_campaigns INTEGER, plan TEXT, trial_started_at INTEGER, trial_ends_at INTEGER);
-INSERT INTO crm_settings VALUES ('acme','rule',1,'pro',0,0), ('plain','rule',1,'pro',0,0), ('tags','rule',1,'pro',0,0);
+INSERT INTO crm_settings VALUES ('acme','rule',1,'pro',0,0), ('plain','rule',1,'pro',0,0), ('tags','rule',1,'pro',0,0), ('book','rule',1,'pro',0,0);
 CREATE TABLE leads (id INTEGER PRIMARY KEY, client_id TEXT, name TEXT, email TEXT, service TEXT, budget TEXT, summary TEXT, is_verified INTEGER, verification_token TEXT, pipeline_stage TEXT, next_best_action TEXT, timestamp INTEGER, updated_at INTEGER, session_id TEXT);
 CREATE TABLE email_sequences (id INTEGER PRIMARY KEY, lead_id INTEGER, client_id TEXT, email_number INTEGER, subject TEXT, body TEXT, status TEXT, scheduled_for INTEGER);
 CREATE TABLE chat_logs (id INTEGER PRIMARY KEY, client_id TEXT, user_message TEXT, bot_response TEXT, timestamp INTEGER, session_id TEXT);`);
 const addLead = db.prepare("INSERT INTO leads (id, client_id, name, email, service, budget, summary, is_verified, verification_token, pipeline_stage, timestamp) VALUES (?, ?, 'Priya Shah', ?, 'Website', 'Pending', 'Wants a clinic site', 0, ?, 'lead', ?)");
-for (const [id, client] of [[1, 'acme'], [2, 'plain'], [3, 'acme'], [4, 'acme'], [5, 'tags'], [6, 'acme'], [7, 'plain'], [8, 'plain']]) addLead.run(id, client, `lead${id}@clinic.com`, `tok-${id}`, now - 60e3);
+for (const [id, client] of [[1, 'acme'], [2, 'plain'], [3, 'acme'], [4, 'acme'], [5, 'tags'], [6, 'acme'], [7, 'plain'], [8, 'plain'], [9, 'book'], [10, 'book']]) addLead.run(id, client, `lead${id}@clinic.com`, `tok-${id}`, now - 60e3);
 const prep = (sql) => { let a = []; const o = { bind: (...x) => { a = x; return o; }, all: async () => ({ results: db.prepare(sql).all(...a) }), first: async () => db.prepare(sql).get(...a) ?? null, run: async () => { const r = db.prepare(sql).run(...a); return { meta: { changes: Number(r.changes), last_row_id: Number(r.lastInsertRowid) } }; } }; return o; };
 const kv = new Map();
-for (const [id, company, extra] of [['acme', 'Acme Dental', {}], ['plain', 'Plain Co', { askQuestions: false }], ['tags', 'Tom & <b>Co</b>', {}]]) {
+for (const [id, company, extra] of [['acme', 'Acme Dental', {}], ['plain', 'Plain Co', { askQuestions: false }], ['tags', 'Tom & <b>Co</b>', {}], ['book', 'Book Co', { bookingUrl: 'https://cal.com/book-co' }]]) {
   kv.set(`client:${id}`, JSON.stringify({ companyName: company, alertEmail: `owner@${id}.com`, draftModel: '', readModel: '', ...extra }));
   kv.set(`mail:${id}`, JSON.stringify({ provider: 'resend', fromEmail: `hi@${id}.com`, fromName: 'Sender', apiKey: 're_x' }));
 }
@@ -95,3 +95,9 @@ ok('a closed lead: the address is confirmed and nothing is sent', /has been veri
 ok('a closed lead: the page promises no email and no contact', promise(page) === 'nothing', lastP(page));
 page = await verify(7);
 ok('a closed lead of a business that does not ask questions: the same', promise(page) === 'nothing' && sent.length === 0, lastP(page));
+// A business with a booking link offers it to a lead it is still working with, not to one it has closed
+db.exec("UPDATE leads SET outcome = 'won' WHERE id = 9");
+page = await verify(9);
+ok('a closed lead is not offered the booking link', promise(page) === 'nothing' && !/cal\.com|Book a call/.test(page), (page.match(/<a [^>]*>[^<]*<\/a>/) || ['(no link)'])[0]);
+page = await verify(10);
+ok('an open lead of the same business is still offered it', promise(page) === 'an email' && page.includes('https://cal.com/book-co') && /Book a call/.test(page), (page.match(/<a [^>]*>[^<]*<\/a>/) || ['(no link)'])[0]);
