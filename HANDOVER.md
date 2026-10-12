@@ -264,10 +264,11 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
   - The confirmation email ("Please confirm your email") and the lead's thread ("Your enquiry with <business>") are
     two separate conversations on purpose: the owner wants the confirmation subject to say what it is, and Gmail
     only joins emails that share a subject.
-  - Every place that tells a visitor an email is coming also says to look in Promotions or Spam: the chat's
-    confirmation sentences (`CONFIRM` in chatbot-api, the same words for a new address and a known one), the
-    website form's thank-you message (`src/main.js`), and the page shown after confirming (`questionsNote` in
-    crm-api), which names the questions email by its title (`threadTitle`, the same one `sendThreadEmail` uses).
+  - The three places that tell a visitor one of these two emails has just been sent also say to look in
+    Promotions or Spam: the chat's confirmation sentences (`CONFIRM` in chatbot-api, the same words for a new
+    address and a known one), the website form's thank-you message (`src/main.js`), and the page shown after
+    confirming (`questionsNote` in crm-api), which names the questions email by its title (`threadTitle`, the same
+    one `sendThreadEmail` uses). The chat's other lines only say the team will reply by email, and carry no hint.
   - The questions email carries no unsubscribe link or `List-Unsubscribe` header (`optOut: false`): it answers the
     enquiry the lead has just confirmed, and the link and header are what a mailbox reads as bulk mail. Every later
     automatic email keeps both, and an unsubscribed lead is still sent nothing automatic.
