@@ -68,7 +68,8 @@ ok('the code does not use the old name', scanned > 20 && left.length === 0, `${l
 // The one-off fix for the live database: stored emails not sent yet get the new name, nothing else moves
 const fix = new DatabaseSync(':memory:');
 fix.exec(`CREATE TABLE email_templates (id INTEGER PRIMARY KEY, client_id TEXT, name TEXT, steps_json TEXT);
-INSERT INTO email_templates VALUES (1,'agency_demo','Standard Web Design Sequence','[{"body":"Best,\\nThe BytesAI Team"}]');
+INSERT INTO email_templates VALUES (1,'agency_demo','Standard Web Design Sequence','[{"body":"Best,\\nThe BytesAI Team"}]'),
+ (2,'acme','Standard Web Design Sequence','[{"body":"We met at the BytesAI stand"}]'), (3,'default','Welcome','[{"body":"The BytesAI team"}]');
 CREATE TABLE email_sequences (id INTEGER PRIMARY KEY, client_id TEXT, subject TEXT, body TEXT, status TEXT);
 INSERT INTO email_sequences VALUES (1,'default','Hello','The BytesAI team','approved'), (2,'default','Hello','The BytesAI team','sent'),
  (3,'acme','Hello','We met at the BytesAI stand','approved'), (4,'default','Your enquiry with BytesAI','Hi','draft');
@@ -78,7 +79,9 @@ const fixSql = readFileSync(join(root, 'bytes-website', 'crm-api-worker', 'data-
 fix.exec(fixSql); fix.exec(fixSql); // twice: running it again changes nothing more
 const seq = Object.fromEntries(fix.prepare('SELECT id, subject, body FROM email_sequences').all().map(r => [r.id, r]));
 const prop = Object.fromEntries(fix.prepare('SELECT id, proposal FROM leads').all().map(r => [r.id, r.proposal]));
-ok('fix: the stored template is signed by BytesFX', fix.prepare('SELECT steps_json s FROM email_templates').get().s === '[{"body":"Best,\\nThe BytesFX Team"}]');
+const tpl = Object.fromEntries(fix.prepare('SELECT id, steps_json FROM email_templates').all().map(r => [r.id, r.steps_json]));
+ok('fix: the stored template is signed by BytesFX', tpl[1] === '[{"body":"Best,\\nThe BytesFX Team"}]' && tpl[3] === '[{"body":"The BytesFX team"}]');
+ok('fix: another client\'s template is untouched', tpl[2] === '[{"body":"We met at the BytesAI stand"}]', tpl[2]);
 ok('fix: Bytes emails not sent yet get the new name', seq[1].body === 'The BytesFX team' && seq[4].subject === 'Your enquiry with BytesFX');
 ok('fix: a sent email and another client\'s email are untouched', seq[2].body === 'The BytesAI team' && seq[3].body === 'We met at the BytesAI stand');
 ok('fix: a proposal draft gets the new name, a sent one does not', prop[1] === '{"status":"draft","body":"The BytesFX team"}' && prop[2] === '{"status":"sent","body":"The BytesAI team"}' && prop[3] === null);
