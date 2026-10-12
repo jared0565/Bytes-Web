@@ -368,13 +368,21 @@
             font-weight: 600;
         }
 
+        /* An iPhone zooms the page in when a text box under 16px is tapped */
+        @media (pointer: coarse) {
+            .chatbot-widget-container .chat-input { font-size: 16px; }
+        }
+
         @media (max-width: 480px) {
             .chatbot-widget-container { bottom: 1rem; right: 1rem; }
+            /* The chat fills the screen. While the keyboard is up, fitToView sets the two values to the part of the
+               screen still in view. No border: with it the window was 2px larger than the screen. */
             .chatbot-window {
                 position: fixed;
-                top: 0; left: 0;
-                width: 100%; height: 100%;
+                top: var(--bfx-chat-top, 0px); left: 0;
+                width: 100%; height: var(--bfx-chat-height, 100%);
                 max-height: none;
+                border: 0;
                 border-radius: 0;
                 margin-bottom: 0;
             }
@@ -476,17 +484,54 @@
 
         let choices = null; // the buttons offered when a chat opens, until the first message
 
+        // A phone or tablet brings up its keyboard when the text box is selected, and the keyboard covers half the
+        // screen. There the text box is selected only when the visitor asks for it: by tapping it or "Something
+        // else", or by sending a message they typed. With a mouse it is selected as soon as the chat opens.
+        const keyboardOnScreen = () => window.matchMedia('(pointer: coarse)').matches;
+
+        // On a phone the chat fills the screen, but the keyboard covers the lower part of it and the page is not
+        // made shorter for it. The chat is sized to the part still in view (the phone rule above reads these two
+        // values), so the header stays at the top and the text box sits on the keyboard.
+        const view = window.visualViewport;
+        let viewHeight = 0;
+        const fitToView = () => {
+            if (!view) return;
+            // Closed, or zoomed by hand (which also changes the part in view): back to the whole screen
+            if (windowEl.classList.contains('hidden') || Math.abs(view.scale - 1) > 0.01) {
+                windowEl.style.removeProperty('--bfx-chat-top');
+                windowEl.style.removeProperty('--bfx-chat-height');
+                viewHeight = 0;
+                return;
+            }
+            windowEl.style.setProperty('--bfx-chat-top', `${view.offsetTop}px`);
+            windowEl.style.setProperty('--bfx-chat-height', `${view.height}px`);
+            // The keyboard came up: keep what the visitor is answering in view, which is the question above the
+            // choices or the last message
+            if (view.height < viewHeight) messagesContainer.scrollTop = choices ? 0 : messagesContainer.scrollHeight;
+            viewHeight = view.height;
+        };
+        if (view) {
+            view.addEventListener('resize', fitToView);
+            view.addEventListener('scroll', fitToView);
+        }
+
         launcher.addEventListener('click', () => {
             windowEl.classList.toggle('hidden');
             if (!windowEl.classList.contains('hidden')) {
-                input.focus();
+                if (!keyboardOnScreen()) input.focus();
                 // A long list of choices opens at the question above it, not at the last button
                 messagesContainer.scrollTop = choices ? 0 : messagesContainer.scrollHeight;
+            } else {
+                input.blur();
             }
+            fitToView();
         });
 
+        // The text box is let go, so the keyboard goes with the chat
         closeBtn.addEventListener('click', () => {
             windowEl.classList.add('hidden');
+            input.blur();
+            fitToView();
         });
 
         // The count appears for the last fifth of the limit, so a pasted text that was cut short is not a surprise
@@ -522,11 +567,11 @@
         form.addEventListener('submit', (e) => {
             e.preventDefault();
             const message = input.value.trim();
-            if (message) send(message);
+            if (message) send(message, true);
         });
 
         // One visitor message, typed or tapped. The choices go at once, so a second tap can't send again.
-        async function send(message) {
+        async function send(message, typed) {
             if (input.disabled) return;
             hideChoices();
             appendMessage(message, 'user-message');
@@ -560,7 +605,9 @@
                 appendMessage("Network error. Please try again.", 'bot-message');
             } finally {
                 input.disabled = false;
-                input.focus();
+                // Back to the text box for the next message. Where the keyboard is on screen, only after a typed
+                // message: after a tapped choice it would come up over the reply.
+                if (typed || !keyboardOnScreen()) input.focus();
             }
         }
     }

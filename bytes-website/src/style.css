@@ -1191,6 +1191,11 @@ section {
   font-size: 0.95rem;
 }
 
+/* An iPhone zooms the page in when a text box under 16px is tapped */
+@media (pointer: coarse) {
+  #chatInput { font-size: 16px; }
+}
+
 #chatInput:focus {
   outline: none;
   border-color: var(--color-primary);
