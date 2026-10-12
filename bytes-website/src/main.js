@@ -326,6 +326,11 @@ document.addEventListener('DOMContentLoaded', () => {
     mobileMenuBtn.addEventListener('click', () => {
       navLinks.classList.toggle('active');
     });
+    // A tap on a link scrolls the page without changing the address (initSmoothScroll), so no
+    // route change arrives to close the menu. Close it here, or it stays over the page.
+    navLinks.addEventListener('click', (e) => {
+      if (e.target.closest('a')) navLinks.classList.remove('active');
+    });
   }
 
   // Close menu when clicking outside
