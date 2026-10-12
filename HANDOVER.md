@@ -55,7 +55,7 @@ bytes-website/
     src/auth.js                OAuth providers (Google, Facebook, LinkedIn)
     migrations/                Early D1 schema (later tables are created lazily, see §5)
     data-fixes/                One-off SQL for the live database, run by hand (see §7, Brand name)
-    test/                      node test/run.mjs (10 suites, ~145 checks)
+    test/                      node test/run.mjs (11 suites, ~155 checks)
 research/                      Notes
 ```
 
@@ -306,6 +306,14 @@ the daily allowance. The one exception is a first email typed after the chat lim
 5. **Won/Lost** records an amount or reason. Analytics shows reply rate, win rate, revenue won and time to close.
 6. **Stop rules:** follow-ups stop on reply, Won/Lost or unsubscribe (link plus `List-Unsubscribe` header).
 
+- **Follow-ups that are not AI-written** (`generateRuleSequence`): three short built-in emails in the business's
+  name, mentioning the service the lead asked about. They are used when the campaign mode is not AI, and when the AI
+  write fails.
+  - The Bytes site can store its own instead: a row in `email_templates` named "Standard Web Design Sequence" under
+    client `default` or `agency_demo`. It is optional. A template under any other client is never used for Bytes.
+  - The live database had no such row on 2026-10-11 (counted, not read), so Bytes leads get the built-in emails.
+    `migrations/0001_init.sql` seeds one under `agency_demo`; why it is gone from the live database is not known.
+
 - **Owner alerts** go to the alerts email (Settings → Sales follow-up).
 - **Models:** drafting and reading models are admin-set; default GPT-6 Luna, falling back to Gemini 2.5 Flash.
 - **Conversation view:** the drawer shows the full thread and files; it can be downloaded as text or printed to PDF.
@@ -365,7 +373,7 @@ Hourly at :07:
 Requires **Node 22.5+** (uses `node:sqlite`). Run `npm install` first in each worker folder.
 
 ```
-cd bytes-website/crm-api-worker && node test/run.mjs        # all 10 suites, or: node test/run.mjs flow plans
+cd bytes-website/crm-api-worker && node test/run.mjs        # all 11 suites, or: node test/run.mjs flow plans
 cd chatbot-api && node test/run.mjs                         # website gate, prompts, scripted flow, chat endpoint
 cd chatbot-api && npx tsc --noEmit -p .                     # typecheck
 cd bytes-website/crm-api-worker && npx wrangler deploy --dry-run --config wrangler.toml   # bundle check, nothing is deployed
@@ -389,6 +397,7 @@ instead: without `--config wrangler.toml`, Wrangler (seen on 4.72) uses the `wra
 | `plans` | Plan limits |
 | `site` | Signup website, adoption email |
 | `brand` | The BytesFX name in emails and code, the one-off data fix |
+| `seq` | Follow-up emails that are not AI-written |
 
 They run the worker in Node with node:sqlite and mocked KV, R2, mail and LLM, against a scratch copy (`test/.build`,
 gitignored).
@@ -436,8 +445,3 @@ gitignored).
    the Bytes bot to web.bytesfx.com.
 10. **Chat limits are starting points:** the 10-message limit is a judgement, not a research figure. Review it after
     about 100 real chats (the design document says how to read the data).
-11. **No stored follow-up template on the live database:** `email_templates` was empty on 2026-10-11 (counted, not
-    read). `generateRuleSequence` needs the row "Standard Web Design Sequence" for the Bytes site, and throws
-    "Standard template not found" without it. `autoSequence` swallows that, so a Bytes lead gets no follow-up
-    emails when the campaign mode is not AI, or when the AI write fails. The row is seeded by
-    `migrations/0001_init.sql` under client `agency_demo`. Why it is gone is not known.

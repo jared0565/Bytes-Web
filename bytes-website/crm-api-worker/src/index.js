@@ -2126,14 +2126,18 @@ async function generateRuleSequence(env, leadId, shouldApprove = false) {
     const { results: existing } = await env.DB.prepare("SELECT count(*) as count FROM email_sequences WHERE lead_id = ? AND status IN ('draft', 'approved')").bind(leadId).all();
     if (existing[0]?.count > 0) throw new Error('Sequence already exists');
 
-    // The stored template is Bytes' own web-design sequence; every other client gets a neutral
-    // follow-up in their own name, so a clinic's leads never receive web-design emails.
+    // Bytes may store its own sequence. Without one it gets the neutral follow-up every other
+    // client gets, in its own name, so a lead is never left without emails. Only a template
+    // stored for Bytes counts: another client's, even with the same name, is not Bytes' text.
     let steps;
     if ([HOUSE_CLIENT_ID, 'agency_demo'].includes(lead.client_id)) {
-        const template = await env.DB.prepare("SELECT * FROM email_templates WHERE name = 'Standard Web Design Sequence'").first();
-        if (!template) throw new Error('Standard template not found');
-        steps = JSON.parse(template.steps_json);
-    } else {
+        try {
+            const template = await env.DB.prepare("SELECT steps_json FROM email_templates WHERE name = 'Standard Web Design Sequence' AND client_id IN (?, 'agency_demo')").bind(HOUSE_CLIENT_ID).first();
+            const stored = template ? JSON.parse(template.steps_json) : null;
+            if (Array.isArray(stored) && stored.length && stored.every(s => s && typeof s.subject === 'string' && typeof s.body === 'string')) steps = stored;
+        } catch (_) { /* no table, or text that is not a list of emails: use the built-in ones */ }
+    }
+    if (!steps) {
         const company = await companyNameFor(env, lead.client_id);
         const team = company ? `The ${company} team` : 'The team';
         const about = lead.service ? ` about ${lead.service}` : '';
@@ -2149,7 +2153,7 @@ async function generateRuleSequence(env, leadId, shouldApprove = false) {
 
     const stmts = steps.map((step, i) =>
         env.DB.prepare('INSERT INTO email_sequences (lead_id, client_id, email_number, subject, body, status, scheduled_for) VALUES (?, ?, ?, ?, ?, ?, ?)')
-            .bind(leadId, lead.client_id, step.email_number,
+            .bind(leadId, lead.client_id, step.email_number ?? i + 1,
                 step.subject.replaceAll('{name}', safeName),
                 step.body.replaceAll('{name}', safeName),
                 status, Date.now() + (i + 1) * 24 * 60 * 60 * 1000)
