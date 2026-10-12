@@ -55,7 +55,7 @@ bytes-website/
     src/auth.js                OAuth providers (Google, Facebook, LinkedIn)
     migrations/                Early D1 schema (later tables are created lazily, see §5)
     data-fixes/                One-off SQL for the live database, run by hand (see §7, Brand name)
-    test/                      node test/run.mjs (14 suites, ~200 checks)
+    test/                      node test/run.mjs (15 suites, ~230 checks)
 research/                      Notes
 ```
 
@@ -267,10 +267,14 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
   - The three places that tell a visitor one of these two emails has just been sent also say to look in
     Promotions or Spam: the chat's confirmation sentences (`CONFIRM` in chatbot-api, the same words for a new
     address and a known one), the website form's thank-you message (`src/main.js`), and the page shown after
-    confirming (`questionsNote` in crm-api), which names the questions email by its title (`threadTitle`, the same
-    one `sendThreadEmail` uses). The chat's other lines only say the team will reply by email, and carry no hint.
-  - The page after confirming (`confirmedNote`) promises only what will happen. A lead already closed as Won or
-    Lost sees just "Your email has been verified.", with no booking link (nothing is sent and nobody is alerted).
+    confirming (`confirmedNext` in crm-api), which shows the questions email as it will appear in the inbox: the
+    sender's name (`senderName`, the one `sendMail` writes) and the title (`threadTitle`, the one `sendThreadEmail`
+    uses). The chat's other lines only say the team will reply by email, and carry no hint.
+  - A live test on 2026-10-12 after these changes: both emails landed in Gmail's Primary tab. That mailbox had
+    had mail from this sender before (a `+tag` address is the same mailbox), so it does not show the changes
+    helped. A clean answer needs a Gmail mailbox that has never had mail from the sender.
+  - The screen after confirming promises only what will happen. A lead already closed as Won or
+    Lost sees just "Email confirmed" and the welcome line, with no booking link (nothing is sent and nobody is alerted).
     An unsubscribed lead, or a business with questions switched off, sees "Our team will be in touch shortly.",
     and the owner's alert for an unsubscribed lead says why no questions went out. One limit stays: the page shows
     before the email goes out (writing it can take a few seconds), so a send that then fails still leaves "We've
@@ -279,6 +283,22 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
   - The questions email carries no unsubscribe link or `List-Unsubscribe` header (`optOut: false`): it answers the
     enquiry the lead has just confirmed, and the link and header are what a mailbox reads as bulk mail. Every later
     automatic email keeps both, and an unsubscribed lead is still sent nothing automatic.
+- **Screens a lead reaches from an email link** (crm-api, `verifyPage` and `PAGE_CSS`): confirm, confirmed, a
+  link that cannot be used, an error, and the two unsubscribe screens share one frame.
+  - The look is the website's own: its colours and fonts copied from `bytes-website/src/home.css` (dark ink page,
+    amber button, mint tick, Bricolage Grotesque and Geist from Google Fonts, with system fonts behind them). The
+    styles sit in a style block in the page, not Tailwind: the worker serves the page whole. A change to the
+    site's palette has to be copied here by hand.
+  - They serve every client's leads. The business's name stands at the top as text; there is no BytesFX logo and
+    no per-client colour.
+  - No script runs on them. Opening a link only shows a button and the POST acts, because email scanners open
+    every link. A second press, or the Back button, lands on "Link already used", which says a lead who has
+    confirmed is all set (a used token is erased, so used and never-existed cannot be told apart).
+  - These routes catch their own errors and show the "Something went wrong" screen. Elsewhere the API answers an
+    error in JSON (`app.onError`), which a lead should never see.
+  - To look at them locally, wrap the worker's `fetch` from the test build in a small Node `http` server with the
+    mocked database and settings from `test/pages.mjs`. Stop it before running the tests: on Windows it holds
+    `test/.build` open and the runner cannot clear it.
 - **Brand name:** the product is BytesFX in everything a client sees: emails, the widget badge, the dashboard,
   onboarding, the login setup page and authenticator apps. The old name, BytesAI, was replaced on 2026-10-11.
   - Emails name the business from the bot's saved Company name (`companyNameFor`). Only the Bytes bot with none
@@ -416,7 +436,7 @@ Hourly at :07:
 Requires **Node 22.5+** (uses `node:sqlite`). Run `npm install` first in each worker folder.
 
 ```
-cd bytes-website/crm-api-worker && node test/run.mjs        # all 14 suites, or: node test/run.mjs flow plans
+cd bytes-website/crm-api-worker && node test/run.mjs        # all 15 suites, or: node test/run.mjs flow plans
 cd chatbot-api && node test/run.mjs                         # website gate, prompts, scripted flow, chat endpoint
 cd chatbot-api && npx tsc --noEmit -p .                     # typecheck
 cd bytes-website/crm-api-worker && npx wrangler deploy --dry-run --config wrangler.toml   # bundle check, nothing is deployed
@@ -443,7 +463,8 @@ instead: without `--config wrangler.toml`, Wrangler (seen on 4.72) uses the `wra
 | `seq` | Follow-up emails that are not AI-written |
 | `pv` | Page views from the website |
 | `greet` | How emails greet a lead, with and without a name |
-| `find` | The page after confirming: names the questions email, promises it only when it is sent; that email has no unsubscribe link |
+| `find` | The screen after confirming: names the questions email, promises it only when it is sent; that email has no unsubscribe link |
+| `pages` | The screens a lead reaches from an email link: confirm, confirmed, used link, error, unsubscribe |
 
 They run the worker in Node with node:sqlite and mocked KV, R2, mail and LLM, against a scratch copy (`test/.build`,
 gitignored).
