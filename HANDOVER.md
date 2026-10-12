@@ -55,7 +55,7 @@ bytes-website/
     src/auth.js                OAuth providers (Google, Facebook, LinkedIn)
     migrations/                Early D1 schema (later tables are created lazily, see §5)
     data-fixes/                One-off SQL for the live database, run by hand (see §7, Brand name)
-    test/                      node test/run.mjs (14 suites, ~195 checks)
+    test/                      node test/run.mjs (14 suites, ~200 checks)
 research/                      Notes
 ```
 
@@ -269,6 +269,12 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
     address and a known one), the website form's thank-you message (`src/main.js`), and the page shown after
     confirming (`questionsNote` in crm-api), which names the questions email by its title (`threadTitle`, the same
     one `sendThreadEmail` uses). The chat's other lines only say the team will reply by email, and carry no hint.
+  - The page after confirming (`confirmedNote`) promises only what will happen. A lead already closed as Won or
+    Lost sees just "Your email has been verified." (nothing is sent and nobody is alerted). An unsubscribed lead,
+    or a business with questions switched off, sees "Our team will be in touch shortly.", and the owner's alert
+    for an unsubscribed lead says why no questions went out. One limit stays: the page shows before the email
+    goes out (writing it can take a few seconds), so a send that then fails still leaves "We've just emailed
+    you" on the page. The owner is alerted when that happens.
   - The questions email carries no unsubscribe link or `List-Unsubscribe` header (`optOut: false`): it answers the
     enquiry the lead has just confirmed, and the link and header are what a mailbox reads as bulk mail. Every later
     automatic email keeps both, and an unsubscribed lead is still sent nothing automatic.
@@ -436,7 +442,7 @@ instead: without `--config wrangler.toml`, Wrangler (seen on 4.72) uses the `wra
 | `seq` | Follow-up emails that are not AI-written |
 | `pv` | Page views from the website |
 | `greet` | How emails greet a lead, with and without a name |
-| `find` | The page after confirming names the questions email; that email has no unsubscribe link |
+| `find` | The page after confirming: names the questions email, promises it only when it is sent; that email has no unsubscribe link |
 
 They run the worker in Node with node:sqlite and mocked KV, R2, mail and LLM, against a scratch copy (`test/.build`,
 gitignored).

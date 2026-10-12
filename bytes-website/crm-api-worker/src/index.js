@@ -2301,16 +2301,23 @@ app.get('/api/verify-email', async (c) => {
         <button type="submit" style="font:inherit;font-weight:600;padding:12px 28px;border:0;border-radius:999px;background:#3987e5;color:#fff;cursor:pointer">Confirm my email</button></form>`));
 });
 
-// What the page says about the questions email. A mailbox may file that email away from the inbox, so
-// the page names it by its title and says where else to look. The title is worked out as
-// sendThreadEmail works it out; if that cannot be read, the page goes without it.
-async function questionsNote(env, lead) {
-    let title = '';
+// What the page says comes next. It follows the rules startCloseFlow and sendThreadEmail follow, so it
+// promises nothing that will not happen: a lead already closed as Won or Lost gets no email and nobody
+// is alerted, and an unsubscribed lead gets no automatic email. A mailbox may file the questions email
+// away from the inbox, so the page names it by its title (worked out as sendThreadEmail works it out)
+// and says where else to look. If the lead's state cannot be read, the page says what a new lead sees.
+async function confirmedNote(env, lead, cfg) {
+    let state = null, title = '';
     try {
         await ensureSales(env);
-        const { results: prev } = await env.DB.prepare("SELECT subject FROM lead_messages WHERE lead_id = ? AND direction IN ('in', 'out') AND status = 'sent' ORDER BY id").bind(lead.id).all();
-        title = threadTitle(prev, (await companyNameFor(env, lead.client_id)) || '');
-    } catch (e) { console.error('[Verify] Thread title:', e); }
+        state = await env.DB.prepare('SELECT unsubscribed, outcome FROM leads WHERE id = ?').bind(lead.id).first();
+        if (cfg.askQuestions !== false && !state?.outcome && !state?.unsubscribed) {
+            const { results: prev } = await env.DB.prepare("SELECT subject FROM lead_messages WHERE lead_id = ? AND direction IN ('in', 'out') AND status = 'sent' ORDER BY id").bind(lead.id).all();
+            title = threadTitle(prev, (await companyNameFor(env, lead.client_id)) || '');
+        }
+    } catch (e) { console.error('[Verify] Next step:', e); }
+    if (state?.outcome) return '';
+    if (cfg.askQuestions === false || state?.unsubscribed) return 'Our team will be in touch shortly.';
     return `We've just emailed you a few questions about your project. ${title ? `Look for the email titled <strong>${escapeHtml(title)}</strong>. ` : ''}If it isn't in your inbox, look in Promotions or Spam. Reply to it and we'll take it from there.`;
 }
 
@@ -2330,9 +2337,10 @@ app.post('/api/verify-email', async (c) => {
         const cfg = await clientConfig(c.env, lead.client_id);
         const booking = cfg.bookingUrl ? `<p><a href="${escapeHtml(cfg.bookingUrl)}" rel="noopener" style="display:inline-block;margin-top:0.5rem;font-weight:600;padding:12px 24px;border-radius:999px;background:#3987e5;color:#fff;text-decoration:none">Book a call</a></p>` : '';
 
+        const note = await confirmedNote(c.env, lead, cfg);
         return c.html(verifyPage(`<h1 style="color:#16a34a">&#x2705; Email Verified!</h1>
-            <p>Welcome${knownName(lead.name) ? `, ${escapeHtml(knownName(lead.name))}` : ''}! Your email has been verified.</p>
-            <p style="max-width:34rem;margin:1em auto">${cfg.askQuestions === false ? 'Our team will be in touch shortly.' : await questionsNote(c.env, lead)}</p>${booking}`));
+            <p>Welcome${knownName(lead.name) ? `, ${escapeHtml(knownName(lead.name))}` : ''}! Your email has been verified.</p>${note ? `
+            <p style="max-width:34rem;margin:1em auto">${note}</p>` : ''}${booking}`));
     } catch (err) {
         console.error('[Verify] Error:', err);
         return c.html(verifyPage('<h1>Server Error</h1><p>Please try again later.</p>'), 500);
@@ -2871,7 +2879,9 @@ async function startCloseFlow(env, leadId) {
     await alertOwner(env, lead, `Verified lead: ${knownName(lead.name) || lead.email}`, [
         `${knownName(lead.name) || 'A lead'} (${lead.email}) just confirmed their email.`,
         lead.service ? `Interested in: ${lead.service}` : '', lead.budget ? `Budget: ${lead.budget}` : '',
-        r.ok ? 'We emailed them four quick questions about their project. You\'ll get another alert as soon as they reply.' : `We couldn't email them the questions (${r.error}). Check the email sender in your settings.`,
+        r.ok ? 'We emailed them four quick questions about their project. You\'ll get another alert as soon as they reply.'
+            : lead.unsubscribed ? 'They unsubscribed from automatic emails earlier, so the questions were not sent. Reply to them yourself from the Leads page.'
+            : `We couldn't email them the questions (${r.error}). Check the email sender in your settings.`,
     ].filter(Boolean));
 }
 
