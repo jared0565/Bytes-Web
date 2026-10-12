@@ -3,7 +3,7 @@
   "currency": "$",
   "trial": {
     "days": 7,
-    "summary": "7-day free trial: AI chatbot replies and AI email follow-ups, on Free limits for websites and branding. No card needed."
+    "summary": "7-day free trial: AI chatbot replies and AI email follow-ups, on the Free plan's limits for websites, leads and branding. No card needed."
   },
   "modes": {
     "scripted": { "name": "Scripted", "dailyMessages": 400, "summary": "asks visitors what they need, then their name and email, timeline and budget" },
@@ -31,7 +31,7 @@
     },
     {
       "id": "pro", "name": "Pro", "price": 79, "period": "month", "featured": true,
-      "tagline": "More websites and your own brand front and centre.",
+      "tagline": "More websites, and no BytesFX badge on your chat.",
       "mode": "ai", "modes": ["scripted", "ai"],
       "domains": 10, "leadsPerDay": null, "contacts": null,
       "aiFollowUps": true, "removeBadge": true, "whiteLabel": false
@@ -45,9 +45,9 @@
     },
     {
       "id": "enterprise", "name": "Enterprise", "price": null, "period": "custom",
-      "tagline": "Unlimited websites with limits and setup agreed with you.",
+      "tagline": "Up to 50 websites, with setup done with you.",
       "mode": "ai_plus", "modes": ["scripted", "ai", "ai_plus"],
-      "domains": -1, "leadsPerDay": null, "contacts": null,
+      "domains": 50, "leadsPerDay": null, "contacts": null,
       "aiFollowUps": true, "removeBadge": true, "whiteLabel": true
     }
   ]

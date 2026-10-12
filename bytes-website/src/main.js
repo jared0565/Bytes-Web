@@ -277,7 +277,7 @@ function renderPricing() {
         <div class="hx-plans">
           ${cards.map((p, i) => `
           <article class="hx-plan reveal${p.featured ? ' is-featured' : ''}" data-plan="${p.id}" style="--d:${i}">
-            ${p.featured ? '<p class="hx-plan-badge">Most popular</p>' : ''}
+            ${p.featured ? '<p class="hx-plan-badge">Recommended</p>' : ''}
             <h3>${p.name}</h3>
             <p class="hx-price">${planPrice(p)}</p>
             <p class="hx-plan-tag">${p.tagline}</p>

@@ -172,7 +172,11 @@ Other OAUTH_TOKENS keys are session and login state: `device:*`, `totp:*`, `setu
 | Starter | $29/mo | AI | 3 | unlimited | ✓ | – | – |
 | Pro | $79/mo | AI | 10 | unlimited | ✓ | ✓ | – |
 | Business | $149/mo | AI Plus | 25 | unlimited | ✓ | ✓ | ✓ |
-| Enterprise | custom | AI Plus | unlimited | unlimited | ✓ | ✓ | ✓ |
+| Enterprise | custom | AI Plus | 50 | unlimited | ✓ | ✓ | ✓ |
+
+50 is the most websites a plan can offer: a saved list is cut to 50 on every plan (`POST /api/installations` and the
+admin's `/api/config`). `"domains": -1` still means "no plan limit" in the code, but the list would still stop at 50,
+so no plan uses it.
 
 **Bot modes:**
 
@@ -230,9 +234,13 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
   - A client bot with an empty list adopts the first real website it's used on, once. The owner is emailed via
     `/api/webhooks/domain-adopted`.
   - Onboarding now requires a website.
-- **Question order (every bot):** need, then name and email in one question, then timeline, then budget. The email is
+- **Question order:** need, then name and email in one question, then timeline, then budget. The email is
   asked for twice at most. Design and evidence: "Chatbot Conversion Design"
   (https://claude.ai/code/artifact/dc745756-cf9a-4083-99c7-3dc8d084490c).
+  - This order is followed by scripted bots, the Bytes bot, and an AI bot with no prompt of its own (`clientDefaultParts`).
+  - An AI bot with its own prompt (40 characters or more once lines with unfilled `[blanks]` are dropped) follows that
+    prompt. The prompt written at sign-up (`starterPrompt` in `public/onboarding/main.js`) asks for name and email
+    only, so a bot left on it does not ask for timeline or budget.
 - **Service choices:** when a chat opens, both chat boxes (the site's own in `src/main.js`, and `widget.js`) show
   the bot's Services as buttons under a one-line greeting ("Hi! How can we help?"), then "Something else", which
   puts the cursor in the text box.
@@ -529,3 +537,18 @@ gitignored).
    the Bytes bot to web.bytesfx.com.
 10. **Chat limits are starting points:** the 10-message limit is a judgement, not a research figure. Review it after
     about 100 real chats (the design document says how to read the data).
+11. **Pricing section against the code** (checked 12 Oct 2026; the wording was corrected, these were left open):
+    - "Premium AI models" on Business and Enterprise: premium models are refused below AI Plus (`modelIsPremium`),
+      but nothing gives a bot one. The default model is the same on every plan, only an admin can choose another, and
+      a plan change does not set one. No test covers the refusal.
+    - "qualifies leads" on the AI bot: see the question order in §7. A bot left on the sign-up prompt asks for name and
+      email only.
+    - Free after the trial still gets AI email work: the questions email, the reading of replies and proposal drafts
+      have no plan check. Only campaigns are held back (`aiFollowUps`). With auto-send on, template follow-ups go out
+      on Free too, although the approve button is refused.
+    - A plan change resets the bot's mode, badge and branding but not its website list: a downgrade keeps the websites
+      until the client next saves the list.
+    - The dashboard's trial banner names websites and the badge as Free limits, not leads (the Pricing line now does).
+    - The site chat's canned replies for when the chat service is down (`getFallbackResponse` in `src/main.js`)
+      promise delivery times, case studies and a proposal within 24 hours.
+    - A website list longer than 50 is cut without an error.

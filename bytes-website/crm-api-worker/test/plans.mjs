@@ -9,9 +9,9 @@ CREATE TABLE email_sequences (id INTEGER PRIMARY KEY, lead_id INTEGER, client_id
 CREATE TABLE chat_logs (id INTEGER PRIMARY KEY, client_id TEXT, user_message TEXT, bot_response TEXT, timestamp INTEGER, session_id TEXT);`);
 const prep = (sql) => { let a = []; const o = { bind: (...x) => { a = x; return o; }, all: async () => ({ results: db.prepare(sql).all(...a) }), first: async () => db.prepare(sql).get(...a) ?? null, run: async () => { const r = db.prepare(sql).run(...a); return { meta: { changes: Number(r.changes), last_row_id: Number(r.lastInsertRowid) } }; } }; return o; };
 const sent = []; let mxOk = true;
-const kv = new Map([['client:biz', JSON.stringify({ mode: 'ai_plus', showBranding: false, widgetName: 'Zed', widgetAccentColor: '#123456' })], ['client:fr', '{}'], ['client:tb', '{}']]);
+const kv = new Map([['client:biz', JSON.stringify({ mode: 'ai_plus', showBranding: false, widgetName: 'Zed', widgetAccentColor: '#123456' })], ['client:fr', '{}'], ['client:tb', '{}'], ['client:ent', '{}']]);
 const KV = { get: async k => kv.get(k) ?? null, put: async (k, v) => kv.set(k, v), delete: async k => kv.delete(k), list: async ({ prefix }) => ({ keys: [...kv.keys()].filter(k => k.startsWith(prefix)).map(name => ({ name })), list_complete: true }) };
-db.exec(`INSERT INTO crm_settings VALUES ('biz','ai',0,'business',0,0); INSERT INTO crm_settings VALUES ('fr','ai',0,'free',0,0); INSERT INTO crm_settings VALUES ('tb','ai',0,'business',${now - 864e5},${now + 5 * 864e5});`);
+db.exec(`INSERT INTO crm_settings VALUES ('biz','ai',0,'business',0,0); INSERT INTO crm_settings VALUES ('fr','ai',0,'free',0,0); INSERT INTO crm_settings VALUES ('ent','ai',0,'enterprise',0,0); INSERT INTO crm_settings VALUES ('tb','ai',0,'business',${now - 864e5},${now + 5 * 864e5});`);
 const env = { DB: { prepare: prep, batch: async s => { for (const x of s) await x.run(); } }, JWT_SECRET: 'x', OAUTH_TOKENS: KV, CLIENT_SETTINGS: KV };
 const ctx = { waitUntil: p => p };
 const ok = (l, c, x = '') => console.log(c ? 'PASS' : 'FAIL', l, x);
@@ -19,6 +19,9 @@ const tok = async (cid, role = 'client') => mod.signJWT(role === 'admin' ? { rol
 const call = async (t, m, path, body) => { const r = await mod.__app.fetch(new Request('http://x' + path, { method: m, headers: { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) }), env, ctx); return [r.status, await r.json().catch(() => ({}))]; };
 let [st, j] = await call(await tok('biz'), 'GET', '/api/installations'); ok('Business = 25 websites (plans.json)', j.maxDomains === 25, j.maxDomains);
 [st, j] = await call(await tok('tb'), 'GET', '/api/installations'); ok('Business in trial gets Business limits, not Free', j.maxDomains === 25, j.maxDomains);
+// The Pricing section says "50 websites" on Enterprise: the limit, and a list that long is kept whole
+[st, j] = await call(await tok('ent'), 'GET', '/api/installations'); ok('Enterprise = 50 websites (plans.json)', j.maxDomains === 50, j.maxDomains);
+[st, j] = await call(await tok('ent'), 'POST', '/api/installations', { allowedDomains: Array.from({ length: 50 }, (_, i) => `site${i}.com`) }); ok('Enterprise can save 50 websites', st === 200 && j.allowedDomains.length === 50, `${st} ${j.allowedDomains?.length}`);
 [st, j] = await call(await tok('tb'), 'GET', '/api/config'); ok('Business in trial: AI Plus allowed, badge optional, white label on', j.modesAllowed.includes('ai_plus') && !j.brandingMandatory && j.whiteLabelEnabled, JSON.stringify([j.modesAllowed, j.brandingMandatory, j.whiteLabelEnabled]));
 [st, j] = await call(await tok('fr'), 'POST', '/api/installations', { allowedDomains: ['a.com', 'b.com'] }); ok('Free capped at 1 website', st === 400 && /1 website/.test(j.error), j.error);
 // approve on Free
