@@ -5,7 +5,8 @@
 -- The stored follow-up template the Bytes site uses when a campaign is not AI-written
 UPDATE email_templates
    SET steps_json = REPLACE(steps_json, 'BytesAI', 'BytesFX')
- WHERE steps_json LIKE '%BytesAI%';
+ WHERE client_id IN ('default', 'agency_demo')
+   AND steps_json LIKE '%BytesAI%';
 
 -- Bytes follow-up emails written but not sent yet
 UPDATE email_sequences
