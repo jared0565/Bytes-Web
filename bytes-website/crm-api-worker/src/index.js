@@ -34,7 +34,12 @@ async function verifyJWT(token, secret) {
 const app = new Hono();
 
 // ─── Security Headers (replaces helmet) ────────────────────────────────────
-app.use('*', secureHeaders());
+// Replies are for our own origin only, except the page-view beacon's. The website is another
+// origin, so the browser blocks that reply and logs a failed request on every page otherwise.
+// It is an empty 204, so it shows nothing.
+const strictHeaders = secureHeaders();
+const beaconHeaders = secureHeaders({ crossOriginResourcePolicy: 'cross-origin' });
+app.use('*', (c, next) => (c.req.path === '/api/public/pageview' ? beaconHeaders : strictHeaders)(c, next));
 
 // ─── CORS (reads ALLOWED_ORIGINS from env) ──────────────────────────────────
 app.use('*', async (c, next) => {
