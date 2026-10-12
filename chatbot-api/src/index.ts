@@ -519,7 +519,9 @@ export default {
 		if (!message) return json({ error: 'Message is required' }, 400, cors);
 		const clientId = body?.clientId == null || body.clientId === '' ? HOUSE_CLIENT : String(body.clientId);
 		if (!CLIENT_ID_RE.test(clientId)) return json({ error: 'Unknown chatbot.' }, 404, cors);
-		const sessionId = typeof body?.sessionId === 'string' && SESSION_RE.test(body.sessionId) ? body.sessionId : crypto.randomUUID();
+		// The id the browser gives for its chat. It is kept only if this chatbot's saved messages confirm it (below, after the limits)
+		const claimed = typeof body?.sessionId === 'string' && SESSION_RE.test(body.sessionId) ? body.sessionId : '';
+		let sessionId = claimed || crypto.randomUUID();
 
 		// 1. Client configuration (unknown chatbots are refused rather than run as a free default bot)
 		let clientConfig: { systemPrompt?: string, mode?: string, showBranding?: boolean, referralId?: string, companyName?: string, allowedDomains?: unknown, llmModel?: string, llmEffort?: string, services?: unknown, bookingUrl?: string } | null = null;
@@ -556,6 +558,9 @@ export default {
 		if (full) return reply(`${full === 'bot' ? "Thanks for your message! I can't take more chats today." : "Thanks for chatting! That's as much as I can help with today."} To reach the team, please use ${form}`);
 
 		const { turns: history, labels, count: sessionCount } = await loadHistory(env, clientId, sessionId);
+		// Only a chat this server started is continued. An id with no messages saved under it for this chatbot
+		// (made up, another chatbot's, or idle too long) has nothing to continue, so the chat gets a new one.
+		if (claimed && !sessionCount) sessionId = crypto.randomUUID();
 		const emailRegex = /[a-zA-Z0-9._%+\-]{1,64}@[a-zA-Z0-9.\-]{1,190}\.[a-zA-Z]{2,24}/;
 		const said = [...history.filter(h => h.role === 'user').map(h => h.parts[0].text), message];
 		const email = chatEmail(said, emailRegex);

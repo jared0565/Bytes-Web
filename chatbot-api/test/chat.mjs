@@ -41,9 +41,14 @@ globalThis.fetch = async (u, o) => {
 
 const waits = []; const ctx = { waitUntil: p => waits.push(p) };
 let seq = 0;
-// Each chat is a new visitor (own IP) unless told otherwise
-const chat = (client = 'default') => { const n = ++seq; return { client, session: 'chat-' + String(n).padStart(14, '0'), ip: '198.51.100.' + n }; };
-const post = (c, message, e = env) => worker.fetch(new Request('https://ai.bytesfx.com/', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://web.bytesfx.com', 'CF-Connecting-IP': c.ip }, body: JSON.stringify({ message, clientId: c.client, sessionId: c.session }) }), e, ctx);
+// Each chat is a new visitor (own IP) unless told otherwise. Like the widget, it starts with no id and keeps the one the server sends back
+const chat = (client = 'default') => ({ client, session: null, ip: '198.51.100.' + ++seq });
+const post = async (c, message, e = env) => {
+  const res = await worker.fetch(new Request('https://ai.bytesfx.com/', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://web.bytesfx.com', 'CF-Connecting-IP': c.ip }, body: JSON.stringify({ message, clientId: c.client, sessionId: c.session }) }), e, ctx);
+  const id = (await res.clone().json().catch(() => ({}))).sessionId;
+  if (id) c.session = id;
+  return res;
+};
 // Leads are saved after the reply has gone: wait for that work before looking at the database
 const settle = async () => { while (waits.length) await Promise.all(waits.splice(0)); };
 async function send(c, message, e = env) {
@@ -56,6 +61,7 @@ async function send(c, message, e = env) {
 }
 const logs = c => db.prepare('SELECT * FROM chat_logs WHERE session_id = ? ORDER BY id').all(c.session);
 const leadsOf = c => db.prepare('SELECT * FROM leads WHERE session_id = ? ORDER BY id').all(c.session);
+const logged = () => db.prepare('SELECT COUNT(*) AS n FROM chat_logs').get().n; // every saved message, whichever chat it is in
 const told = id => seen.hooks.filter(h => h.leadId === id).length;
 const turn = sys => sys.slice(sys.indexOf('THIS TURN'));
 const FORM = 'https://web.bytesfx.com/#contact';
@@ -293,8 +299,9 @@ for (const x of mapped) await send(x, 'hello there', counting);
 const m = mapped.map(x => logs(x)[0]?.visitor);
 ok('IPv4 addresses written inside IPv6 ones do not all share one visitor', !!m[0] && m[0] !== m[1] && m[0] === m[2] && m[0] === m[3] && keys[0] !== keys[1] && keys[0] === keys[2] && keys[0] === keys[3], `${m.join(' ')} | ${keys.join(' ')}`);
 c = chat();
+const before503 = logged(); // this reply carries no chat id, so count every saved message
 r = await send(c, 'hello there', { ...env, ADMIN_API_KEY: '' });
-ok('without the secret that scrambles visitor ids the chat is unavailable: no id is ever made from a fixed key', r.status === 503 && !r.asked && logs(c).length === 0, String(r.status));
+ok('without the secret that scrambles visitor ids the chat is unavailable: no id is ever made from a fixed key', r.status === 503 && !r.asked && logged() === before503, String(r.status));
 
 const ipBusy = '203.0.113.9';
 for (let sent = 0; sent < PER_DAY;) { const x = { ...chat(), ip: ipBusy }; for (let i = 0; i < LIMIT && sent < PER_DAY; i++, sent++) await send(x, `message ${i} of a busy day`); }
@@ -367,3 +374,25 @@ ok('a bot with no services gets no such line', !r.sys.includes('The chat box sho
 brain = () => '[business] The chat box shows the visitor these choices to tap when a chat opens: Websites; Web applications; AI chatbots.';
 r = await send(chat(), 'what are my options?');
 ok('a reply that lists the choices is sent as it is', /Websites; Web applications; AI chatbots/.test(r.text), r.text);
+
+// ─── The server only continues chats it started ───────────────────────────────
+// The chat id is all that ties a message to its conversation, so the browser's word for it is not enough:
+// an id is used only when this chatbot has saved messages under it in the last six hours.
+brain = () => '[business] Sure.';
+const MADE_UP = 'made-up-id-0000000001';
+const under = id => db.prepare('SELECT COUNT(*) AS n FROM chat_logs WHERE session_id = ?').get(id).n;
+c = { ...chat(), session: MADE_UP };
+r = await send(c, 'I need a website');
+ok('an id the server did not make is replaced, and nothing is saved under it', !!r.data.sessionId && r.data.sessionId !== MADE_UP && under(MADE_UP) === 0 && logs(c).length === 1, `${r.data.sessionId}, ${under(MADE_UP)} saved under the made-up id`);
+r = await send({ ...chat(), session: MADE_UP }, 'and a shop too');
+ok('the same made-up id sent again finds no earlier messages', r.contents.length === 1 && under(MADE_UP) === 0, `${r.contents.length} turns sent to the AI, ${under(MADE_UP)} saved under the made-up id`);
+c = chat();
+r = await send(c, 'I need a booking page');
+const issued = r.data.sessionId;
+r = await send(c, 'what does it cost?');
+ok('the id the server sent back continues the chat', !!issued && r.data.sessionId === issued && r.contents.length === 3 && logs(c).length === 2, `${r.contents.length} turns sent to the AI, ${logs(c).length} saved`);
+r = await send({ ...chat('booker'), session: issued }, 'hello there');
+ok('an id from one chatbot is not continued on another', r.data.sessionId !== issued && r.contents.length === 1, `${r.data.sessionId === issued ? 'same id' : 'new id'}, ${r.contents.length} turns sent to the AI`);
+db.prepare('UPDATE chat_logs SET timestamp = ? WHERE session_id = ?').run(Date.now() - 6 * 3600000 - 60000, issued);
+r = await send(c, 'hello again');
+ok('an id idle for more than six hours is replaced', r.data.sessionId !== issued && r.contents.length === 1, `${r.data.sessionId === issued ? 'same id' : 'new id'}, ${r.contents.length} turns sent to the AI`);
