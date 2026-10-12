@@ -1,6 +1,6 @@
 # BytesFX — Project Handover
 
-Last updated: 10 Oct 2026, after PR #43. Everything below is merged into `main` and deployed.
+Last updated: 12 Oct 2026. Everything below is merged into `main` and deployed.
 Read this file and `CLAUDE.md` before changing anything.
 
 ---
@@ -87,8 +87,11 @@ Lead's email reply ─► Cloudflare Email Routing (reply@reply.bytesfx.com, sub
 | Rate limiters | `CHAT_LIMITER`, `CLIENT_LIMITER` (chatbot-api) | see chatbot-api/wrangler.jsonc |
 
 **CI** (`deploy-worker.yml`): chatbot-api deploys first because crm-api binds to it. Secret `CLOUDFLARE_API_TOKEN` is
-in GitHub. The crm-api step has no pinned Wrangler version, so keep crm-api code compatible with older Wrangler.
-For example, import plans.json with a plain `import x from '../../public/plans.json'`, without `with { type: 'json' }`.
+in GitHub. All three steps install Wrangler 4.149.0, which needs Node 22 or newer on the runner.
+- The crm-api step runs `deploy --config wrangler.toml`. Without the flag, Wrangler 4 uses the `wrangler.jsonc` in the
+  repo root and deploys the website in crm-api's place.
+- Keep the plans.json import in crm-api as a plain `import x from '../../public/plans.json'`, without
+  `with { type: 'json' }`: the test runner rewrites that exact line.
 
 ---
 

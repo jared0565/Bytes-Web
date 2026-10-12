@@ -17,15 +17,18 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           # wrangler.jsonc needs Wrangler >= 3.91; the action defaults to 3.90
-          wranglerVersion: '4.70.0'
+          wranglerVersion: '4.149.0'
           workingDirectory: 'chatbot-api'
 
       - name: Deploy CRM API Worker
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          wranglerVersion: '4.149.0'
           workingDirectory: 'bytes-website/crm-api-worker'
-          
+          # Name the config: without it Wrangler 4 picks the root wrangler.jsonc and deploys the website here
+          command: deploy --config wrangler.toml
+
       - name: Build Website
         working-directory: 'bytes-website'
         run: |
@@ -36,5 +39,5 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          wranglerVersion: '4.70.0'
+          wranglerVersion: '4.149.0'
           # The root wrangler.jsonc now points to bytes-website/dist
