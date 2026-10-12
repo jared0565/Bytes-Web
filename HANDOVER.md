@@ -244,6 +244,13 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
     the chat box shows (the `CHOICES` part of the prompt), so they don't ask what the visitor needs again.
   - The buttons show only for a new chat (no session id stored in the tab) and go the moment a message is sent,
     tapped or typed. Later in a chat a tap would be read as the answer to a different question.
+- **Chat on phones:** both chats fill the screen: the widget at 480px wide and under, the site chat at 768px and
+  under. Neither shows its launcher while open, or it would sit on the send button; the × closes the chat.
+  - The widget's × has a 44px tap area and sets every property itself, so a client site's own `button` styles cannot
+    change it. The widget's send button and launcher are not protected that way yet.
+  - The site chat is styled by two stylesheets that are both loaded: `bytes-website/style.css` (linked from
+    index.html; it holds the phone rules) and `bytes-website/src/style.css` (imported by main.js). A limit set in
+    one can undo a rule in the other, so check both.
 - **Brand name:** the product is BytesFX in everything a client sees: emails, the widget badge, the dashboard,
   onboarding, the login setup page and authenticator apps. The old name, BytesAI, was replaced on 2026-10-11.
   - Emails name the business from the bot's saved Company name (`companyNameFor`). Only the Bytes bot with none
