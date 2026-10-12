@@ -25,7 +25,7 @@ let r = await mod.__app.fetch(new Request('http://x/api/verify-email', { method:
 const page = await r.text(); await settle();
 ok('verify page mentions questions + booking', page.includes('few questions') && page.includes('cal.com/acme'));
 const q = sent.find(e => e.to[0] === 'priya@clinic.com'); const alert1 = sent.find(e => e.to[0] === 'owner@acme.com');
-ok('questions email in thread', q && /^Your enquiry with Acme Dental$/.test(q.subject) && /^reply\+[a-z2-7]+@reply\.bytesfx\.com$/.test(q.reply_to) && q.headers['List-Unsubscribe'] && q.text.includes('4.'), q && q.reply_to);
+ok('questions email in thread', q && /^Your enquiry with Acme Dental$/.test(q.subject) && /^reply\+[a-z2-7]+@reply\.bytesfx\.com$/.test(q.reply_to) && !q.headers['List-Unsubscribe'] && q.text.includes('4.'), q && q.reply_to);
 ok('owner alerted (verified)', alert1 && /Verified lead/.test(alert1.subject));
 let lead = db.prepare('select * from leads where id=1').get();
 ok('stage priority + token', lead.pipeline_stage === 'priority' && lead.thread_token);
@@ -34,7 +34,7 @@ ok('reminder scheduled +2d', db.prepare("select count(*) n from lead_messages wh
 db.exec(`update lead_messages set scheduled_for=0 where kind='reminder'`); sent.length = 0;
 await mod.default.scheduled({ scheduledTime: Date.now() + 60000 * 3 }, env, ctx); await settle();
 const rem = sent.find(e => e.to[0] === 'priya@clinic.com');
-ok('reminder sent as Re: same thread', rem && rem.subject === 'Re: Your enquiry with Acme Dental' && rem.headers['In-Reply-To'] && rem.headers.References.includes(q.headers['Message-ID']), rem?.subject);
+ok('reminder sent as Re: same thread', rem && rem.subject === 'Re: Your enquiry with Acme Dental' && rem.headers['In-Reply-To'] && rem.headers.References.includes(q.headers['Message-ID']) && rem.headers['List-Unsubscribe'], rem?.subject);
 ok('checkpoint scheduled', db.prepare("select count(*) n from lead_messages where kind='checkpoint' and status='scheduled'").get().n === 1);
 // 3. inbound reply
 const raw = `From: Priya <priya@clinic.com>\r\nTo: ${q.reply_to}\r\nSubject: Re: Your enquiry with Acme Dental\r\nMessage-ID: <abc@mail.gmail.com>\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n1. A new clinic website with online booking\r\n3. About £4,000\r\n4. By March\r\n\r\nOn Mon, 9 Oct 2026, Acme <hi@acme.com> wrote:\r\n> Hi Priya, 1. What do you need?\r\n`;

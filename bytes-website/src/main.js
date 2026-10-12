@@ -854,7 +854,7 @@ function renderHomePage() {
           <div id="formSuccess" class="hx-success hidden">
             <div class="hx-success-icon" aria-hidden="true">✓</div>
             <h3 tabindex="-1" id="formSuccessTitle">Thank you, we've got it!</h3>
-            <p>We'll reply within 24 hours. Please check your inbox for a quick email to confirm your address.</p>
+            <p>We'll reply within 24 hours. We've emailed you a link to confirm your address. If you can't find it, look in Promotions or Spam.</p>
           </div>
         </div>
       </div>
