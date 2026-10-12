@@ -55,7 +55,7 @@ bytes-website/
     src/auth.js                OAuth providers (Google, Facebook, LinkedIn)
     migrations/                Early D1 schema (later tables are created lazily, see §5)
     data-fixes/                One-off SQL for the live database, run by hand (see §7, Brand name)
-    test/                      node test/run.mjs (11 suites, ~155 checks)
+    test/                      node test/run.mjs (12 suites, ~165 checks)
 research/                      Notes
 ```
 
@@ -318,7 +318,9 @@ the daily allowance. The one exception is a first email typed after the chat lim
 - **Models:** drafting and reading models are admin-set; default GPT-6 Luna, falling back to Gemini 2.5 Flash.
 - **Conversation view:** the drawer shows the full thread and files; it can be downloaded as text or printed to PDF.
 
-**Analytics:** chat, lead and visitor stats (cookieless `track.js`), sales results.
+**Analytics:** chat, lead and visitor stats (cookieless `track.js`), sales results. A page view is counted only from an
+https address in crm-api's `ALLOWED_ORIGINS`. Its reply is the one crm-api reply marked `cross-origin`: with the usual
+`same-origin` the browser blocks it and logs a failed request on every page, although the view is already saved.
 
 **Settings** (admin, the Bytes website):
 - Bot behaviour and mode
@@ -373,7 +375,7 @@ Hourly at :07:
 Requires **Node 22.5+** (uses `node:sqlite`). Run `npm install` first in each worker folder.
 
 ```
-cd bytes-website/crm-api-worker && node test/run.mjs        # all 11 suites, or: node test/run.mjs flow plans
+cd bytes-website/crm-api-worker && node test/run.mjs        # all 12 suites, or: node test/run.mjs flow plans
 cd chatbot-api && node test/run.mjs                         # website gate, prompts, scripted flow, chat endpoint
 cd chatbot-api && npx tsc --noEmit -p .                     # typecheck
 cd bytes-website/crm-api-worker && npx wrangler deploy --dry-run --config wrangler.toml   # bundle check, nothing is deployed
@@ -398,6 +400,7 @@ instead: without `--config wrangler.toml`, Wrangler (seen on 4.72) uses the `wra
 | `site` | Signup website, adoption email |
 | `brand` | The BytesFX name in emails and code, the one-off data fix |
 | `seq` | Follow-up emails that are not AI-written |
+| `pv` | Page views from the website |
 
 They run the worker in Node with node:sqlite and mocked KV, R2, mail and LLM, against a scratch copy (`test/.build`,
 gitignored).
