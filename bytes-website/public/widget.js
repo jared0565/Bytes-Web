@@ -355,6 +355,8 @@
                 border-radius: 0;
                 margin-bottom: 0;
             }
+            /* The chat fills the screen here, so the launcher would sit on the send button. The × closes the chat */
+            .chatbot-window:not(.hidden) + .chatbot-launcher { display: none; }
         }
     `;
 

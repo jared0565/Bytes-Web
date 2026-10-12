@@ -2099,6 +2099,7 @@ h3 {
         left: 0 !important;
         width: 100% !important;
         height: 100% !important;
+        max-width: none !important; /* src/style.css caps the width 32px short of the screen */
         max-height: none !important;
         border-radius: 0 !important;
         margin-bottom: 0 !important;
