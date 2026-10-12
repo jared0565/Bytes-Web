@@ -200,6 +200,11 @@ limits count it, so changing address inside one IPv6 network does not reset them
 Fixed replies (over a limit, chat closed, AI unavailable) are not written to `chat_logs`, so they do not count against
 the daily allowance. The one exception is a first email typed after the chat limit: that message is logged.
 
+**Chat ids:** the server makes each chat's id and the browser keeps it in the tab. An id the browser sends is used only
+when this chatbot has saved messages under it in the last 6 hours. Any other id (made up, another chatbot's, idle too
+long) is replaced with a new one. Whoever holds a live id can still continue that chat: it is not tied to the
+visitor's network, on purpose, so a phone that changes network keeps its chat.
+
 **Rules** (crm-api `entitlements()`, `modesForPlan()`, `syncBotMode()`):
 - **Trial:** 7 days, only meaningful on the Free plan. A trial gives AI replies and AI follow-ups on Free limits
   (1 website, badge on). A paid plan always gets its own entitlements, even during a trial.
