@@ -129,14 +129,37 @@
             animation: widget-pulse 2s infinite;
         }
 
-        .btn-close-chat {
+        /* On a phone this is the only way to close the chat. A full-size tap area around the same small ×, with
+           every property set so a host page's own button styles can't shrink, stretch or fade it. The negative
+           margins keep the header the height it was. */
+        .chatbot-widget-container .btn-close-chat {
+            appearance: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: none;
+            width: 44px;
+            min-width: 0;
+            height: 44px;
+            margin: -9px -9px -9px 0;
+            padding: 0;
             background: none;
             border: none;
+            border-radius: 12px;
+            box-shadow: none;
             color: var(--widget-text-secondary);
+            font-family: Arial, Helvetica, sans-serif;
             font-size: 1.5rem;
-            cursor: pointer;
+            font-weight: 400;
             line-height: 1;
+            letter-spacing: normal;
+            text-transform: none;
+            opacity: 1;
+            cursor: pointer;
         }
+        .chatbot-widget-container .btn-close-chat:hover { color: var(--widget-text); }
+        .chatbot-widget-container .btn-close-chat:active { transform: scale(0.94); }
+        .chatbot-widget-container .btn-close-chat:focus-visible { outline: 2px solid var(--widget-text); outline-offset: -4px; }
 
         .chatbot-messages {
             flex: 1;
@@ -416,7 +439,7 @@
                         <div class="status-dot"></div>
                         ${widgetName}
                     </div>
-                    <button class="btn-close-chat" id="btn-close-chat">&times;</button>
+                    <button class="btn-close-chat" id="btn-close-chat" aria-label="Close chat">&times;</button>
                 </div>
                 <div class="chatbot-messages" id="chatbot-messages">
                     <div class="chat-message bot-message">${greeting}</div>

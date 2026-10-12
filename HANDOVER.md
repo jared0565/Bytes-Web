@@ -246,6 +246,8 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
     tapped or typed. Later in a chat a tap would be read as the answer to a different question.
 - **Chat on phones:** both chats fill the screen: the widget at 480px wide and under, the site chat at 768px and
   under. Neither shows its launcher while open, or it would sit on the send button; the × closes the chat.
+  - The widget's × has a 44px tap area and sets every property itself, so a client site's own `button` styles cannot
+    change it. The widget's send button and launcher are not protected that way yet.
   - The site chat is styled by two stylesheets that are both loaded: `bytes-website/style.css` (linked from
     index.html; it holds the phone rules) and `bytes-website/src/style.css` (imported by main.js). A limit set in
     one can undo a rule in the other, so check both.
