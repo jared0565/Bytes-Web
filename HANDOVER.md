@@ -55,7 +55,7 @@ bytes-website/
     src/auth.js                OAuth providers (Google, Facebook, LinkedIn)
     migrations/                Early D1 schema (later tables are created lazily, see §5)
     data-fixes/                One-off SQL for the live database, run by hand (see §7, Brand name)
-    test/                      node test/run.mjs (13 suites, ~180 checks)
+    test/                      node test/run.mjs (14 suites, ~195 checks)
 research/                      Notes
 ```
 
@@ -259,6 +259,18 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
   dashboard, which the chat later replaces with a real name. `knownName` treats it, and an empty name, as no name:
   emails say "Hi there,", the AI is told the name is not given, and the owner's alerts use the email address.
   Follow-ups written before 2026-10-12 and not yet sent keep the greeting they were written with.
+- **Helping a lead find our emails:** on 2026-10-12 the questions email landed in Gmail's Promotions tab in a live
+  test. Which tab a mailbox picks is its own decision; these are the parts the code controls:
+  - The confirmation email ("Please confirm your email") and the lead's thread ("Your enquiry with <business>") are
+    two separate conversations on purpose: the owner wants the confirmation subject to say what it is, and Gmail
+    only joins emails that share a subject.
+  - Every place that tells a visitor an email is coming also says to look in Promotions or Spam: the chat's
+    confirmation sentences (`CONFIRM` in chatbot-api, the same words for a new address and a known one), the
+    website form's thank-you message (`src/main.js`), and the page shown after confirming (`questionsNote` in
+    crm-api), which names the questions email by its title (`threadTitle`, the same one `sendThreadEmail` uses).
+  - The questions email carries no unsubscribe link or `List-Unsubscribe` header (`optOut: false`): it answers the
+    enquiry the lead has just confirmed, and the link and header are what a mailbox reads as bulk mail. Every later
+    automatic email keeps both, and an unsubscribed lead is still sent nothing automatic.
 - **Brand name:** the product is BytesFX in everything a client sees: emails, the widget badge, the dashboard,
   onboarding, the login setup page and authenticator apps. The old name, BytesAI, was replaced on 2026-10-11.
   - Emails name the business from the bot's saved Company name (`companyNameFor`). Only the Bytes bot with none
@@ -324,7 +336,8 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
    - The owner edits it in the drawer; Send is blocked while `[blanks]` remain.
    - Once sent: the lead moves to Opportunity, gets one nudge after 3 quiet days, and a "yes" reply is flagged.
 5. **Won/Lost** records an amount or reason. Analytics shows reply rate, win rate, revenue won and time to close.
-6. **Stop rules:** follow-ups stop on reply, Won/Lost or unsubscribe (link plus `List-Unsubscribe` header).
+6. **Stop rules:** follow-ups stop on reply, Won/Lost or unsubscribe (link plus `List-Unsubscribe` header, on every
+   automatic email after the questions email).
 
 - **Follow-ups that are not AI-written** (`generateRuleSequence`): three short built-in emails in the business's
   name, mentioning the service the lead asked about. They are used when the campaign mode is not AI, and when the AI
@@ -395,7 +408,7 @@ Hourly at :07:
 Requires **Node 22.5+** (uses `node:sqlite`). Run `npm install` first in each worker folder.
 
 ```
-cd bytes-website/crm-api-worker && node test/run.mjs        # all 13 suites, or: node test/run.mjs flow plans
+cd bytes-website/crm-api-worker && node test/run.mjs        # all 14 suites, or: node test/run.mjs flow plans
 cd chatbot-api && node test/run.mjs                         # website gate, prompts, scripted flow, chat endpoint
 cd chatbot-api && npx tsc --noEmit -p .                     # typecheck
 cd bytes-website/crm-api-worker && npx wrangler deploy --dry-run --config wrangler.toml   # bundle check, nothing is deployed
@@ -422,6 +435,7 @@ instead: without `--config wrangler.toml`, Wrangler (seen on 4.72) uses the `wra
 | `seq` | Follow-up emails that are not AI-written |
 | `pv` | Page views from the website |
 | `greet` | How emails greet a lead, with and without a name |
+| `find` | The page after confirming names the questions email; that email has no unsubscribe link |
 
 They run the worker in Node with node:sqlite and mocked KV, R2, mail and LLM, against a scratch copy (`test/.build`,
 gitignored).

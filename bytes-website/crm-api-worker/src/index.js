@@ -2301,6 +2301,19 @@ app.get('/api/verify-email', async (c) => {
         <button type="submit" style="font:inherit;font-weight:600;padding:12px 28px;border:0;border-radius:999px;background:#3987e5;color:#fff;cursor:pointer">Confirm my email</button></form>`));
 });
 
+// What the page says about the questions email. A mailbox may file that email away from the inbox, so
+// the page names it by its title and says where else to look. The title is worked out as
+// sendThreadEmail works it out; if that cannot be read, the page goes without it.
+async function questionsNote(env, lead) {
+    let title = '';
+    try {
+        await ensureSales(env);
+        const { results: prev } = await env.DB.prepare("SELECT subject FROM lead_messages WHERE lead_id = ? AND direction IN ('in', 'out') AND status = 'sent' ORDER BY id").bind(lead.id).all();
+        title = threadTitle(prev, (await companyNameFor(env, lead.client_id)) || '');
+    } catch (e) { console.error('[Verify] Thread title:', e); }
+    return `We've just emailed you a few questions about your project. ${title ? `Look for the email titled <strong>${escapeHtml(title)}</strong>. ` : ''}If it isn't in your inbox, look in Promotions or Spam. Reply to it and we'll take it from there.`;
+}
+
 app.post('/api/verify-email', async (c) => {
     let token = '';
     try { token = String((await c.req.parseBody()).token || ''); } catch { token = ''; }
@@ -2319,7 +2332,7 @@ app.post('/api/verify-email', async (c) => {
 
         return c.html(verifyPage(`<h1 style="color:#16a34a">&#x2705; Email Verified!</h1>
             <p>Welcome${knownName(lead.name) ? `, ${escapeHtml(knownName(lead.name))}` : ''}! Your email has been verified.</p>
-            <p>${cfg.askQuestions === false ? 'Our team will be in touch shortly.' : 'We\'ve sent you a short email with a few questions about your project. Just reply to it and we\'ll take it from there.'}</p>${booking}`));
+            <p style="max-width:34rem;margin:1em auto">${cfg.askQuestions === false ? 'Our team will be in touch shortly.' : await questionsNote(c.env, lead)}</p>${booking}`));
     } catch (err) {
         console.error('[Verify] Error:', err);
         return c.html(verifyPage('<h1>Server Error</h1><p>Please try again later.</p>'), 500);
@@ -2751,9 +2764,14 @@ const firstName = (name) => knownName(name).split(/\s+/)[0] || 'there';
 const promptName = (name, first) => knownName(name) ? escapeForPrompt(first ? firstName(name) : knownName(name)) : '(name not given: open with "Hi there,")';
 const DASH = (env) => env.FRONTEND_DASHBOARD_URL || 'https://web.bytesfx.com/dashboard/';
 
+// A thread keeps the title of its first email. A new one is titled with the business's name.
+const threadTitle = (prev, company) => (prev.find(m => m.subject)?.subject || `Your enquiry${company ? ` with ${company}` : ''}`).replace(/^(re:\s*)+/i, '');
+
 // Sends one email in the lead's thread and records it. automatic: adds the unsubscribe link and
-// is skipped for unsubscribed leads.
-async function sendThreadEmail(env, lead, { kind, body, automatic = true }) {
+// is skipped for unsubscribed leads. optOut: false leaves the link out of an automatic email. That is
+// the questions email: it answers the enquiry the lead has just confirmed, and the link and its header
+// are what a mailbox reads as bulk mail.
+async function sendThreadEmail(env, lead, { kind, body, automatic = true, optOut = automatic }) {
     await ensureSales(env);
     if (automatic && (lead.unsubscribed || lead.outcome)) return { ok: false, error: 'Lead unsubscribed or closed' };
     const mail = await getMailSettings(env, lead.client_id);
@@ -2766,7 +2784,7 @@ async function sendThreadEmail(env, lead, { kind, body, automatic = true }) {
     }
     const { results: prev } = await env.DB.prepare("SELECT subject, message_id FROM lead_messages WHERE lead_id = ? AND direction IN ('in', 'out') AND status = 'sent' ORDER BY id").bind(lead.id).all();
     const company = (await companyNameFor(env, lead.client_id)) || '';
-    const base = (prev.find(m => m.subject)?.subject || `Your enquiry${company ? ` with ${company}` : ''}`).replace(/^(re:\s*)+/i, '');
+    const base = threadTitle(prev, company);
     const subject = prev.length ? `Re: ${base}` : base;
     const domain = env.REPLY_DOMAIN || 'bytesfx.com';
     const messageId = `<${token}.${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}@${domain}>`;
@@ -2775,11 +2793,11 @@ async function sendThreadEmail(env, lead, { kind, body, automatic = true }) {
     const replyTo = tracking ? `reply+${token}@${env.REPLY_DOMAIN}` : alertAddress(env, lead.client_id, cfg, mail);
     const unsub = `${apiOrigin(env)}/api/unsubscribe?t=${token}`;
     const text = String(body || '').trim();
-    const html = emailShell(escapeHtml(text).replace(/\n/g, '<br>') + (automatic ? `<p style="margin-top:2rem;font-size:0.75rem;color:#9ca3af;">Don't want these emails? <a href="${unsub}" style="color:#9ca3af;">Unsubscribe</a></p>` : ''));
+    const html = emailShell(escapeHtml(text).replace(/\n/g, '<br>') + (optOut ? `<p style="margin-top:2rem;font-size:0.75rem;color:#9ca3af;">Don't want these emails? <a href="${unsub}" style="color:#9ca3af;">Unsubscribe</a></p>` : ''));
     const headers = { 'Message-ID': messageId };
     if (refs.length) { headers['In-Reply-To'] = refs[refs.length - 1]; headers.References = refs.join(' '); }
-    if (automatic) headers['List-Unsubscribe'] = `<${unsub}>`;
-    const result = await sendMail(mail, lead.email, subject, html, { replyTo, headers, text: automatic ? `${text}\n\n--\nDon't want these emails? Unsubscribe: ${unsub}` : text });
+    if (optOut) headers['List-Unsubscribe'] = `<${unsub}>`;
+    const result = await sendMail(mail, lead.email, subject, html, { replyTo, headers, text: optOut ? `${text}\n\n--\nDon't want these emails? Unsubscribe: ${unsub}` : text });
     await env.DB.prepare('INSERT INTO lead_messages (lead_id, client_id, direction, kind, subject, body, from_addr, to_addr, message_id, status, error, ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
         .bind(lead.id, lead.client_id, 'out', kind, subject, text, mail?.fromEmail || '', lead.email, messageId, result.ok ? 'sent' : 'failed', result.ok ? null : String(result.error || '').slice(0, 300), Date.now()).run();
     return result;
@@ -2848,7 +2866,7 @@ async function startCloseFlow(env, leadId) {
         await autoSequence(env, lead, settings, false);
         return;
     }
-    const r = await sendThreadEmail(env, lead, { kind: 'questions', body: await questionsEmail(env, lead, cfg) });
+    const r = await sendThreadEmail(env, lead, { kind: 'questions', body: await questionsEmail(env, lead, cfg), optOut: false });
     if (r.ok) await scheduleTask(env, lead, 'reminder', 2);
     await alertOwner(env, lead, `Verified lead: ${knownName(lead.name) || lead.email}`, [
         `${knownName(lead.name) || 'A lead'} (${lead.email}) just confirmed their email.`,

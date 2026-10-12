@@ -31,7 +31,7 @@ HOW A GOOD CHAT GOES
 1. Answer first. Reply to what they said in one or two short sentences before asking anything.
 2. Find the need. If you do not yet know what they want, ask one easy question: is it a website, an app, a chatbot, or something else?
 3. Ask for contact details. Once you know the need, ask for their name and email in one question, and give the reason: so the team can send a quote and reply within 24 hours.
-4. When they give an email, thank them by name and say the confirmation sentence THIS TURN gives you. Then ask when they would like the work done.
+4. When they give an email, thank them by name and say the confirmation sentences THIS TURN gives you. Then ask when they would like the work done.
 5. Ask for a rough budget. Say a range is fine and that they can skip it.
 6. Close. Sum up what they asked for in one line, say a person will reply by email within 24 hours, and give one next step from the list below. Do not ask another question.
 
@@ -57,7 +57,7 @@ FACTS YOU CAN USE
 - Email: contact@bytesfx.com`;
 const HOUSE_RULES = `RULES
 - Use only the facts above. If you do not know something, say the team will confirm it by email. Never invent prices, timelines, discounts, guarantees, clients or results.
-- Never say that anything has been sent, booked, created or set up. You only pass details to the team. The confirmation sentence THIS TURN gives you is the one exception.
+- Never say that anything has been sent, booked, created or set up. You only pass details to the team. The confirmation sentences THIS TURN gives you are the one exception.
 - If an email looks like a placeholder (such as test@test.com), ask for the address they actually check.
 - Keep every reply under 60 words, in plain friendly English, without emojis.
 - If asked, say you are an AI assistant.`;
@@ -71,7 +71,7 @@ function clientDefaultParts(companyName: string, services: string[], booking: st
 1. Answer first: reply to what the visitor said in one or two short sentences before asking anything.
 2. If you do not yet know what they need, ask one easy question about it.
 3. Once you know the need, ask for their name and email in one question, so the team can reply.
-4. When they give an email, thank them by name and say the confirmation sentence THIS TURN gives you. Then ask when they would like this done.
+4. When they give an email, thank them by name and say the confirmation sentences THIS TURN gives you. Then ask when they would like this done.
 5. Ask for a rough budget. A range is fine, and they can skip it.
 6. Close: sum up what they asked for in one line and say the team will follow up by email.${booking ? ` If they'd like to talk sooner, share this booking link: ${booking}` : ''} Do not ask another question.
 
@@ -79,7 +79,7 @@ Rules:
 - One question per reply. Never ask for something they have already told you. Timeline and budget are optional.
 - Ask for the email at most twice. If they would rather not share it, say that is fine and keep answering their questions.
 - Only discuss ${name} and its services. If you don't know something (prices, availability, details), say the team will confirm by email. Never invent prices, promises or facts.
-- Never claim anything has been booked, sent or confirmed, except the confirmation sentence THIS TURN gives you.`];
+- Never claim anything has been booked, sent or confirmed, except the confirmation sentences THIS TURN gives you.`];
 }
 export function clientDefaultPrompt(companyName: string, services: string[], booking: string): string {
 	return clientDefaultParts(companyName, services, booking).join('\n\n');
@@ -272,9 +272,10 @@ function chatEmail(texts: string[], emailRegex: RegExp): string {
 	return '';
 }
 // What a visitor is told about their details depends only on what was typed in the chat, never on what the leads
-// table holds: otherwise a reply would show whether an email address is already this business's lead. So this
-// sentence has to be true both for a new address and for one that was sent the email on an earlier visit.
-const CONFIRM = "We'll email you a link to confirm your address, unless you've already had one.";
+// table holds: otherwise a reply would show whether an email address is already this business's lead. So these
+// sentences have to be true both for a new address and for one that was sent the email on an earlier visit.
+// The second is there because a mailbox may file the email away from the inbox, where it is easily missed.
+const CONFIRM = "We'll email you a link to confirm your address, unless you've already had one. If you can't find it, look in Promotions or Spam.";
 
 // ─── Scripted mode ────────────────────────────────────────────────────────────
 // Four questions in a fixed order: need, name and email, timeline, budget. Where a chat has got to is worked
@@ -447,7 +448,7 @@ function splitLabel(raw: string): { label: Label, text: string } {
 // A bot reply that asked for the visitor's email: a sentence that mentions email and ends in a question mark
 const asksForEmail = (t: string) => /e-?mail[^.!?\n]*\?/i.test(t);
 // Facts about this turn that the code knows and the model would otherwise have to count or guess. The bot is given
-// the confirmation sentence word for word: left to its own words it said an email "is on its way", and one message
+// the confirmation sentences word for word: left to its own words it said an email "is on its way", and one message
 // later, told none "will be sent", it took that back.
 function turnNotes(o: { n: number, email: boolean, asks: number, confirmation: 'now' | 'sent' | 'no', close: string }): string {
 	return `
@@ -455,7 +456,7 @@ function turnNotes(o: { n: number, email: boolean, asks: number, confirmation: '
 THIS TURN
 - This is visitor message ${o.n} of ${SESSION_MAX_MESSAGES}. Never mention message numbers or limits to the visitor.
 - Email already given: ${o.email ? 'yes' : 'no'}. Times you have asked for it: ${o.asks}.${!o.email && o.asks >= 2 ? ' Do not ask for it again.' : ''}
-- Confirmation email: ${o.confirmation === 'now' ? `say this sentence in this reply, as it is: "${CONFIRM}"` : o.confirmation === 'sent' ? 'already covered earlier in this chat. Do not mention it again, and do not correct or take back what was said about it.' : 'not yet, no email has been given.'}${o.n >= SESSION_MAX_MESSAGES ? `
+- Confirmation email: ${o.confirmation === 'now' ? `say these sentences in this reply, as they are: "${CONFIRM}"` : o.confirmation === 'sent' ? 'already covered earlier in this chat. Do not mention it again, and do not correct or take back what was said about it.' : 'not yet, no email has been given.'}${o.n >= SESSION_MAX_MESSAGES ? `
 - This is your last reply. Do not ask a question: ${o.close}` : ''}`;
 }
 
