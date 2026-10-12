@@ -251,6 +251,9 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
   - The site chat is styled by two stylesheets that are both loaded: `bytes-website/style.css` (linked from
     index.html; it holds the phone rules) and `bytes-website/src/style.css` (imported by main.js). A limit set in
     one can undo a rule in the other, so check both.
+- **Site menu on phones:** the burger menu covers the screen and closes when one of its links is tapped (the
+  listener is in the mobile-menu code in `src/main.js`). Links to a section scroll there without changing the page
+  address (`initSmoothScroll`), so nothing that waits for the address to change will run after a tap on one.
 - **Greetings in emails:** every email to a lead opens with their first name (`firstName` in crm-api), and so does
   `{name}` in a follow-up template. The chat saves a lead who gave no name as "Visitor"; that is a label for the
   dashboard, which the chat later replaces with a real name. `knownName` treats it, and an empty name, as no name:
