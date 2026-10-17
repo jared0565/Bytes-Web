@@ -230,8 +230,9 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
 - **Cookie banner** (`public/consent.js`, loaded by the homepage, the legal pages and onboarding): since 17 Oct 2026
   it does not open on a first visit (`ASK = false`), because no tag on the site sets cookies: the CSP in `_headers`
   runs only the site's own scripts, and the visit statistics are cookieless. The footer's Cookie Settings link opens
-  it. Before adding Google Analytics, Google Ads or a pixel, set `ASK = true` and bump `VERSION` so everyone is asked.
-  The cookie policy and the data-deletion page still describe a banner on the first visit.
+  it. Before adding Google Analytics, Google Ads or a pixel, set `ASK = true` and bump `VERSION` so everyone is asked,
+  and update the cookie policy, privacy policy (section 8) and data-deletion page: since 17 Oct 2026 they say the site
+  sets no analytics or marketing cookies and shows no banner.
 
 **Chat widget and chatbot-api:**
 - **Website gate (`siteGate`):**
