@@ -29,14 +29,16 @@ Worker secrets.
 2. If you changed a secret's name or added one, set it in the worker's folder first. The deploy does not set secrets:
    `npx wrangler secret put NAME` (add `--config wrangler.toml` in crm-api). See
    [section 4 of the knowledge base](../knowledge-base.md#4-configuration-and-secrets).
-3. If you changed `plans.json`, the change is live the moment the website and crm-api deploy. Check the Pricing section
-   after the deploy.
+3. If you changed `plans.json`, all three parts bundle or copy it, so it goes live step by step: chatbot-api first (chat
+   limits, mode caps, and the prices the Bytes bot quotes), then crm-api, then the website's Pricing section. Check the
+   Pricing section after the deploy.
 
 ## After you merge
 
 - Open the "Deploy Agency" run and confirm all three steps are green.
 - If a step fails, the live site may be half-updated: chatbot-api can be new while crm-api is still old. Read the failed
   step's log before you push a fix.
+- If the deploy worked but broke something, see [Roll back a deploy](rollback.md).
 
 ## Things to know
 
@@ -44,6 +46,8 @@ Worker secrets.
   `with { type: 'json' }`: the test runner rewrites that exact line.
 - The Wrangler version is pinned in the workflow (4.149.0). The action's own default (3.90) is too old for
   `wrangler.jsonc`, so do not remove the pin.
-- The crm-api `package.json` migration scripts name a database (`crm-database`) that the config does not bind. Do not
-  use them. See [Run a data fix](run-a-data-fix.md) and the open items in the
-  [knowledge base](../knowledge-base.md#11-open-items-and-known-gaps).
+- The crm-api `package.json` migration scripts (`migrate:local`, `migrate:remote`) name a database, `crm-database`,
+  that the config does not bind. `migrate:local` stops with an error and changes nothing (checked on 17 Oct 2026;
+  `migrate:remote` was not run). Use `chatbot-db` instead, as in
+  [Run locally](run-locally.md#crm-api) and [Run a data fix](run-a-data-fix.md). The open items in the
+  [knowledge base](../knowledge-base.md#11-open-items-and-known-gaps) list it.

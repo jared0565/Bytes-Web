@@ -1,13 +1,14 @@
 # How-to guides
 
 Short, task-based steps. Each guide says what to do and where the detail lives. The reference is the
-[knowledge base](../knowledge-base.md).
+[knowledge base](../knowledge-base.md). When something fails, see [Troubleshooting](../troubleshooting.md).
 
 | Task | Guide |
 |---|---|
-| Run the website, chatbot-api or crm-api on your machine | [Run locally](run-locally.md) |
+| Run the website or crm-api on your machine (chatbot-api does not start locally yet) | [Run locally](run-locally.md) |
 | Run the automated tests and checks | [Run the tests](run-the-tests.md) |
 | Ship a change to production | [Deploy](deploy.md) |
+| Undo a deploy that broke something | [Roll back a deploy](rollback.md) |
 | Change a plan's price, limits or features | [Change plans and prices](change-plans-and-prices.md) |
 | Add a third-party tag (analytics, ads, pixel) | [Add a tracking tag](add-a-tracking-tag.md) |
 | Make a new link-preview image | [Remake the share images](remake-share-images.md) |
@@ -16,6 +17,7 @@ Short, task-based steps. Each guide says what to do and where the detail lives. 
 
 **Two rules that apply to every guide:**
 
-- Anything that touches production (the live database, the live APIs, deploys) needs the owner's go-ahead first.
+- Anything that touches production (the live database, the live APIs, deploys, rollbacks) needs the owner's go-ahead
+  first.
 - Use `--config wrangler.toml` for every Wrangler command in `bytes-website/crm-api-worker`. Without it, Wrangler acts on
   the website worker.
