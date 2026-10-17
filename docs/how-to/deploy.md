@@ -5,6 +5,13 @@
 
 ## What runs, in order
 
+```mermaid
+flowchart LR
+  push["Push or merge to main"] --> api["1. chatbot-api<br/>wrangler deploy"]
+  api --> crm["2. crm-api<br/>deploy --config wrangler.toml"]
+  crm --> site["3. Website<br/>npm run build, then deploy dist/"]
+```
+
 1. **chatbot-api** deploys first, because crm-api binds to it.
 2. **crm-api** deploys second, with `--config wrangler.toml`. Without that flag, Wrangler deploys the website's config in
    its place.

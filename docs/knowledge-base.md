@@ -93,17 +93,18 @@ research/                          Notes and analysis; not used by the build
 
 ## 3. Architecture
 
-```
-Visitor's browser ──widget.js──► chatbot-api (ai.bytesfx.com)
-                                   │  D1: chat_logs, leads; KV: CLIENT_SETTINGS
-                                   │  POST /api/webhooks/new-lead, /api/webhooks/domain-adopted
-                                   ▼
-Dashboard / onboarding ─────────► crm-api (crm-api.bmorris0565.workers.dev)
-                                   │  D1, KV (OAUTH_TOKENS, CLIENT_SETTINGS), R2 (FILES)
-                                   │  service binding LLM → chatbot-api LlmService (Workers RPC)
-                                   │  cron every minute (follow-ups, verification, drip, file cleanup)
-                                   │
-Lead's email reply ─► Cloudflare Email Routing (reply@reply.bytesfx.com, subaddressing) ─► crm-api email() handler
+```mermaid
+flowchart LR
+  visitor["Visitor's browser<br/>widget.js"] --> chat["chatbot-api<br/>ai.bytesfx.com"]
+  dash["Dashboard / onboarding"] --> crm["crm-api<br/>crm-api.bmorris0565.workers.dev"]
+  chat -- "POST webhooks:<br/>new-lead, domain-adopted" --> crm
+  crm -- "service binding LLM<br/>(Workers RPC)" --> chat
+  chat --- d1[("D1 chatbot-db")]
+  crm --- d1
+  crm --- kv[("KV: CLIENT_SETTINGS,<br/>OAUTH_TOKENS")]
+  crm --- r2[("R2 bytes-lead-files")]
+  cron["Cron, every minute"] --> crm
+  reply["Lead's email reply"] --> routing["Cloudflare Email Routing<br/>reply@reply.bytesfx.com"] --> crm
 ```
 
 The two workers share one D1 database. crm-api calls chatbot-api's model code through a service binding, so model
@@ -362,6 +363,26 @@ so anything that waits for the address to change will not run after a tap on one
   client has no booking link, the reply is "the contact form on this website". LinkedIn is offered only when a visitor asks
   for a person.
 
+**From a visitor's message to a saved lead:**
+
+```mermaid
+flowchart TD
+  msg["Visitor sends a message"] --> lim{"Within limits?<br/>10 per chat, 30 a day,<br/>8 a minute, 500 characters"}
+  lim -- no --> fixed["Fixed reply, not logged"]
+  lim -- yes --> mode{"Bot mode"}
+  mode -- scripted --> script["Next scripted question<br/>services matched exactly"]
+  mode -- AI --> ai["AI reply, starts with a hidden label"]
+  ai --> label{"Label"}
+  label -- "spam, or second off-topic" --> closed["Chat closed"]
+  label -- business --> reply["Reply shown"]
+  script --> email{"Email in the message?"}
+  reply --> email
+  email -- no --> done["Chat continues"]
+  email -- yes --> hourly{"Under 3 new leads<br/>per visitor per hour?"}
+  hourly -- no --> confirm["Same confirmation sentence,<br/>lead not saved"]
+  hourly -- yes --> saved["Lead saved after the reply has gone"]
+```
+
 ### Leads, the close-the-sale flow and email
 
 **Leads board** (dashboard, Leads): a Kanban board with Inbox, Priority, Opportunity, Campaigns and Closed columns, plus
@@ -383,6 +404,26 @@ filters, CSV export and a lead drawer.
 5. **Won or Lost** records an amount or a reason. Analytics shows reply rate, win rate, revenue won and time to close.
 6. **Stop rules.** Follow-ups stop on a reply, on Won or Lost, or on unsubscribe. Every automatic email after the
    questions email carries an unsubscribe link and a `List-Unsubscribe` header.
+
+```mermaid
+flowchart TD
+  confirm["Lead confirms email"] --> q["Questions email in a thread<br/>5 questions, the 5th optional"]
+  q --> reply{"Lead replies?"}
+  q -. "no reply after 2 days" .-> remind["Reminder email"] --> reply
+  reply -- yes --> store["Reply stored as evidence<br/>attachments to R2"]
+  store --> brief["AI brief: need, goals, budget, timeline<br/>missing items asked once"]
+  brief --> wait{"Still missing after 3 days?"}
+  wait -- yes --> draft["Proposal drafted with [blanks]"]
+  wait -- no --> draft2["Proposal drafted"]
+  draft --> owner["Owner edits and sends<br/>never automatic"]
+  draft2 --> owner
+  owner --> opp["Lead moves to Opportunity<br/>one nudge after 3 quiet days"]
+  opp --> outcome{"Outcome"}
+  outcome -- Won --> won["Amount recorded"]
+  outcome -- Lost --> lost["Reason recorded"]
+```
+
+Follow-ups stop on a reply, on Won or Lost, or on unsubscribe.
 
 **Built-in follow-ups** (`generateRuleSequence`): three short emails in the business's name, mentioning the service the
 lead asked about. They are used when the campaign mode is not AI, and when the AI write fails. The Bytes site can store

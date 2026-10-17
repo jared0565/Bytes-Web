@@ -6,6 +6,18 @@ the owner's decision first.
 
 Read the cookie section of the [knowledge base](../knowledge-base.md#7-features-by-area) before you start.
 
+## Where the banner stands today
+
+```mermaid
+flowchart TD
+  ask{"ASK in consent.js"} -- "false (current)" --> none["No banner on a first visit.<br/>No tag may load: nothing sets cookies"]
+  ask -- "true" --> banner["Banner opens on a first visit"]
+  banner --> choice{"Visitor's choice"}
+  choice -- accept --> load["Tag loads"]
+  choice -- refuse --> skip["Tag does not load"]
+  none --> settings["Footer Cookie Settings link still opens the banner"]
+```
+
 ## Steps
 
 1. **Get the owner's decision.** Say which tag, and what it sets, and wait for a yes.
