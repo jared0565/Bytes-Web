@@ -112,6 +112,7 @@
     '.bc-sw input:hover+span{border-color:rgba(255,181,71,.6)}' +
     '.bc-sw input:checked+span{background:rgba(87,227,191,.25);border-color:rgba(87,227,191,.6)}' +
     '.bc-sw input:checked+span::after{transform:translateX(18px);background:var(--bc-mint)}' +
+    '.bc-sw input:active+span::after{transform:scale(.8)}.bc-sw input:checked:active+span::after{transform:translateX(18px) scale(.8)}' +
     '.bc-sw input:disabled+span{opacity:.6}' +
     '.bc-save{width:100%;margin-top:14px}' +
     // Wide screens: a bar centred along the bottom, kept clear of the chat button in the corner
