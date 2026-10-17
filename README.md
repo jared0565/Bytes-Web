@@ -17,27 +17,59 @@ you merge.
 - **[Knowledge base](docs/knowledge-base.md):** the reference. Architecture, Cloudflare resources, configuration,
   data, plans and limits, features by area, and open items.
 - **[How-to guides](docs/how-to/README.md):** step-by-step tasks, such as running locally, running the tests, deploying,
-  changing a price, and running a data fix.
+  rolling back, changing a price, and running a data fix.
+- **[Troubleshooting](docs/troubleshooting.md):** common errors, what causes them, and the fix.
 - **[HANDOVER.md](HANDOVER.md):** the owner's running log of what changed and what is still open.
 
 ## Quick start
 
-You need **Node 22.5 or newer**. Each folder has its own dependencies, so run `npm install` in each one you use.
+You need **Node 22.5 or newer**. Each folder has its own dependencies, so run `npm install` in each one you use. Each
+block below starts from the repo root.
+
+The website (Vite dev server, usually `http://localhost:5173`):
 
 ```
-cd bytes-website && npm install && npm run dev            # the website
-cd chatbot-api && npm install && npm run dev              # chat worker (ai.bytesfx.com)
-cd bytes-website/crm-api-worker && npm install && npm run dev   # CRM worker
+cd bytes-website
+npm install
+npm run dev
 ```
 
-Then run the checks:
+**The local website calls the live APIs.** Its contact form and chat create real leads and send real emails. Read
+[Run locally](docs/how-to/run-locally.md) before you type into them.
+
+The CRM worker, with local copies of its database and storage:
 
 ```
-cd bytes-website/crm-api-worker && node test/run.mjs      # CRM tests (15 suites)
-cd chatbot-api && node test/run.mjs                       # chat tests
+cd bytes-website/crm-api-worker
+npm install
+npx wrangler d1 migrations apply chatbot-db --local --config wrangler.toml
+npm run dev
+```
+
+The chat worker (`chatbot-api`) does not start under `wrangler dev` today, so check it with its tests. The tests:
+
+```
+cd bytes-website/crm-api-worker
+node test/run.mjs        # CRM tests, 15 suites
+```
+
+```
+cd chatbot-api
+npm install
+node test/run.mjs        # chat tests, 3 suites
 ```
 
 The full set of checks, and the order to run them, is in [Run the tests](docs/how-to/run-the-tests.md).
+
+## Contributing
+
+- Work on a branch and open a pull request. **Merging to `main` deploys**, so the owner approves each merge.
+- Run the checks in [Run the tests](docs/how-to/run-the-tests.md) before you push.
+- Commits and pushes go through **aramid**, a secret-scanning and quality gate run from git hooks. Read
+  [ARAMID.md](ARAMID.md) first. Run `aramid check --staged` before you commit. A result that says "skipped (degraded
+  tools)" or a timeout is not a pass: run it again. Never use `--no-verify`; it turns off the secret scan too.
+- Change the docs in the same pull request as the code they describe.
+- If a deploy breaks something, see [Roll back a deploy](docs/how-to/rollback.md).
 
 ## Repository layout
 
@@ -58,5 +90,6 @@ The full set of checks, and the order to run them, is in [Run the tests](docs/ho
   on the website's worker.
 - **Production needs a go-ahead.** Changes to the live database, the live APIs and the deploy need the owner's approval
   first.
-- **Known gap:** the crm-api `migrate` scripts name a database that the config does not bind. Use the database name
-  `chatbot-db` instead. The [open items](docs/knowledge-base.md#11-open-items-and-known-gaps) list it.
+- **Known gaps** you will meet first: the crm-api `migrate` scripts name a database that the config does not bind (use
+  `chatbot-db`), and chatbot-api does not start under `wrangler dev`. The rest are in the
+  [open items](docs/knowledge-base.md#11-open-items-and-known-gaps).
