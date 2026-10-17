@@ -1587,7 +1587,9 @@ function sourceName(host) {
 }
 // utm_source=linkedin / fb / google.com → the same names referrers get
 const UTM_NAMES = { fb: 'Facebook', facebook: 'Facebook', ig: 'Instagram', instagram: 'Instagram', li: 'LinkedIn', linkedin: 'LinkedIn', google: 'Google', bing: 'Bing',
-    youtube: 'YouTube', yt: 'YouTube', x: 'X (Twitter)', twitter: 'X (Twitter)', pinterest: 'Pinterest', reddit: 'Reddit', chatgpt: 'ChatGPT', tiktok: 'TikTok', email: 'Email', newsletter: 'Email' };
+    youtube: 'YouTube', yt: 'YouTube', x: 'X (Twitter)', twitter: 'X (Twitter)', pinterest: 'Pinterest', reddit: 'Reddit', chatgpt: 'ChatGPT', tiktok: 'TikTok', email: 'Email', newsletter: 'Email',
+    // The share dialog's own tags (public/share.js): utm_source=whatsapp / qr / native_share / copy_link
+    whatsapp: 'WhatsApp', wa: 'WhatsApp', qr: 'QR code', nativeshare: 'Share sheet', copylink: 'Copied link' };
 function utmSourceName(src) {
     const k = src.toLowerCase().replace(/[^a-z0-9.]/g, '');
     if (UTM_NAMES[k]) return UTM_NAMES[k];

@@ -233,6 +233,19 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
   it. Before adding Google Analytics, Google Ads or a pixel, set `ASK = true` and bump `VERSION` so everyone is asked,
   and update the cookie policy, privacy policy (section 8) and data-deletion page: since 17 Oct 2026 they say the site
   sets no analytics or marketing cookies and shows no banner.
+- **Link previews and the Share button** (`public/share.js`): the homepage, the legal pages and onboarding each have
+  their own `og:` and `twitter:` tags. Images: `public/og-home.jpg` (homepage and legal pages) and `public/og-trial.jpg`
+  (onboarding), 1200x630 JPEG of about 80 KB, made from `bytes-website/og-src/` (not deployed; how to remake them is at
+  the top of `og-src/home.html`).
+  - X shows only the image, no title or description, so the offer is in the picture. LinkedIn and Facebook share
+    links take only the address, so their text comes from `og:title` and `og:description`.
+  - A changed image needs a new filename: platforms keep previews by address. `og-image.png` stays for posts that
+    already show it.
+  - The legal pages' Share button shares the homepage (`data-share-path="/"` on `<html>`).
+  - Shared and copied links carry `utm_source=<target>`; crm-api's `UTM_NAMES` gives each a name in Analytics.
+    `track.js` takes the `utm_*` tags out of the address bar once the visit is counted.
+  - What each platform shows is proven only by its own tool on the live site: Facebook's Sharing Debugger and
+    LinkedIn's Post Inspector.
 
 **Chat widget and chatbot-api:**
 - **Website gate (`siteGate`):**

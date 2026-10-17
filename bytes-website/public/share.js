@@ -38,15 +38,18 @@
     return '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONS[name] + '</svg>';
   }
 
+  // The page a share sends people to. A page can name another with data-share-path on <html>: the legal
+  // pages share the homepage, so people arriving from a shared link land where they can act.
+  function sharePath() { return document.documentElement.getAttribute('data-share-path') || location.pathname; }
+  function sharesOtherPage() { return sharePath() !== location.pathname; }
   function pageUrl(source, medium) {
-    var u = new URL(location.origin + location.pathname);
+    var u = new URL(location.origin + sharePath());
     u.searchParams.set('utm_source', source);
     u.searchParams.set('utm_medium', medium || 'social');
     u.searchParams.set('utm_campaign', 'share');
     return u.toString();
   }
-  function cleanUrl() { return location.origin + location.pathname; }
-  function pageTitle() { return (document.title || SITE_NAME).split('|')[0].trim() || SITE_NAME; }
+  function pageTitle() { return sharesOtherPage() ? SITE_NAME : (document.title || SITE_NAME).split('|')[0].trim() || SITE_NAME; }
 
   function track(method) {
     // GA4 "share" event when analytics is present (Consent Mode decides what is stored)
@@ -123,7 +126,7 @@
     qr.make();
     var n = qr.getModuleCount(), quiet = 2, size = n + quiet * 2, d = '';
     for (var r = 0; r < n; r++) for (var c = 0; c < n; c++) if (qr.isDark(r, c)) d += 'M' + (c + quiet) + ' ' + (r + quiet) + 'h1v1h-1z';
-    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + size + ' ' + size + '" shape-rendering="crispEdges" role="img" aria-label="QR code linking to this page">' +
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + size + ' ' + size + '" shape-rendering="crispEdges" role="img" aria-label="QR code linking to ' + sharedName() + '">' +
       '<rect width="100%" height="100%" fill="#fff"/><path d="' + d + '" fill="#071216"/></svg>';
   }
 
@@ -136,13 +139,15 @@
       ctx.imageSmoothingEnabled = false;
       ctx.drawImage(img, 0, 0, px, px);
       var a = document.createElement('a');
-      a.download = 'bytesfx-qr' + (location.pathname.replace(/[^a-z0-9]+/gi, '-').replace(/-html$|-$/g, '') || '') + '.png';
+      a.download = 'bytesfx-qr' + (sharePath().replace(/[^a-z0-9]+/gi, '-').replace(/-html$|-$/g, '') || '') + '.png';
       a.href = canvas.toDataURL('image/png');
       document.body.appendChild(a); a.click(); a.remove();
       track('qr_download');
     };
     img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
   }
+
+  function sharedName() { return sharesOtherPage() ? 'our homepage' : 'this page'; }
 
   function build() {
     if (dialog) return dialog;
@@ -152,10 +157,10 @@
     var canNative = typeof navigator.share === 'function';
     dialog.innerHTML =
       '<div class="bs-inner">' +
-        '<div class="bs-head"><div><h2 id="bs-title">Share ' + SITE_NAME + '</h2><p>Send this page to someone who needs a site that sells.</p></div>' +
+        '<div class="bs-head"><div><h2 id="bs-title">Share ' + SITE_NAME + '</h2><p>Send ' + sharedName() + ' to someone who needs a site that sells.</p></div>' +
           '<button type="button" class="bs-icon-btn" data-bs="close" aria-label="Close">' + icon('close') + '</button></div>' +
         '<div class="bs-body">' +
-          '<div class="bs-qr"><div class="bs-qr-box" id="bs-qr"></div><small>Scan with a phone camera to open this page</small>' +
+          '<div class="bs-qr"><div class="bs-qr-box" id="bs-qr"></div><small>Scan with a phone camera to open ' + sharedName() + '</small>' +
             '<button type="button" class="bs-btn" data-bs="download">' + icon('download') + 'Download QR</button></div>' +
           '<div>' +
             '<label class="bs-label" for="bs-url">Page link</label>' +
@@ -197,7 +202,8 @@
 
   function open() {
     build();
-    dialog.querySelector('#bs-url').value = cleanUrl();
+    // Copied links carry tags too, so a pasted link shows in Analytics as "Copied link", not as a direct visit
+    dialog.querySelector('#bs-url').value = pageUrl('copy_link', 'share');
     dialog.querySelector('#bs-status').textContent = '';
     TARGETS.forEach(function (t) { dialog.querySelector('[data-target="' + t.id + '"]').href = t.href(); });
     var box = dialog.querySelector('#bs-qr');

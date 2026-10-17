@@ -5,6 +5,12 @@
 (function () {
   'use strict';
   try {
+    var qs = new URLSearchParams(location.search);
+    count(qs);
+    untag(qs);
+  } catch (e) { /* statistics must never break the page */ }
+
+  function count(qs) {
     if (navigator.doNotTrack === '1' || window.doNotTrack === '1' || navigator.globalPrivacyControl === true) return;
     if (/^\/dashboard/.test(location.pathname) || location.protocol !== 'https:') return;
     if (navigator.webdriver) return;
@@ -13,7 +19,6 @@
     var refHost = '';
     try { refHost = ref ? new URL(ref).hostname : ''; } catch (e) { refHost = ''; }
     var entry = !refHost || refHost !== location.hostname; // first page of this visit
-    var qs = new URLSearchParams(location.search);
     var body = JSON.stringify({
       p: location.pathname,
       e: entry ? 1 : 0,
@@ -31,5 +36,17 @@
     else document.addEventListener('visibilitychange', function once() {
       if (document.visibilityState === 'visible') { document.removeEventListener('visibilitychange', once); send(); }
     });
-  } catch (e) { /* statistics must never break the page */ }
+  }
+
+  // Shared links carry utm_* tags. Once the beacon is built, take them out of the address bar, so an
+  // address copied from there doesn't credit the next visitors to the same platform. Other parameters
+  // (?upgrade=, ?client=, ?ref=) and the #section stay.
+  function untag(qs) {
+    var keys = [];
+    qs.forEach(function (v, k) { if (/^utm_/i.test(k)) keys.push(k); });
+    if (!keys.length || !window.history || !history.replaceState) return;
+    keys.forEach(function (k) { qs.delete(k); });
+    var q = qs.toString();
+    history.replaceState(history.state, '', location.pathname + (q ? '?' + q : '') + location.hash);
+  }
 })();

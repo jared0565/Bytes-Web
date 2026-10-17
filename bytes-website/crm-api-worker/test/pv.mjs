@@ -33,6 +33,15 @@ ok('the browser may read the reply to a crawler', policy(res) === 'cross-origin'
 res = await view('http://localhost:5173');
 ok('a view from a local page is not saved', res.status === 204 && saved().length === 1, `status ${res.status}, ${saved().length} saved`);
 
+// The share dialog (public/share.js) tags its links utm_source=<target>: each arrives under a readable name
+const tagged = (us) => mod.__app.fetch(new Request('http://x/api/public/pageview', { method: 'POST', headers: { 'Content-Type': 'text/plain', Origin: SITE, 'User-Agent': CHROME }, body: JSON.stringify({ p: '/', e: 1, r: '', us, uc: 'share' }) }), env, ctx);
+const SHARE_NAMES = { linkedin: 'LinkedIn', facebook: 'Facebook', x: 'X (Twitter)', whatsapp: 'WhatsApp', email: 'Email', qr: 'QR code', native_share: 'Share sheet', copy_link: 'Copied link' };
+for (const [us, name] of Object.entries(SHARE_NAMES)) {
+  await tagged(us);
+  const got = saved().at(-1)?.source;
+  ok(`a shared link tagged ${us} shows as "${name}"`, got === name, got);
+}
+
 // Every other reply stays closed to other origins
 res = await mod.__app.fetch(new Request('http://x/api/analytics/visitors', { headers: { Origin: SITE } }), env, ctx);
 ok('a signed-in route keeps its reply to the same origin', res.status === 401 && policy(res) === 'same-origin', `status ${res.status}, ${policy(res)}`);
