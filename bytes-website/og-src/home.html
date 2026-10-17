@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<!-- Source of public/og-home.jpg, the link-preview image for the homepage and the legal pages.
+     Not deployed (Vite builds index.html and copies public/ only). To regenerate: serve bytes-website with
+     `npx vite --port 4174`, open /og-src/home.html at 1200x630, wait for document.fonts.ready, then
+     screenshot as JPEG quality 88 (about 80 KB; as PNG the grain makes it about 680 KB, and WhatsApp is
+     reported to drop previews over about 300 KB). Save under a new name so platforms fetch it fresh.
+     X shows only this image (no title or description), so the offer has to be in the picture. -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>og-home</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./card.css">
+</head>
+<body>
+  <main class="card">
+    <div class="logo">Bytes<span>FX</span></div>
+    <h1>Websites that turn <em>visitors</em><br>into <u>customers.</u></h1>
+    <p class="sub">Conversion-first sites, apps and AI chatbots from a London studio.</p>
+    <div class="cta"><span class="pill">Book a free consultation</span><span class="url">web.bytesfx.com</span></div>
+  </main>
+</body>
+</html>
