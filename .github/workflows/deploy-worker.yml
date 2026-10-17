@@ -7,7 +7,8 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moves to Ubuntu 26 from 19 Oct 2026; deploys were last proven on 24.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       
