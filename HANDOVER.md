@@ -248,7 +248,8 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
   - The build enforces it: `bytes-website/scripts/check-consent.mjs` fails when a third-party script could run while
     `ASK` is false, and `scripts/test-consent.mjs` checks the rules. Both run in `npm run build`.
 - **Link previews and the Share button** (`public/share.js`): the homepage, the legal pages and onboarding each have
-  their own `og:` and `twitter:` tags. Images: `public/og-home.jpg` (homepage and legal pages) and `public/og-trial.jpg`
+  their own `og:` and `twitter:` tags. Images: `public/og-home-2.jpg` (homepage and legal pages, since 27 Oct 2026; the
+  older `public/og-home.jpg` is kept for posts that already show it) and `public/og-trial.jpg`
   (onboarding), 1200x630 JPEG of about 80 KB, made from `bytes-website/og-src/` (not deployed; how to remake them is at
   the top of `og-src/home.html`).
   - X shows only the image, no title or description, so the offer is in the picture. LinkedIn and Facebook share

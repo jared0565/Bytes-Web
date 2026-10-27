@@ -371,13 +371,13 @@ Each entry says where the code is. Start there before changing anything.
 **Link previews and the Share button** (`public/share.js`):
 
 - The homepage, the legal pages and onboarding each have their own `og:` and `twitter:` tags.
-- Images: `public/og-home.jpg` (homepage and legal pages) and `public/og-trial.jpg` (onboarding). Both are 1200×630
-  JPEGs of about 80 KB, made from `bytes-website/og-src/`. They are not deployed from there. Instructions for remaking
-  them are at the top of `og-src/home.html`.
+- Images: `public/og-home-2.jpg` (homepage and legal pages, since 27 Oct 2026) and `public/og-trial.jpg` (onboarding).
+  Both are 1200×630 JPEGs of about 80 KB, made from `bytes-website/og-src/`. They are not deployed from there.
+  Instructions for remaking them are at the top of `og-src/home.html`.
 - X shows only the image, with no title or description, so the offer has to be in the picture. LinkedIn and Facebook
   share links take only the address, so their text comes from `og:title` and `og:description`.
 - A changed image needs a new filename, because platforms cache previews by address. `og-image.png` is kept for posts
-  that already show it.
+  that already show it, and so is the older `public/og-home.jpg`, which the new image replaced.
 - The legal pages' Share button shares the homepage, through `data-share-path="/"` on `<html>`.
 - Shared and copied links carry `utm_source=<target>`. crm-api's `UTM_NAMES` gives each a name in Analytics.
   `track.js` removes the `utm_*` tags from the address bar once the visit is counted.

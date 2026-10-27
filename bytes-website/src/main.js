@@ -668,7 +668,7 @@ function renderHomePage() {
           </h1>
           <p class="hx-lede reveal" style="--d:2">
             We design and build conversion-optimized websites, custom applications and AI chatbots
-            that qualify leads around the clock, so every visit has a path to revenue.
+            that qualify leads around the clock — and we rebuild the site you already have so it does the same.
           </p>
           <div class="hx-cta-row reveal" style="--d:3">
             <a href="#contact" class="hx-btn hx-btn-primary">
