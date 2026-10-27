@@ -560,8 +560,9 @@ gitignored).
    - agency_demo
 3. **Lead source reporting:** record chatbot vs web form on each lead, and show a funnel per channel (visitors → leads
    → verified → replied → won). This was proposed, not built.
-4. **House bot prompt:** check whether `client:default` in KV has its own `systemPrompt`. If it does, that prompt is
-   used instead of the Bytes prompt in the code.
+4. **House bot prompt:** checked on 27 Oct 2026. `client:default` in KV has no `systemPrompt` of its own, so the Bytes
+   bot runs the prompt in the code (`HOUSE_ABOUT`, `HOUSE_STEPS`, `HOUSE_FACTS`, `HOUSE_RULES` in chatbot-api). Changing
+   that bot's wording needs a deploy; it cannot be edited in the dashboard.
 5. **Paid lead limits:** paid plans have no lead caps ("unlimited"). If caps are wanted, add `leadsPerDay`/`contacts`
    in plans.json; enforcement already reads them.
 6. **Stale "Waiting 24h+" alert:** the lead drawer shows it even after the lead replied or a proposal exists.
