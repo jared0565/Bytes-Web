@@ -2041,7 +2041,7 @@ app.post('/api/site-settings', requireAuth, async (c) => {
 // POST /api/public/website-lead — the bytesfx.com contact form (no auth).
 // Saves the enquiry as a lead for the Bytes website, emails the admins, and sends the visitor
 // the usual confirm-your-email message. Honeypot field + 5 submissions per IP per hour.
-const WEBSITE_SERVICES = { website: 'Website development', application: 'Application development', chatbot: 'Chatbot solutions', other: 'Other / not sure' };
+const WEBSITE_SERVICES = { website: 'Website development', upgrading: 'Website Upgrading', application: 'Application development', chatbot: 'Chatbot solutions', other: 'Other / not sure' };
 
 app.post('/api/public/website-lead', async (c) => {
     let body;

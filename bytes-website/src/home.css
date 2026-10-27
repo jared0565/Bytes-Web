@@ -270,6 +270,23 @@ body {
 .hx-tags { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .hx-tags li { font: 500 0.74rem var(--font-mono); color: var(--text-dim); padding: 0.3rem 0.6rem; border-radius: 99px; border: 1px solid var(--line-strong); }
 
+/* ── The fourth service: one wide tile under the three build cards ───────── */
+.hx-card-wide { grid-column: 1 / -1; flex-direction: row; align-items: flex-start; gap: var(--s-5); }
+.hx-card-wide .hx-card-icon { margin-bottom: 0; }
+.hx-card-body { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.hx-card-body > p { color: var(--text-dim); margin: 0 0 var(--s-4); max-width: 46rem; }
+.hx-card-wide .hx-link { margin-top: var(--s-4); padding-top: 0; }
+.hx-upgrade { flex: none; width: 280px; align-self: center; }
+.hx-upgrade svg { width: 100%; height: auto; display: block; }
+.hx-upgrade-old rect { fill: rgba(155, 214, 205, 0.04); stroke: rgba(155, 214, 205, 0.36); stroke-width: 2; stroke-dasharray: 5 5; }
+.hx-upgrade-bar { fill: #24444f; }
+.hx-upgrade-arrow { fill: none; stroke: var(--amber); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.hx-upgrade-new rect { fill: rgba(255, 181, 71, 0.06); stroke: rgba(255, 181, 71, 0.5); stroke-width: 2; }
+.hx-upgrade-rise { fill: none; stroke: var(--amber); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.hx-upgrade-dot { fill: var(--amber); }
+.hx-upgrade-arrow, .hx-upgrade-rise { stroke-dasharray: 120; stroke-dashoffset: 120; transition: stroke-dashoffset 1.4s var(--ease-out) 0.5s; }
+.reveal.active .hx-upgrade-arrow, .reveal.active .hx-upgrade-rise { stroke-dashoffset: 0; }
+
 .hx-mini-chat { display: flex; flex-direction: column; gap: 0.45rem; margin-top: var(--s-4); }
 .hx-bubble { align-self: flex-end; max-width: 85%; font-size: 0.85rem; line-height: 1.4; padding: 0.5rem 0.8rem; border-radius: 14px 14px 4px 14px; background: var(--ink-3); color: var(--text); }
 .hx-bubble-bot { align-self: flex-start; border-radius: 14px 14px 14px 4px; background: rgba(255, 181, 71, 0.12); color: #ffe2b0; border: 1px solid rgba(255, 181, 71, 0.22); }
@@ -374,6 +391,8 @@ body {
   .hx-stats dd { font-size: 1.6rem; }
   .hx-bento, .hx-benefits, .hx-steps { grid-template-columns: 1fr; }
   .hx-card, .hx-form-card { padding: var(--s-4); }
+  .hx-card-wide { flex-direction: column; gap: var(--s-4); }
+  .hx-upgrade { width: 100%; max-width: 300px; align-self: flex-start; }
   .hx-cta { padding: var(--s-7) var(--s-4); }
   .hx-chat { min-height: 19rem; }
   .hx-cta-row .hx-btn { flex: 1 1 100%; }
@@ -384,6 +403,7 @@ body {
   .reveal, .hx-msg, .hx-lead, .hx-underline::after, .hx-score-fill, .hx-gauge-fill { transition: none !important; }
   .reveal { opacity: 1; transform: none; }
   .hx-glow, .hx-ticker-track, .hx-cta-glow, .hx-nodes i, .hx-pulse::after, .hx-typing i { animation: none !important; }
+  .hx-upgrade-arrow, .hx-upgrade-rise { stroke-dashoffset: 0 !important; transition: none !important; }
 }
 
 /* Share button in the nav (opens the share dialog from /share.js) */

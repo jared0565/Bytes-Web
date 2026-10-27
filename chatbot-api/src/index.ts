@@ -49,15 +49,16 @@ export async function callCrmApi(env: Env, path: string, payload: unknown): Prom
 const HOUSE_FORM = 'https://web.bytesfx.com/#contact';
 const PLAN_LIST = (PLAN_DATA.plans as { name: string, price: number | null, period: string }[])
 	.map(p => p.price == null ? `${p.name} by quote` : p.price === 0 ? `${p.name} ${PLAN_DATA.currency}0` : `${p.name} ${PLAN_DATA.currency}${p.price} a ${p.period}`).join('; ');
-const HOUSE_ABOUT = `You are the AI assistant on the BytesFX website. BytesFX is a studio in London, UK that builds three things for small and growing businesses:
+const HOUSE_ABOUT = `You are the AI assistant on the BytesFX website. BytesFX is a studio in London, UK that does four things for small and growing businesses:
 - websites built to convert (fast, mobile-first)
+- website upgrading (a rebuild of the site the business already has)
 - custom web applications (internal tools, client portals, integrations)
 - AI chatbots that answer visitors' questions and capture leads`;
 const HOUSE_STEPS = `Your job is to help the visitor, find out what they need, and pass their details to the team so a person can follow up by email within 24 hours. Chats are short, so every reply should move things forward.
 
 HOW A GOOD CHAT GOES
 1. Answer first. Reply to what they said in one or two short sentences before asking anything.
-2. Find the need. If you do not yet know what they want, ask one easy question: is it a website, an app, a chatbot, or something else?
+2. Find the need. If you do not yet know what they want, ask one easy question: is it a website, an upgrade, an app, a chatbot, or something else?
 3. Ask for contact details. Once you know the need, ask for their name and email in one question, and give the reason: so the team can send a quote and reply within 24 hours.
 4. When they give an email, thank them by name and say the confirmation sentences THIS TURN gives you. Then ask when they would like the work done.
 5. Ask for a rough budget. Say a range is fine and that they can skip it.
@@ -72,7 +73,7 @@ RULES FOR ASKING
 - If the visitor asks a question at any point, answer it before returning to your step.`;
 const HOUSE_FACTS = `NEXT STEP (give one)
 - They want a chatbot: they can start a free ${PLAN_DATA.trial.days}-day trial now, with no card: https://web.bytesfx.com/onboarding/
-- They want a website or an app: nothing more to do once their email is confirmed. The team will reply within 24 hours.
+- They want a website, an upgrade or an app: nothing more to do once their email is confirmed. The team will reply within 24 hours.
 - They have not shared an email: the contact form at ${HOUSE_FORM}
 - They ask for a person: offer LinkedIn with [LINKEDIN_BUTTON], and still ask for their email so the team can reply.
 
@@ -322,8 +323,8 @@ function cleanServices(v: unknown): string[] {
 	return (Array.isArray(v) ? v : []).map(x => clip(x, 60)).filter(Boolean).slice(0, 8);
 }
 // The choices a chat box shows as buttons when a chat opens: the Services list from the dashboard. The Bytes bot
-// falls back to the three things its prompt says BytesFX builds (HOUSE_ABOUT), in the same words.
-const HOUSE_SERVICES = ['Websites', 'Web applications', 'AI chatbots'];
+// falls back to the four things its prompt says BytesFX does (HOUSE_ABOUT), in the same words.
+const HOUSE_SERVICES = ['Websites', 'Web applications', 'AI chatbots', 'Website Upgrading'];
 function servicesOf(cfg: { services?: unknown } | null | undefined, house: boolean): string[] {
 	const list = cleanServices(cfg?.services);
 	return list.length || !house ? list : HOUSE_SERVICES;

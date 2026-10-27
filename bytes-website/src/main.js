@@ -581,6 +581,11 @@ function getFallbackResponse(userMessage) {
     return "I'd love to help you get started! Could you share your name and email so one of our specialists can reach out with a personalized quote?";
   }
 
+  // Website upgrading (before the website branch, so "upgrade my website" lands here)
+  if (message.includes('upgrade') || message.includes('upgrading') || message.includes('redesign') || message.includes('refresh')) {
+    return "We upgrade the site you already have: a redesign that fixes what is slow, what is unclear and what is not converting, without losing what you have already earned. Want us to take a look at it?";
+  }
+
   // Website development
   if (message.includes('website') || message.includes('web design') || message.includes('web development')) {
     return "We specialize in high-performance websites designed for maximum ROI. Our sites are optimized for conversions, fast-loading, and built to scale your business. Would you like to schedule a free consultation?";
@@ -713,8 +718,8 @@ function renderHomePage() {
     <!-- Capability ticker -->
     <div class="hx-ticker" aria-hidden="true">
       <div class="hx-ticker-track">
-        ${['Conversion-first design','AI lead qualification','Online booking','Custom web apps','API integrations','SEO foundations','Sub-second load times','Email follow-up sequences','CRM pipelines','24/7 chat assistants']
-          .concat(['Conversion-first design','AI lead qualification','Online booking','Custom web apps','API integrations','SEO foundations','Sub-second load times','Email follow-up sequences','CRM pipelines','24/7 chat assistants'])
+        ${['Conversion-first design','AI lead qualification','Online booking','Custom web apps','Site rebuilds','API integrations','SEO foundations','Sub-second load times','Email follow-up sequences','CRM pipelines','24/7 chat assistants']
+          .concat(['Conversion-first design','AI lead qualification','Online booking','Custom web apps','Site rebuilds','API integrations','SEO foundations','Sub-second load times','Email follow-up sequences','CRM pipelines','24/7 chat assistants'])
           .map(t => `<span>${t}</span>`).join('<b>✦</b>')}
       </div>
     </div>
@@ -724,8 +729,8 @@ function renderHomePage() {
       <div class="hx-container">
         <header class="hx-head reveal">
           <p class="hx-kicker">What we build</p>
-          <h2>Three ways we grow <em>your revenue</em></h2>
-          <p>We don't just build websites. We build the systems that turn attention into enquiries and enquiries into sales.</p>
+          <h2>Four ways we grow <em>your revenue</em></h2>
+          <p>We don't just build websites. We build the systems that turn attention into enquiries and enquiries into sales — and we rebuild the ones you already have so they do it again.</p>
         </header>
 
         <div class="hx-bento">
@@ -766,6 +771,37 @@ function renderHomePage() {
             <ul class="hx-tags"><li>Web applications</li><li>Internal tools</li><li>API integrations</li><li>Scalable architecture</li></ul>
             <div class="hx-nodes" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
             <a href="#contact" class="hx-link">Discuss your needs <span aria-hidden="true">→</span></a>
+          </article>
+
+          <!-- The fourth service is a wide tile: the only card that reads left to right, so the new
+               service reads as a closing offer rather than a fourth box of the same size. -->
+          <article class="hx-card hx-card-wide bento-card reveal" style="--d:3">
+            <div class="hx-card-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1"/><path d="M21 3v6h-6"/></svg>
+            </div>
+            <div class="hx-card-body">
+              <h3>Website Upgrading</h3>
+              <p>The site you already have, rebuilt to work harder: a redesign that fixes what is slow, what is unclear and what is not converting, without losing what you have already earned.</p>
+              <ul class="hx-tags"><li>Site audit</li><li>Redesign</li><li>Faster loading</li><li>Content migration</li></ul>
+              <a href="#contact" class="hx-link">Upgrade your site <span aria-hidden="true">→</span></a>
+            </div>
+            <div class="hx-upgrade" aria-hidden="true">
+              <svg viewBox="0 0 280 120" role="presentation">
+                <g class="hx-upgrade-old">
+                  <rect x="4" y="16" width="96" height="88" rx="12"/>
+                  <rect class="hx-upgrade-bar" x="18" y="34" width="50" height="7" rx="3.5"/>
+                  <rect class="hx-upgrade-bar" x="18" y="52" width="68" height="7" rx="3.5"/>
+                  <rect class="hx-upgrade-bar" x="18" y="70" width="38" height="7" rx="3.5"/>
+                </g>
+                <path class="hx-upgrade-arrow" d="M112 60h40"/>
+                <path class="hx-upgrade-arrow" d="m142 50 12 10-12 10"/>
+                <g class="hx-upgrade-new">
+                  <rect x="176" y="16" width="96" height="88" rx="12"/>
+                  <path class="hx-upgrade-rise" d="M192 86l24-20 18 10 22-24"/>
+                  <circle class="hx-upgrade-dot" cx="256" cy="52" r="4"/>
+                </g>
+              </svg>
+            </div>
           </article>
         </div>
       </div>
@@ -865,6 +901,7 @@ function renderHomePage() {
               <select id="leadService" name="service" required>
                 <option value="">Select a service…</option>
                 <option value="website">Website development</option>
+                <option value="upgrading">Website Upgrading</option>
                 <option value="application">Application development</option>
                 <option value="chatbot">Chatbot solutions</option>
                 <option value="other">Other / not sure</option>
