@@ -44,6 +44,16 @@ const old = ts - 10 * 60 * 1000;
 r = await req('POST', '/api/webhooks/new-lead', { body: raw7, headers: { 'X-Bytes-Timestamp': String(old), 'X-Bytes-Signature': sign(old, raw7) } }); ok('stale signature refused', r.status === 401, String(r.status));
 r = await req('POST', '/api/webhooks/new-lead', { body: raw7, headers: { 'X-Bytes-Timestamp': String(ts), 'X-Bytes-Signature': sign(ts, raw5) } }); ok('signature for another body refused', r.status === 401, String(r.status));
 delete env.WEBHOOK_SECRET;
+// H5d a local page must not be able to act as the signed-in owner with the session cookie
+const sessionJwt = await m.signJWT({ role: 'admin', clientId: 'agency_demo' }, 'x');
+r = await req('GET', '/api/site-settings', { headers: { Cookie: 'session=' + sessionJwt }, origin: 'https://web.bytesfx.com' });
+ok('the session cookie works from the site', r.status === 200, String(r.status));
+r = await req('GET', '/api/site-settings', { headers: { Cookie: 'session=' + sessionJwt }, origin: 'http://localhost:3000' });
+ok('the session cookie is ignored from a local port', r.status === 401, String(r.status));
+r = await req('GET', '/api/site-settings', { headers: { Cookie: 'session=' + sessionJwt, Authorization: 'Bearer ' + sessionJwt }, origin: 'http://localhost:3000' });
+ok('the dashboard still works locally with its header token', r.status === 200, String(r.status));
+r = await req('GET', '/api/site-settings', { headers: { Cookie: 'session=' + sessionJwt }, origin: 'http://localhost:9999' });
+ok('a local port that is not allowlisted is refused outright', r.status === 401 || r.status === 403, String(r.status));
 // H6 admin key
 r = await req('GET', '/api/auth/totp/setup', { headers: { 'X-Admin-Key': 'super-secret' } }); ok('totp setup refused once set', r.status === 410);
 for (let i = 0; i < 10; i++) await req('POST', '/api/auth/login', { body: { key: 'wrong' + i }, origin: 'https://web.bytesfx.com', headers: { 'CF-Connecting-IP': '6.6.6.6' } });
