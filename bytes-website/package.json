@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/check-consent.mjs && node scripts/test-consent.mjs && vite build",
     "preview": "vite preview"
   },
   "devDependencies": {

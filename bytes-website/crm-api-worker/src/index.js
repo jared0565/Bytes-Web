@@ -396,8 +396,15 @@ async function issueDeviceToken(c, userId) {
 }
 
 // ─── Auth middleware ─────────────────────────────────────────────────────────
+// A page served from a local port is not trusted with the session cookie: any process on
+// this machine could serve one there, and the browser attaches the cookie to the request
+// whatever the page does. The cookie is therefore ignored for a local origin, and only
+// the JWT in the header counts — a local page cannot read that (it lives in the
+// dashboard's own storage). The dashboard sends both, so it still works locally.
+const LOCAL_ORIGIN_RE = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+const isLocalOrigin = (origin) => LOCAL_ORIGIN_RE.test(String(origin || ''));
 const requireAuth = async (c, next) => {
-    let token = getCookie(c, 'session');
+    let token = isLocalOrigin(c.req.header('Origin')) ? null : getCookie(c, 'session');
     // Accept Authorization: Bearer <jwt> as fallback (required for mobile where
     // third-party cookies are blocked by iOS Safari ITP across different domains)
     if (!token) {
@@ -2494,21 +2501,6 @@ app.post('/api/verify-email', async (c) => {
     } catch (err) {
         console.error('[Verify] Error:', err);
         return c.html(errorPage(), 500);
-    }
-});
-
-// Debug endpoint — dev only
-app.get('/api/force-test-webhook', async (c) => {
-    if (c.env.NODE_ENV !== 'development') return c.json({ error: 'Not found' }, 404);
-    try {
-        const result = await c.env.DB.prepare('INSERT INTO leads (client_id, name, email, service, budget, summary, timestamp) VALUES (?, ?, ?, ?, ?, ?, ?)')
-            .bind('agency_demo', 'Webhook Flow Tester', 'test@example.com', 'System Test', '$50,000', 'Force injected test lead', Date.now()).run();
-        await c.env.DB.prepare('UPDATE leads SET pipeline_stage = ?, updated_at = ? WHERE id = ?')
-            .bind('priority', Date.now(), result.meta.last_row_id).run();
-        return c.json({ success: true, message: 'Inserted and routed to PRIORITY.' });
-    } catch (err) {
-        console.error('[Debug] force-test-webhook error:', err);
-        return c.json({ error: 'Test webhook failed' }, 500);
     }
 });
 

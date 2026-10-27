@@ -179,6 +179,13 @@ Without it, Wrangler uses the website's `wrangler.jsonc` in the repo root and ac
 Variables in `wrangler.toml`: `ALLOWED_ORIGINS`, `AUTH_REDIRECT_URL`, `FRONTEND_*_URL`, `REPLY_DOMAIN`
 (`reply.bytesfx.com`), `ADMIN_EMAILS`.
 
+**`ALLOWED_ORIGINS` and a local page.** The list holds the origins allowed to call crm-api from a browser, and it
+includes `http://localhost:5173` and `http://localhost:3000` so a dev server can reach it. The session cookie is
+`SameSite=None`, so the browser sends it with any request from those ports — which would let any process on the
+machine serve a page there and act as the signed-in owner. Since 27 Oct 2026 the cookie is therefore **ignored for a
+local origin**: only the JWT in the `Authorization` header counts there, and a local page cannot read that (it lives
+in the dashboard's own storage). The dashboard still works locally, because it sends both.
+
 **chatbot-api**:
 
 | Secret | Purpose |
@@ -190,12 +197,13 @@ Variables in `wrangler.toml`: `ALLOWED_ORIGINS`, `AUTH_REDIRECT_URL`, `FRONTEND_
 Each client saves its own email sender (Resend, SendGrid or Mailgun) in the dashboard. It is stored in KV under
 `mail:<clientId>`.
 
-**Development-only variables.** Leave both unset in production.
+**Development-only variables.** Leave both unset in production. The build fails if either is set in a worker's config
+(`bytes-website/crm-api-worker/test/sec.mjs` reads both config files and checks).
 
 | Variable | Worker | Effect |
 |---|---|---|
 | `ALLOW_LOCALHOST` | chatbot-api | `1` lets pages on `localhost` and `127.0.0.1` use any bot, as `web.bytesfx.com` can |
-| `NODE_ENV` | crm-api | `development` turns on `/api/force-test-webhook`, which inserts a test lead |
+| `NODE_ENV` | crm-api | Nothing reads it any more. It used to turn on `/api/force-test-webhook`, a debug route that inserted a test lead; that route was removed on 27 Oct 2026. The dashboard's "Test lead" button does the same job |
 
 Local development secrets go in `.dev.vars` or `.env` files in the worker's folder. Both are git-ignored, so they are
 never committed. Neither worker has one today.
@@ -341,12 +349,19 @@ Each entry says where the code is. Start there before changing anything.
 - It is Google Consent Mode v2. Before any tag runs it sets defaults: analytics and ads denied in the EEA, the UK and
   Switzerland; elsewhere analytics granted, and ads granted unless the browser sends Global Privacy Control. With no
   tag on the site, these defaults change nothing today.
+- The choice is kept in `localStorage`. A copy is also written to a cookie, and that cookie is only read when browser
+  storage is blocked — it is a fallback, not the record. So a cookie planted by another site (a sibling
+  `bytesfx.com` host, for example) grants nothing on its own. On https the cookie carries the `__Host-` prefix, so
+  only this exact host can set it.
 - For code: `window.BytesConsent.get()` returns the stored choice or `null`; `.open()` opens the settings; `.reset()`
   clears the choice and asks again.
   Every choice fires a `bytes:consent` window event and a `consent_update` `dataLayer` event.
 - Before adding Google Analytics, Google Ads or a pixel, set `ASK = true`, bump `VERSION` so everyone is asked again,
   and update the cookie policy, the privacy policy (section 8) and the data-deletion page. Those pages currently say
   the site sets no analytics or marketing cookies and shows no banner.
+- **The build checks this.** `bytes-website/scripts/check-consent.mjs` fails the build when the CSP allows a
+  third-party script, or a page loads one from another host, while `ASK` is false. `bytes-website/scripts/test-consent.mjs`
+  checks the cookie rules. Both run in `npm run build`, and so in the deploy workflow.
 - How-to: [Add a tracking tag](how-to/add-a-tracking-tag.md).
 
 **Link previews and the Share button** (`public/share.js`):

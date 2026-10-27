@@ -114,6 +114,10 @@ website worker instead.
 
 Vars in `wrangler.toml`: `ALLOWED_ORIGINS`, `AUTH_REDIRECT_URL`, `FRONTEND_*_URL`, `REPLY_DOMAIN=reply.bytesfx.com`,
 `ADMIN_EMAILS`.
+- `ALLOWED_ORIGINS` includes `http://localhost:5173` and `http://localhost:3000` so a dev server can reach crm-api.
+  Since 27 Oct 2026 the **session cookie is ignored for a local origin** (only the JWT in the `Authorization` header
+  counts there), so a page served by any local process cannot act as the signed-in owner. The dashboard still works
+  locally: it sends the header token too.
 
 **chatbot-api**
 
@@ -239,6 +243,10 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
   it. Before adding Google Analytics, Google Ads or a pixel, set `ASK = true` and bump `VERSION` so everyone is asked,
   and update the cookie policy, privacy policy (section 8) and data-deletion page: since 17 Oct 2026 they say the site
   sets no analytics or marketing cookies and shows no banner.
+  - Since 27 Oct 2026 the choice is kept in `localStorage`, and the copy in a cookie is only read when browser
+    storage is blocked. A cookie planted by another site grants nothing. On https the cookie is `__Host-`-prefixed.
+  - The build enforces it: `bytes-website/scripts/check-consent.mjs` fails when a third-party script could run while
+    `ASK` is false, and `scripts/test-consent.mjs` checks the rules. Both run in `npm run build`.
 - **Link previews and the Share button** (`public/share.js`): the homepage, the legal pages and onboarding each have
   their own `og:` and `twitter:` tags. Images: `public/og-home.jpg` (homepage and legal pages) and `public/og-trial.jpg`
   (onboarding), 1200x630 JPEG of about 80 KB, made from `bytes-website/og-src/` (not deployed; how to remake them is at

@@ -44,6 +44,13 @@ const old = ts - 10 * 60 * 1000;
 r = await req('POST', '/api/webhooks/new-lead', { body: raw7, headers: { 'X-Bytes-Timestamp': String(old), 'X-Bytes-Signature': sign(old, raw7) } }); ok('stale signature refused', r.status === 401, String(r.status));
 r = await req('POST', '/api/webhooks/new-lead', { body: raw7, headers: { 'X-Bytes-Timestamp': String(ts), 'X-Bytes-Signature': sign(ts, raw5) } }); ok('signature for another body refused', r.status === 401, String(r.status));
 delete env.WEBHOOK_SECRET;
+// H5c the production config must not carry the flags that open a debug path or a local origin
+const { readFileSync } = await import('node:fs');
+const crmToml = readFileSync(new URL('../../wrangler.toml', import.meta.url), 'utf8');
+const chatJsonc = readFileSync(new URL('../../../../chatbot-api/wrangler.jsonc', import.meta.url), 'utf8');
+ok('the production config sets no NODE_ENV', !/NODE_ENV/.test(crmToml + chatJsonc));
+ok('the production config sets no ALLOW_LOCALHOST', !/ALLOW_LOCALHOST/.test(crmToml + chatJsonc));
+r = await req('GET', '/api/force-test-webhook'); ok('the debug route is gone', r.status === 404, String(r.status));
 // H5d a local page must not be able to act as the signed-in owner with the session cookie
 const sessionJwt = await m.signJWT({ role: 'admin', clientId: 'agency_demo' }, 'x');
 r = await req('GET', '/api/site-settings', { headers: { Cookie: 'session=' + sessionJwt }, origin: 'https://web.bytesfx.com' });
