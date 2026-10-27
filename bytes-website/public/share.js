@@ -17,7 +17,7 @@
   ];
 
   var SITE_NAME = 'BytesFX';
-  var SHARE_TEXT = 'BytesFX builds websites, apps and AI chatbots that turn visitors into customers — and upgrades the site you already have.';
+  var SHARE_TEXT = 'BytesFX builds websites, apps and AI chatbots that turn visitors into customers. We also upgrade the site you already have.';
 
   var ICONS = {
     share: '<path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/>',

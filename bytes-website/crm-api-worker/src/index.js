@@ -771,7 +771,7 @@ app.get('/api/auth/totp/setup', async (c) => {
         img{border:8px solid #fff;border-radius:8px;margin:1.5rem 0}
         code{background:#1e1e2e;padding:.3rem .6rem;border-radius:4px;font-size:.85rem;word-break:break-all}
         p{color:#aaa;font-size:.9rem}</style></head>
-        <body><h2>BytesFX — TOTP Setup</h2>
+        <body><h2>BytesFX: TOTP Setup</h2>
         <p>In <strong>Google Authenticator</strong> or <strong>Authy</strong>, choose "Enter a setup key" and type this secret:</p>
         <code>${secret}</code>
         <p>Or open this link on the phone with the app: <code>${escapeHtml(uri)}</code></p>
@@ -2667,7 +2667,7 @@ function verificationEmail(env, name, token, reminder) {
     const subject = reminder ? 'Reminder: please confirm your email' : 'Please confirm your email';
     const html = emailShell(`
         <p>Hi ${escapeHtml(firstName(name))},</p>
-        <p>${reminder ? 'Just a reminder — we still need' : 'Thanks for getting in touch! We just need'} you to confirm your email address so we can send your details.</p>
+        <p>${reminder ? 'Just a reminder: we still need' : 'Thanks for getting in touch! We just need'} you to confirm your email address so we can send your details.</p>
         <p><a href="${link}" style="display:inline-block;background:#6366f1;color:#fff;padding:0.7rem 1.2rem;border-radius:8px;text-decoration:none;">Confirm my email</a></p>
         <p style="font-size:0.85rem;color:#6b7280;">Or paste this link into your browser:<br>${link}</p>`);
     return { subject, html };
@@ -2772,7 +2772,7 @@ app.post('/api/mail-settings/test', requireAuth, async (c) => {
     const userRow = await c.env.DB.prepare('SELECT email FROM users WHERE id = ?').bind(user.userId).first().catch(() => null);
     const toEmail = userRow?.email || s.fromEmail;
 
-    const subject = 'BytesFX — Email Sender Test ✅';
+    const subject = 'BytesFX: Email Sender Test ✅';
     const html = `<div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:2rem;background:#0f0f1a;color:#f0f0f5;border-radius:12px;">
         <h2 style="color:#8b5cf6;margin:0 0 1rem;">Test Email ✅</h2>
         <p style="margin:0 0 0.5rem;">Your email sender is configured and working correctly.</p>

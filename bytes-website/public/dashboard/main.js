@@ -469,12 +469,12 @@ function renderPlanBanner() {
         banner.style.background = 'linear-gradient(90deg, rgba(245,158,11,0.15) 0%, rgba(245,158,11,0.05) 100%)';
         banner.style.color = '#f59e0b';
         const days = planStatus.trialDaysLeft;
-        banner.innerHTML = `⚡ <strong>Free Trial Active</strong> — ${days} day${days !== 1 ? 's' : ''} remaining. Your bot uses AI replies and AI email campaigns; websites and the badge follow Free limits until you choose a plan.`;
+        banner.innerHTML = `⚡ <strong>Free Trial Active</strong>: ${days} day${days !== 1 ? 's' : ''} remaining. Your bot uses AI replies and AI email campaigns; websites and the badge follow Free limits until you choose a plan.`;
     } else if (planStatus.plan === 'free') {
         banner.style.display = 'block';
         banner.style.background = 'linear-gradient(90deg, rgba(239,68,68,0.12) 0%, rgba(239,68,68,0.04) 100%)';
         banner.style.color = '#f87171';
-        banner.innerHTML = `🔒 <strong>Free Plan</strong> — Scripted chatbot, no AI replies or AI campaigns. Max 10 leads a day · 50 contacts. <a href="${upgradeUrl('starter')}" target="_blank" rel="noopener" style="color:#fb923c;text-decoration:underline;margin-left:8px;">See plans →</a>`;
+        banner.innerHTML = `🔒 <strong>Free Plan</strong>: Scripted chatbot, no AI replies or AI campaigns. Max 10 leads a day · 50 contacts. <a href="${upgradeUrl('starter')}" target="_blank" rel="noopener" style="color:#fb923c;text-decoration:underline;margin-left:8px;">See plans →</a>`;
     }
 }
 
@@ -814,8 +814,8 @@ function renderLeads(leads) {
         { label: 'Leads', value: shown.length, help: filtered ? `of ${window.allLeads.length} total` : 'all time' },
         { label: 'New today', value: shown.filter(l => l.timestamp >= today.getTime()).length, help: 'captured since midnight' },
         { label: 'Waiting 24h+', value: waiting, help: 'in Inbox or Priority', warn: waiting > 0 },
-        { label: 'Verified email', value: shown.length ? `${Math.round((verified / shown.length) * 100)}%` : '—', help: `${verified} of ${shown.length}` },
-        { label: 'Pipeline value', value: value ? value.split(' + ')[0] : '—', help: value.includes(' + ') ? `+ ${value.split(' + ').slice(1).join(' + ')} · stated budgets` : 'from stated budgets' },
+        { label: 'Verified email', value: shown.length ? `${Math.round((verified / shown.length) * 100)}%` : 'n/a', help: `${verified} of ${shown.length}` },
+        { label: 'Pipeline value', value: value ? value.split(' + ')[0] : 'n/a', help: value.includes(' + ') ? `+ ${value.split(' + ').slice(1).join(' + ')} · stated budgets` : 'from stated budgets' },
     ];
     document.getElementById('ld-stats').innerHTML = tiles.map(t => `<div class="cl-stat${t.warn ? ' ld-stat-warn' : ''}"><span class="cl-stat-label">${t.label}</span><span class="cl-stat-num">${t.value}</span><span class="cl-stat-help">${t.help}</span></div>`).join('');
 
@@ -1816,7 +1816,7 @@ async function ensureModelCatalog() {
 function populateModelSelect(select, savedValue) {
     const def = modelCatalog.models.find(m => m.id === modelCatalog.defaultModel);
     select.innerHTML = '';
-    select.appendChild(new Option(`Default — ${def ? def.name : modelCatalog.defaultModel}`, ''));
+    select.appendChild(new Option(`Default: ${def ? def.name : modelCatalog.defaultModel}`, ''));
     const groups = new Map();
     for (const m of modelCatalog.models) {
         if (!groups.has(m.providerName)) {
@@ -1825,7 +1825,7 @@ function populateModelSelect(select, savedValue) {
             groups.set(m.providerName, og);
             select.appendChild(og);
         }
-        const label = `${m.name} — ${formatPrice(m.inputPrice)} in / ${formatPrice(m.outputPrice)} out per 1M tokens${m.available ? '' : ' (no API key)'}`;
+        const label = `${m.name}: ${formatPrice(m.inputPrice)} in / ${formatPrice(m.outputPrice)} out per 1M tokens${m.available ? '' : ' (no API key)'}`;
         const opt = new Option(label, m.id);
         opt.disabled = !m.available;
         groups.get(m.providerName).appendChild(opt);
@@ -1857,7 +1857,7 @@ function modelCostHtml(id) {
     return `Provider: <strong>${escapeHtml(m.providerName)}</strong> · Model: <code>${escapeHtml(m.id)}</code><br>`
         + `Cost: <strong>${formatPrice(m.inputPrice)}</strong> per 1M input tokens · <strong>${formatPrice(m.outputPrice)}</strong> per 1M output tokens`
         + (m.provider === 'openrouter' ? ' <span style="color:var(--text-secondary);">(live OpenRouter price)</span>' : '')
-        + (m.available ? '' : `<br><span style="color:var(--warning, #f59e0b);">No ${escapeHtml(m.providerName)} API key is set on the chatbot server — replies will use the default model.</span>`);
+        + (m.available ? '' : `<br><span style="color:var(--warning, #f59e0b);">No ${escapeHtml(m.providerName)} API key is set on the chatbot server, so replies will use the default model.</span>`);
 }
 
 function renderModelCost() {
@@ -1911,8 +1911,8 @@ function populateChatbotSettings(data) {
         if (noteEl) {
             if (locked) {
                 noteEl.textContent = data.inTrial && data.plan === 'free' ? 'Required during your trial (remove it on Pro and above)'
-                    : data.plan === 'starter' ? 'Required on Starter — upgrade to Pro to remove'
-                    : 'Required on Free — upgrade to Pro to remove';
+                    : data.plan === 'starter' ? 'Required on Starter. Upgrade to Pro to remove it.'
+                    : 'Required on Free. Upgrade to Pro to remove it.';
                 noteEl.style.color = '#f59e0b';
             } else {
                 noteEl.textContent = 'Optional on your plan';
@@ -2031,9 +2031,9 @@ function renderChatbotView() {
     if (noteEl) {
         const domLabel = maxDomains === -1 ? 'unlimited domains' : `<strong style="color:#e2e8f0;">${maxDomains} domain${maxDomains !== 1 ? 's' : ''}</strong>`;
         noteEl.innerHTML = inTrial
-            ? `Your 7-day trial runs on Free plan limits — ${domLabel}. Choose a paid plan when your trial ends to expand.`
+            ? `Your 7-day trial runs on Free plan limits: ${domLabel}. Choose a paid plan when your trial ends to expand.`
             : plan === 'free'
-                ? `Your <strong style="color:#e2e8f0;">Free</strong> plan includes ${domLabel} — this is a permanent tier. Upgrade anytime to add more.`
+                ? `Your <strong style="color:#e2e8f0;">Free</strong> plan includes ${domLabel}. This is a permanent tier. Upgrade anytime to add more.`
                 : `Your <strong style="color:#e2e8f0;">${escapeHtml(plan.charAt(0).toUpperCase() + plan.slice(1))}</strong> plan allows ${domLabel}.`;
     }
 
@@ -2442,7 +2442,7 @@ async function loadAnalytics(force = false) {
 }
 
 const fmtInt = (n) => (n ?? 0).toLocaleString('en-GB');
-const fmtPct = (r) => (r == null ? '—' : `${(r * 100).toFixed(r < 0.1 && r > 0 ? 1 : 0)}%`);
+const fmtPct = (r) => (r == null ? 'n/a' : `${(r * 100).toFixed(r < 0.1 && r > 0 ? 1 : 0)}%`);
 function fmtMoney(n) {
     if (!n) return '£0';
     if (n >= 1e6) return `£${(n / 1e6).toFixed(1)}M`;
@@ -2547,7 +2547,7 @@ function renderTrend(d) {
     };
     const hasPrev = !!d.previous;
     const pts = d.series.map(s => ({ t: s.t, v: val(s, false), pv: hasPrev ? val(s, true) : null, s }));
-    const fmtV = (v) => v == null ? '—' : m === 'rate' ? fmtPct(v) : fmtInt(v);
+    const fmtV = (v) => v == null ? 'n/a' : m === 'rate' ? fmtPct(v) : fmtInt(v);
     if (legend) legend.innerHTML = hasPrev
         ? `<span><i class="viz-key viz-key-cur"></i>This period</span><span><i class="viz-key viz-key-prev"></i>Previous ${d.days} days</span>`
         : '';
@@ -2614,7 +2614,7 @@ function renderQuality(d) {
         ? (Math.abs(c.avgMessages - p.avgMessages) < 0.05 ? `<span>no change vs ${periodName(d.days)}</span>` : `<span class="${c.avgMessages > p.avgMessages ? 'up' : 'down'}">${c.avgMessages > p.avgMessages ? '▲' : '▼'} ${Math.abs(c.avgMessages - p.avgMessages).toFixed(1)}</span> vs ${periodName(d.days)}`)
         : deltaHtml(null, null, d);
     el.innerHTML = `<h3>Chatbot quality</h3>` +
-        item('Messages per conversation', c.avgMessages == null ? '—' : c.avgMessages.toFixed(1), avgDelta, 'Deeper chats usually mean more engaged visitors') +
+        item('Messages per conversation', c.avgMessages == null ? 'n/a' : c.avgMessages.toFixed(1), avgDelta, 'Deeper chats usually mean more engaged visitors') +
         item('One-message chats', fmtPct(c.singleMessageRate), deltaHtml(c.singleMessageRate, p.singleMessageRate, { ...d, isRate: true, lowerIsBetter: true }), 'Visitor left after the first reply', c.singleMessageRate > 0.5) +
         item('Same reply every time', fmtPct(c.repeatedRate), deltaHtml(c.repeatedRate, p.repeatedRate, { ...d, isRate: true, lowerIsBetter: true }), c.repeatedRate > 0 ? 'Bot repeated one canned answer: check its mode and AI model' : 'No canned-reply loops', c.repeatedRate > 0);
 }
@@ -2660,7 +2660,7 @@ function renderFunnel(d) {
     const top = Math.max(1, ...steps.map(s => s.n));
     el.innerHTML = steps.map((s, i) => {
         const prev = steps[i - 1];
-        const conv = prev ? (prev.n ? `${fmtPct(s.n / prev.n)} of ${prev.label.toLowerCase()}` : '—') : 'Start of funnel';
+        const conv = prev ? (prev.n ? `${fmtPct(s.n / prev.n)} of ${prev.label.toLowerCase()}` : 'n/a') : 'Start of funnel';
         return `<div>
             <div class="viz-fstep-top"><span>${s.label}</span><b>${fmtInt(s.n)}</b></div>
             <div class="viz-ftrack" role="img" aria-label="${s.label}: ${s.n}"><div class="viz-fbar" style="width:${s.n ? Math.max(2, (s.n / top) * 100) : 0}%;animation-delay:${i * 60}ms"></div></div>
@@ -2767,7 +2767,7 @@ function renderVisitors(d) {
     const tiles = [
         { label: 'Visitors', value: fmtInt(c.visitors), delta: deltaHtml(c.visitors, p.visitors, d), help: 'Unique visitors per day, added up' },
         { label: 'Page views', value: fmtInt(c.views), delta: deltaHtml(c.views, p.views, d), help: 'Every page opened' },
-        { label: 'Pages per visit', value: c.pagesPerVisit == null ? '—' : c.pagesPerVisit.toFixed(1), delta: d.previous && p.pagesPerVisit != null && c.pagesPerVisit != null ? (Math.abs(c.pagesPerVisit - p.pagesPerVisit) < 0.05 ? `<span>no change vs ${periodName(d.days)}</span>` : `<span class="${c.pagesPerVisit > p.pagesPerVisit ? 'up' : 'down'}">${c.pagesPerVisit > p.pagesPerVisit ? '▲' : '▼'} ${Math.abs(c.pagesPerVisit - p.pagesPerVisit).toFixed(1)}</span> vs ${periodName(d.days)}`) : deltaHtml(null, null, d), help: 'Page views ÷ visitors' },
+        { label: 'Pages per visit', value: c.pagesPerVisit == null ? 'n/a' : c.pagesPerVisit.toFixed(1), delta: d.previous && p.pagesPerVisit != null && c.pagesPerVisit != null ? (Math.abs(c.pagesPerVisit - p.pagesPerVisit) < 0.05 ? `<span>no change vs ${periodName(d.days)}</span>` : `<span class="${c.pagesPerVisit > p.pagesPerVisit ? 'up' : 'down'}">${c.pagesPerVisit > p.pagesPerVisit ? '▲' : '▼'} ${Math.abs(c.pagesPerVisit - p.pagesPerVisit).toFixed(1)}</span> vs ${periodName(d.days)}`) : deltaHtml(null, null, d), help: 'Page views ÷ visitors' },
         { label: 'Bounce rate', value: fmtPct(c.bounceRate), delta: deltaHtml(c.bounceRate, p.bounceRate, { ...d, isRate: true, lowerIsBetter: true }), help: 'Left after one page', extra: low(c.visitors) },
         { label: 'Chatted', value: fmtPct(c.chatRate), delta: '', help: `${fmtInt(c.conversations)} conversations ÷ visitors`, extra: low(c.visitors) },
         { label: 'Became leads', value: fmtPct(c.leadRate), delta: '', help: `${fmtInt(c.leads)} leads (chat + contact form) ÷ visitors`, extra: low(c.visitors) },
@@ -2789,7 +2789,7 @@ function renderVisitors(d) {
     document.getElementById('vw-funnel').innerHTML = steps.map((s, i) => `<div>
         <div class="viz-fstep-top"><span>${s.label}</span><b>${fmtInt(s.n)}</b></div>
         <div class="viz-ftrack" role="img" aria-label="${s.label}: ${s.n}"><div class="viz-fbar" style="width:${s.n ? Math.max(2, Math.min(100, (s.n / topN) * 100)) : 0}%;animation-delay:${i * 60}ms"></div></div>
-        <div class="viz-fconv">${i ? (c.visitors ? `${fmtPct(Math.min(1, s.n / c.visitors))} of visitors` : '—') : 'Start of funnel'}</div>
+        <div class="viz-fconv">${i ? (c.visitors ? `${fmtPct(Math.min(1, s.n / c.visitors))} of visitors` : 'n/a') : 'Start of funnel'}</div>
     </div>`).join('') + '<p class="viz-wait-note">Leads include contact-form enquiries; conversations can\'t be matched to individual visitors, so these are period totals.</p>';
 
     const bars = (id, rows, empty, nameFn = (x) => x, title) => {
@@ -3182,7 +3182,7 @@ async function loadConversations(append = false, auto = false) {
     }
 }
 
-const clFmtPct = (r) => (r == null ? '—' : `${Math.round(r * 100)}%`);
+const clFmtPct = (r) => (r == null ? 'n/a' : `${Math.round(r * 100)}%`);
 
 function renderConvStats(d) {
     const s = d.stats;
@@ -3404,7 +3404,7 @@ function cbMarkPremium(select, mode) {
 // Services a bot offers visitors, one per line (same field in all three settings forms)
 document.querySelectorAll('[data-services]').forEach(el => {
     const id = el.dataset.services;
-    el.innerHTML = `<label for="${id}">Services <span class="site-hint">— one per line, up to 8. Shown as buttons when a chat opens; the Scripted bot asks visitors to pick one</span></label>
+    el.innerHTML = `<label for="${id}">Services <span class="site-hint">One per line, up to 8. Shown as buttons when a chat opens; the Scripted bot asks visitors to pick one</span></label>
         <textarea id="${id}" rows="4" maxlength="600" placeholder="e.g.\nTeeth whitening\nDental implants\nCheck-ups"></textarea>`;
 });
 const servicesOf = (id) => [...new Set((document.getElementById(id)?.value || '').split('\n').map(x => x.trim().slice(0, 60)).filter(Boolean))].slice(0, 8);
@@ -3863,7 +3863,7 @@ document.getElementById('site-prompt-template')?.addEventListener('click', () =>
 
 // ─── Sales follow-up settings (website Settings, client drawer, client Chatbot page) ───
 // Same fields everywhere: ask questions, booking link, alerts email, drafting + reading models.
-const SALES_DEFAULT_LABEL = 'Default — GPT-6 Luna (falls back to Gemini 2.5 Flash)';
+const SALES_DEFAULT_LABEL = 'Default: GPT-6 Luna (falls back to Gemini 2.5 Flash)';
 function salesFieldsHtml(p) {
     return `
         <div class="sett-toggle-row">
@@ -3875,21 +3875,21 @@ function salesFieldsHtml(p) {
         </div>
         <div class="sales-grid">
             <div class="form-group">
-                <label for="${p}-booking">Booking link <span class="site-hint">— Calendly, Cal.com… used in closing emails</span></label>
+                <label for="${p}-booking">Booking link <span class="site-hint">Calendly, Cal.com… used in closing emails</span></label>
                 <input type="url" id="${p}-booking" maxlength="300" placeholder="https://cal.com/your-name/intro" autocomplete="off">
             </div>
             <div class="form-group">
-                <label for="${p}-alert">Lead alerts email <span class="site-hint">— where hot-lead alerts go</span></label>
+                <label for="${p}-alert">Lead alerts email <span class="site-hint">Where hot-lead alerts go</span></label>
                 <input type="email" id="${p}-alert" maxlength="200" placeholder="Defaults to the sender address" autocomplete="off">
             </div>
         </div>
         <div class="sales-grid sales-models">
             <div class="form-group">
-                <label for="${p}-draft-model">Email drafting model <span class="site-hint">— writes questions and closing emails</span></label>
+                <label for="${p}-draft-model">Email drafting model <span class="site-hint">Writes questions and closing emails</span></label>
                 <select id="${p}-draft-model"><option value="">${SALES_DEFAULT_LABEL}</option></select>
             </div>
             <div class="form-group">
-                <label for="${p}-read-model">Reply reading model <span class="site-hint">— reads need, budget and timeline from replies</span></label>
+                <label for="${p}-read-model">Reply reading model <span class="site-hint">Reads need, budget and timeline from replies</span></label>
                 <select id="${p}-read-model"><option value="">${SALES_DEFAULT_LABEL}</option></select>
             </div>
         </div>
@@ -4202,7 +4202,7 @@ function renderSales(d) {
     el.hidden = false;
     const other = Object.entries(c.revenueOther || {}).map(([cur, v]) => fmtMoney(v).replace('£', cur)).join(' + ');
     const item = (label, value, delta, help) => `<div class="viz-q-item"><span class="viz-kpi-label">${label}</span><span class="viz-q-num">${value}</span><span class="viz-kpi-delta">${delta}</span><span class="viz-kpi-help">${help}</span></div>`;
-    const days = c.avgDaysToClose == null ? '—' : c.avgDaysToClose < 1 ? '<1 day' : `${c.avgDaysToClose.toFixed(c.avgDaysToClose < 10 ? 1 : 0)} days`;
+    const days = c.avgDaysToClose == null ? 'n/a' : c.avgDaysToClose < 1 ? '<1 day' : `${c.avgDaysToClose.toFixed(c.avgDaysToClose < 10 ? 1 : 0)} days`;
     el.innerHTML = `<h3>Sales results</h3>` +
         item('Replied to our questions', fmtPct(c.replyRate), deltaHtml(c.replyRate, p.replyRate, { ...d, isRate: true }), `${c.replied || 0} verified lead${c.replied === 1 ? '' : 's'} replied`) +
         item('Win rate', fmtPct(c.winRate), deltaHtml(c.winRate, p.winRate, { ...d, isRate: true }), `${c.won || 0} won · ${c.lost || 0} lost`) +
