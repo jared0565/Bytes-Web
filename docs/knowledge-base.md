@@ -681,6 +681,10 @@ model-catalogue requests mocked. Never point a UI check at production.
   chatbot-api (`connect-src`).
 - **Design follows `CLAUDE.md`:** a custom palette, layered shadows, no `transition-all`, and hover, focus and active
   states on every clickable element.
+- **No em-dashes in what a customer reads.** The owner's rule, from 27 Oct 2026: the em-dash (—) is not used in the
+  site's pages, the dashboard, the onboarding, the chat replies, the share text or the legal documents. Use a colon,
+  a full stop or parentheses instead. Code comments, CSS comments and the internal docs are not customer-facing, so
+  they keep theirs.
 - **Branches and pull requests:** work on a branch, run the tests in section 9, commit, push, and open a pull request.
   Merge with **squash**. Each merge to `main` deploys automatically, so check the "Deploy Agency" action.
 - **The commit gate (aramid).** Git hooks run aramid on every commit and push (see `ARAMID.md`). Run

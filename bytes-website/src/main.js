@@ -668,7 +668,7 @@ function renderHomePage() {
           </h1>
           <p class="hx-lede reveal" style="--d:2">
             We design and build conversion-optimized websites, custom applications and AI chatbots
-            that qualify leads around the clock — and we rebuild the site you already have so it does the same.
+            that qualify leads around the clock. We also rebuild the site you already have so it does the same.
           </p>
           <div class="hx-cta-row reveal" style="--d:3">
             <a href="#contact" class="hx-btn hx-btn-primary">
@@ -730,7 +730,7 @@ function renderHomePage() {
         <header class="hx-head reveal">
           <p class="hx-kicker">What we build</p>
           <h2>Four ways we grow <em>your revenue</em></h2>
-          <p>We don't just build websites. We build the systems that turn attention into enquiries and enquiries into sales — and we rebuild the ones you already have so they do it again.</p>
+          <p>We don't just build websites. We build the systems that turn attention into enquiries and enquiries into sales. We also rebuild the ones you already have so they do it again.</p>
         </header>
 
         <div class="hx-bento">

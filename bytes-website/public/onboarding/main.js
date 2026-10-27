@@ -358,7 +358,7 @@ document.getElementById('btn-save-settings').addEventListener('click', async () 
 
         if (res.ok) {
             status.style.color = '#34d399';
-            status.textContent = `✓ Saved. Taking you to your dashboard — sign in with the Google, Facebook or LinkedIn account for ${registrationData.email}.`;
+            status.textContent = `✓ Saved. Taking you to your dashboard. Sign in with the Google, Facebook or LinkedIn account for ${registrationData.email}.`;
             status.style.opacity = '1';
             setTimeout(() => { window.location.href = '/dashboard/'; }, 2500);
         } else {
@@ -367,7 +367,7 @@ document.getElementById('btn-save-settings').addEventListener('click', async () 
         }
     } catch (e) {
         status.textContent = e.message === 'Setup session expired.'
-            ? 'This setup link expired. Your chatbot is created — sign in to your dashboard to change these settings.'
+            ? 'This setup link expired. Your chatbot is created. Sign in to your dashboard to change these settings.'
             : (e.message === 'Failed to fetch' ? 'Could not reach our servers. Check your connection and try again.' : e.message);
         status.style.color = '#f87171';
         status.style.opacity = '1';

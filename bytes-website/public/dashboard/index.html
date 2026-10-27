@@ -422,28 +422,28 @@
                                 <div class="form-group">
                                     <label for="config-mode">Bot mode</label>
                                     <select id="config-mode" aria-describedby="config-mode-note">
-                                        <option value="scripted">Scripted — guided questions, no AI (Free plan)</option>
-                                        <option value="ai">AI — replies by the AI model below (Starter, Pro)</option>
-                                        <option value="ai_plus">AI Plus — higher limits and premium models (Business, Enterprise)</option>
+                                        <option value="scripted">Scripted: guided questions, no AI (Free plan)</option>
+                                        <option value="ai">AI: replies by the AI model below (Starter, Pro)</option>
+                                        <option value="ai_plus">AI Plus: higher limits and premium models (Business, Enterprise)</option>
                                     </select>
                                     <p id="config-mode-note" class="cb-hint"></p>
                                 </div>
                                 <div class="form-group" data-services="config-services"></div>
                                 <div class="form-group mc-ai-only">
-                                    <label for="config-llm-model">AI model <span class="site-hint">— used in AI and AI Plus modes</span></label>
+                                    <label for="config-llm-model">AI model <span class="site-hint">Used in AI and AI Plus modes</span></label>
                                     <select id="config-llm-model"><option value="">Loading models…</option></select>
                                     <p id="config-llm-cost" class="site-cost"></p>
                                 </div>
                                 <div class="form-group mc-ai-only">
-                                    <label for="config-llm-effort">Effort <span class="site-hint">— how hard the model thinks before replying</span></label>
+                                    <label for="config-llm-effort">Effort <span class="site-hint">How hard the model thinks before replying</span></label>
                                     <select id="config-llm-effort">
-                                        <option value="low">Low — fastest, cheapest replies</option>
-                                        <option value="medium" selected>Medium — balanced (recommended)</option>
-                                        <option value="high">High — most thorough, slower and costs more</option>
+                                        <option value="low">Low: fastest, cheapest replies</option>
+                                        <option value="medium" selected>Medium: balanced (recommended)</option>
+                                        <option value="high">High: most thorough, slower and costs more</option>
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <label for="config-prompt">System prompt <span class="site-hint">— what the bot knows about the business</span></label>
+                                    <label for="config-prompt">System prompt <span class="site-hint">What the bot knows about the business</span></label>
                                     <textarea id="config-prompt" rows="7" maxlength="20000" aria-describedby="config-prompt-meta" placeholder="You are the friendly assistant for [Company]…"></textarea>
                                     <div class="cb-prompt-meta" id="config-prompt-meta">
                                         <span id="config-prompt-count">0 characters</span>
@@ -484,7 +484,7 @@
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    <label for="config-domains">Allowed domains <span class="site-hint">— one per line; empty allows any site. Full URLs are fine.</span></label>
+                                    <label for="config-domains">Allowed domains <span class="site-hint">One per line; empty allows any site. Full URLs are fine.</span></label>
                                     <textarea id="config-domains" rows="3" placeholder="clientsite.com&#10;*.clientsite.com" aria-describedby="config-domains-note"></textarea>
                                     <p id="config-domains-note" class="cb-hint"></p>
                                 </div>
@@ -500,7 +500,7 @@
                                     <label class="sett-toggle"><input type="checkbox" id="config-branding" aria-labelledby="config-branding-label"><span class="sett-toggle-thumb"></span></label>
                                 </div>
                                 <div class="form-group" style="margin-top:0.75rem;">
-                                    <label for="config-referral">Affiliate / referral ID <span class="site-hint">— added to the badge link</span></label>
+                                    <label for="config-referral">Affiliate / referral ID <span class="site-hint">Added to the badge link</span></label>
                                     <input type="text" id="config-referral" maxlength="60" placeholder="e.g. client_123_ref">
                                 </div>
 
@@ -641,7 +641,7 @@
                         </div>
                         <div class="form-group" data-services="settings-services"></div>
                         <div class="form-group cb-ai-only">
-                            <label>AI Model <span style="font-size:0.75rem;font-weight:400;color:var(--text-secondary);">— used in AI and AI Plus modes</span></label>
+                            <label>AI Model <span style="font-size:0.75rem;font-weight:400;color:var(--text-secondary);">Used in AI and AI Plus modes</span></label>
                             <!-- Assigned by Bytes (Manage Clients); clients see it read-only -->
                             <select id="settings-llm-model" hidden aria-hidden="true" tabindex="-1">
                                 <option value="">Loading models…</option>
@@ -652,13 +652,13 @@
                         <div class="form-group cb-ai-only">
                             <!-- Effort is assigned by Bytes too; shown in the AI Model line above -->
                             <select id="settings-llm-effort" hidden aria-hidden="true" tabindex="-1">
-                                <option value="low">Low — fastest, cheapest replies</option>
-                                <option value="medium" selected>Medium — balanced (recommended)</option>
-                                <option value="high">High — most thorough, slower and costs more</option>
+                                <option value="low">Low: fastest, cheapest replies</option>
+                                <option value="medium" selected>Medium: balanced (recommended)</option>
+                                <option value="high">High: most thorough, slower and costs more</option>
                             </select>
                         </div>
                         <div class="form-group">
-                            <label for="settings-prompt">System Prompt <span style="font-size:0.75rem;font-weight:400;color:var(--text-secondary);">— what your chatbot knows about your business</span></label>
+                            <label for="settings-prompt">System Prompt <span style="font-size:0.75rem;font-weight:400;color:var(--text-secondary);">What your chatbot knows about your business</span></label>
                             <textarea id="settings-prompt" rows="7" maxlength="20000" aria-describedby="settings-prompt-meta" placeholder="You are a helpful assistant for [Company]. You specialise in [services]. Only discuss topics relevant to our business..."></textarea>
                             <div class="cb-prompt-meta" id="settings-prompt-meta">
                                 <span id="settings-prompt-count">0 characters</span>
@@ -695,7 +695,7 @@
                                 </div>
                             </div>
                             <div class="form-group" style="margin-bottom:0;">
-                                <label>Bot Avatar URL <span style="font-size:0.75rem;color:var(--text-secondary);">(optional — replaces chat icon)</span></label>
+                                <label>Bot Avatar URL <span style="font-size:0.75rem;color:var(--text-secondary);">(optional, replaces the chat icon)</span></label>
                                 <input type="text" id="settings-wl-avatar" placeholder="https://cdn.example.com/avatar.png">
                             </div>
                         </div>
@@ -751,7 +751,7 @@
                         <div class="form-group">
                             <label>Email Provider</label>
                             <select id="settings-mail-provider">
-                                <option value="">— Select provider —</option>
+                                <option value="">Select provider</option>
                                 <option value="resend">Resend (recommended)</option>
                                 <option value="sendgrid">SendGrid</option>
                                 <option value="mailgun">Mailgun</option>
@@ -841,28 +841,28 @@
                     <div class="form-group">
                         <label for="site-mode">Bot Mode</label>
                         <select id="site-mode" aria-describedby="site-mode-note">
-                            <option value="scripted">Scripted — guided questions, no AI (Free plan)</option>
-                                        <option value="ai">AI — replies by the AI model below (Starter, Pro)</option>
-                                        <option value="ai_plus">AI Plus — higher limits and premium models (Business, Enterprise)</option>
+                            <option value="scripted">Scripted: guided questions, no AI (Free plan)</option>
+                                        <option value="ai">AI: replies by the AI model below (Starter, Pro)</option>
+                                        <option value="ai_plus">AI Plus: higher limits and premium models (Business, Enterprise)</option>
                         </select>
                         <p id="site-mode-note" class="cb-hint"></p>
                     </div>
                     <div class="form-group" data-services="site-services"></div>
                     <div class="form-group site-ai-only">
-                        <label for="site-llm-model">AI Model <span class="site-hint">— used in AI and AI Plus modes</span></label>
+                        <label for="site-llm-model">AI Model <span class="site-hint">Used in AI and AI Plus modes</span></label>
                         <select id="site-llm-model"><option value="">Loading models…</option></select>
                         <p id="site-llm-cost" class="site-cost"></p>
                     </div>
                     <div class="form-group site-ai-only">
-                        <label for="site-llm-effort">Effort <span class="site-hint">— how hard the model thinks before replying</span></label>
+                        <label for="site-llm-effort">Effort <span class="site-hint">How hard the model thinks before replying</span></label>
                         <select id="site-llm-effort">
-                            <option value="low">Low — fastest, cheapest replies</option>
-                            <option value="medium" selected>Medium — balanced (recommended)</option>
-                            <option value="high">High — most thorough, slower and costs more</option>
+                            <option value="low">Low: fastest, cheapest replies</option>
+                            <option value="medium" selected>Medium: balanced (recommended)</option>
+                            <option value="high">High: most thorough, slower and costs more</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="site-prompt">System Prompt <span class="site-hint">— leave empty to use the built-in BytesFX sales prompt</span></label>
+                        <label for="site-prompt">System Prompt <span class="site-hint">Leave empty to use the built-in BytesFX sales prompt</span></label>
                         <textarea id="site-prompt" rows="8" maxlength="20000" aria-describedby="site-prompt-meta" placeholder="You are the BytesFX assistant..."></textarea>
                         <div class="cb-prompt-meta" id="site-prompt-meta">
                             <span id="site-prompt-count">0 characters</span>
@@ -875,7 +875,7 @@
 
                     <h4 class="site-section">Who can use it</h4>
                     <div class="form-group">
-                        <label for="site-domains">Allowed Domains <span class="site-hint">— one per line; leave empty to allow any site. Full URLs are fine.</span></label>
+                        <label for="site-domains">Allowed Domains <span class="site-hint">One per line; leave empty to allow any site. Full URLs are fine.</span></label>
                         <textarea id="site-domains" rows="3" placeholder="web.bytesfx.com&#10;bytesfx.com" aria-describedby="site-domains-warn"></textarea>
                         <p id="site-domains-warn" class="cb-warn" hidden></p>
                     </div>
@@ -923,7 +923,7 @@
                     <div class="form-group">
                         <label for="site-mail-provider">Email provider</label>
                         <select id="site-mail-provider">
-                            <option value="">— Not set (use the fallback above) —</option>
+                            <option value="">Not set (use the fallback above)</option>
                             <option value="resend">Resend (recommended)</option>
                             <option value="sendgrid">SendGrid</option>
                             <option value="mailgun">Mailgun</option>
@@ -936,7 +936,7 @@
                                 <input type="text" id="site-mail-from-name" maxlength="80" placeholder="BytesFX" autocomplete="off">
                             </div>
                             <div class="form-group">
-                                <label for="site-mail-from-email">From email <span class="site-hint">— on a domain verified with the provider</span></label>
+                                <label for="site-mail-from-email">From email <span class="site-hint">On a domain verified with the provider</span></label>
                                 <input type="email" id="site-mail-from-email" maxlength="200" placeholder="hello@bytesfx.com" autocomplete="off">
                             </div>
                         </div>
