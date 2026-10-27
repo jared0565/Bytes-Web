@@ -6,7 +6,7 @@ them. Run `npm install` first in each folder. Node 22.5 or newer is required.
 
 Each block starts from the repo root.
 
-**crm-api** (15 suites, 240 checks on 17 Oct 2026):
+**crm-api** (16 suites, 269 checks on 27 Oct 2026):
 
 ```
 cd bytes-website/crm-api-worker
