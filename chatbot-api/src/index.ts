@@ -14,6 +14,34 @@ export interface Env {
 	CHAT_LIMITER?: RateLimit;    // per visitor network + chatbot
 	CLIENT_LIMITER?: RateLimit;  // per chatbot, all visitors
 	ALLOW_LOCALHOST?: string;    // '1' only in local development
+	WEBHOOK_SECRET?: string;     // shared with crm-api: signs the calls to its webhook routes
+}
+
+// ─── Signed calls to crm-api ────────────────────────────────────────────────
+// crm-api's webhook routes are public, so the calls to them are signed with a secret the
+// two workers share: the body and a timestamp are signed together, and the signature and
+// the timestamp travel in headers. crm-api refuses a call that carries neither.
+const CRM_API = 'https://crm-api.bmorris0565.workers.dev';
+let warnedNoSecret = false;   // the missing secret is worth saying once, not on every lead
+export async function signPayload(secret: string, body: string, ts: number): Promise<string> {
+	const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+	const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${ts}.${body}`));
+	return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+export async function callCrmApi(env: Env, path: string, payload: unknown): Promise<Response> {
+	const body = JSON.stringify(payload);
+	const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+	const secret = env.WEBHOOK_SECRET;
+	if (secret) {
+		const ts = Date.now();
+		headers['X-Bytes-Timestamp'] = String(ts);
+		headers['X-Bytes-Signature'] = await signPayload(secret, body, ts);
+	} else {
+		// No secret set: the call goes out unsigned and crm-api will refuse it once it
+		// has a secret of its own. Set the same WEBHOOK_SECRET in both workers.
+		if (!warnedNoSecret) { warnedNoSecret = true; console.warn('[CRM] WEBHOOK_SECRET is not set: calls to crm-api are unsigned'); }
+	}
+	return fetch(CRM_API + path, { method: 'POST', headers, body });
 }
 
 // Bytes website only (clientId 'default'). Client bots never see this: they get clientDefaultPrompt().
@@ -90,42 +118,52 @@ export function usablePrompt(prompt: unknown): string {
 	return String(prompt || '').split('\n').filter(l => !PROMPT_BLANK_RE.test(l.replace(/\[LINKEDIN_BUTTON\]/gi, ''))).join('\n').trim();
 }
 
-// Which website a bot may answer on. A client bot with no saved website works only in the Bytes
-// dashboard preview, except that the first real website it is installed on is adopted as its
-// website (once), so older bots keep working; the owner is emailed about it.
+// Which website a bot may answer on. A client bot answers only on the websites its owner
+// saved. A bot with no saved website answers nowhere: nothing is saved automatically, so a
+// site that reached the bot first cannot lock the real one out. The owner is told once.
 const NOT_CONNECTED = "This chatbot isn't connected to this website yet. The site owner can add it in their BytesFX dashboard.";
+// The Bytes website's own bot answers on web.bytesfx.com and nowhere else. It keeps no website
+// list of its own, so the list is the site's own address: without this the bot answered on any
+// origin, so any site could use it and have it send real confirmation emails.
+const HOUSE_DOMAINS = ['web.bytesfx.com'];
 function siteHost(origin: string | null): string {
 	try { const u = new URL(origin || ''); return u.protocol === 'https:' || u.protocol === 'http:' ? u.hostname.toLowerCase() : ''; } catch { return ''; }
 }
-export async function siteGate(env: Env, ctx: ExecutionContext, clientId: string, cfg: any, origin: string | null): Promise<boolean> {
+export async function siteGate(env: Env, ctx: ExecutionContext, clientId: string, cfg: any, origin: string | null, notify = false): Promise<boolean> {
 	const list = Array.isArray(cfg?.allowedDomains) ? cfg.allowedDomains : [];
 	const host = siteHost(origin);
 	if (host && isFirstPartyOrigin(host, env)) return true;
-	if (clientId === HOUSE_CLIENT && !list.length) return true; // the Bytes website has no list of its own
+	if (clientId === HOUSE_CLIENT) return isOriginAllowed(origin, HOUSE_DOMAINS, env);
 	if (list.length) return isOriginAllowed(origin, list, env);
-	// No website saved: adopt this one if it looks like a real public site
+	// No website saved: the bot does not answer here
 	if (!host || !host.includes('.') || /^[\d.]+$/.test(host) || host === 'localhost' || host.endsWith('.local')) return false;
 	const domain = host.replace(/^www\./, '');
-	try {
-		const fresh = JSON.parse(await env.CLIENT_SETTINGS.get(`client:${clientId}`) || '{}');
-		if (Array.isArray(fresh.allowedDomains) && fresh.allowedDomains.length) return isOriginAllowed(origin, fresh.allowedDomains, env);
-		fresh.allowedDomains = [domain];
-		await env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify(fresh));
-		ctx.waitUntil(fetch('https://crm-api.bmorris0565.workers.dev/api/webhooks/domain-adopted', {
-			method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId, domain }),
-		}).catch(e => console.error('[Site] adopt notify', e)));
-		console.log(`[Site] ${clientId} connected to ${domain}`);
-		return true;
-	} catch (e) { console.error('[Site] adopt', e); return false; }
+	// Tell the owner once, so they can add the website themselves. Nothing is saved: a site
+	// that reached the bot first must not be able to claim it.
+	if (notify) {
+		try {
+			ctx.waitUntil(callCrmApi(env, '/api/webhooks/domain-unlisted', { clientId, domain })
+				.then(r => { if (!r.ok) console.warn('[Site] unlisted notice', r.status); })
+				.catch(e => console.error('[Site] unlisted notice', e)));
+			console.log(`[Site] ${clientId} used on ${domain}, which is not on its website list`);
+		} catch (e) { console.error('[Site] unlisted notice', e); }
+	}
+	return false;
 }
 
-// Public widget routes are called from customers' sites, so echo the caller's origin
+// Public widget routes are called from customers' sites, so the caller's origin comes back.
+// It is only ever the origin of a site the bot may answer on (or a fixed refusal message),
+// so it grants nothing by itself: the gate above decides what a caller gets.
 const getPublicCorsHeaders = (origin: string | null) => ({
 	'Access-Control-Allow-Origin': origin || '*',
 	'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 	'Access-Control-Allow-Headers': 'Content-Type',
 	'Vary': 'Origin'
 });
+// The CORS answer is exact: the caller's origin comes back only for a site the bot may
+// answer on. A refused caller gets the response with no ACAO, so the browser keeps the body
+// from the page and the widget shows its own "not connected" message instead.
+const corsFor = (origin: string | null, allowed: boolean): Record<string, string> => allowed ? getPublicCorsHeaders(origin) : {};
 
 // Our own site can always use any client's bot (previews, onboarding demo); localhost only in dev
 const isFirstPartyOrigin = (host: string, env: Env) =>
@@ -464,9 +502,11 @@ export default {
 	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 		const origin = request.headers.get('Origin');
 		const url = new URL(request.url);
-		const cors = getPublicCorsHeaders(origin);
+		let cors: Record<string, string> = getPublicCorsHeaders(origin);
 
 		if (request.method === 'OPTIONS') {
+			// The preflight carries no body, so the client's website list is not known yet. It
+			// returns no data: the real response below carries the CORS decision.
 			return new Response(null, { headers: cors });
 		}
 
@@ -486,10 +526,13 @@ export default {
 			let cfg: any = {};
 			try { cfg = JSON.parse(raw || '{}'); } catch { cfg = {}; }
 			if (!(await siteGate(env, ctx, clientId, cfg, origin))) {
+				// No ACAO: the browser keeps the body from the page. The widget shows its own
+				// "not connected" message for a response it cannot read.
 				return new Response(JSON.stringify({ error: NOT_CONNECTED }), {
-					status: 403, headers: { ...cors, 'Content-Type': 'application/json' }
+					status: 403, headers: { 'Content-Type': 'application/json' }
 				});
 			}
+			cors = corsFor(origin, true);
 			const tier = normalizeMode(cfg.mode);
 			const pub = {
 				showBranding: tier === 'scripted' ? true : (cfg.showBranding ?? true), // same defaults as /api/config
@@ -536,7 +579,10 @@ export default {
 
 		// Only sites on the client's Allowed Domains list may use their bot (a browser control;
 		// scripts can fake Origin, which is why the limits below exist)
-		if (!(await siteGate(env, ctx, clientId, clientConfig, origin))) return json({ error: NOT_CONNECTED }, 403, cors);
+		if (!(await siteGate(env, ctx, clientId, clientConfig, origin, true))) {
+			return json({ error: NOT_CONNECTED }, 403, corsFor(origin, false));
+		}
+		cors = corsFor(origin, true);
 
 		const tier = normalizeMode(clientConfig?.mode);
 		const house = clientId === HOUSE_CLIENT;
@@ -591,11 +637,9 @@ export default {
 				clientId, sessionId, clientId, to, now - 30 * 86400000, clientId, now - 3600000, visitor, VISITOR_LEADS_PER_HOUR).run();
 			// crm-api sends the visitor the confirmation email: only for a lead this statement saved
 			if (meta?.changes !== 1 || !meta.last_row_id) return;
-			await fetch('https://crm-api.bmorris0565.workers.dev/api/webhooks/new-lead', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ leadId: meta.last_row_id, clientId, budget: clip(lead.budget, 80) })
-			}).catch(err => console.error('Webhook Dispatch Error:', err));
+			await callCrmApi(env, '/api/webhooks/new-lead', { leadId: meta.last_row_id, clientId, budget: clip(lead.budget, 80) })
+				.then(r => { if (!r.ok) console.error('Webhook Dispatch Error:', r.status); })
+				.catch(err => console.error('Webhook Dispatch Error:', err));
 		};
 		// Later answers fill in a saved lead. A value already known is never replaced by an empty one, and the email never changes.
 		const blank = (v: unknown) => !clean(v) || clean(v) === UNKNOWN;

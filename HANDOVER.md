@@ -66,7 +66,7 @@ research/                      Notes
 ```
 Visitor's browser ──widget.js──► chatbot-api (ai.bytesfx.com)
                                    │  D1 chat_logs/leads, KV CLIENT_SETTINGS
-                                   │  POST /api/webhooks/new-lead, /api/webhooks/domain-adopted
+                                   │  POST /api/webhooks/new-lead, /api/webhooks/domain-unlisted (signed)
                                    ▼
 Dashboard/onboarding ───────────► crm-api (crm-api.bmorris0565.workers.dev)
                                    │  D1, KV (OAUTH_TOKENS, CLIENT_SETTINGS), R2 FILES
@@ -110,6 +110,7 @@ website worker instead.
 | `GOOGLE_CLIENT_ID/SECRET`, `FACEBOOK_CLIENT_ID/SECRET`, `LINKEDIN_CLIENT_ID/SECRET` | Social sign-in |
 | `GEMINI_API_KEY` | Fallback when the `LLM` binding is unavailable |
 | `RESEND_API_KEY`, `WEBSITE_MAIL_FROM`, `WEBSITE_MAIL_NAME` | Bytes website email sender (a sender saved in Settings takes priority) |
+| `WEBHOOK_SECRET` | **Set the same value in chatbot-api.** Checks the signature on the calls chatbot-api makes to the webhook routes |
 
 Vars in `wrangler.toml`: `ALLOWED_ORIGINS`, `AUTH_REDIRECT_URL`, `FRONTEND_*_URL`, `REPLY_DOMAIN=reply.bytesfx.com`,
 `ADMIN_EMAILS`.
@@ -121,6 +122,7 @@ Vars in `wrangler.toml`: `ALLOWED_ORIGINS`, `AUTH_REDIRECT_URL`, `FRONTEND_*_URL
 | `GEMINI_API_KEY` | Required (default model and lead extraction) |
 | `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY` | Optional providers; models without a key show "(no API key)" |
 | `ADMIN_API_KEY` | Keys the scrambled visitor id used for the per-visitor chat limits. It must stay set: without it every chat gets a 503, because an id made with a fixed key could be matched back to an IP address. Changing it only resets that day's counts |
+| `WEBHOOK_SECRET` | **Set the same value in crm-api.** Signs the calls chatbot-api makes to crm-api's webhook routes (the body and a timestamp, HMAC-SHA256). crm-api refuses a call with no valid signature. Until it is set in both workers, crm-api answers unsigned calls and says so in the log |
 
 Per-client email senders (Resend, SendGrid or Mailgun) are saved by each client in the dashboard, in KV `mail:<clientId>`.
 
@@ -152,7 +154,8 @@ message) and `visitor` (the scrambled visitor id; crm-api's `/api/logs` leaves i
 | `mail:<id>` | OAUTH_TOKENS | Client email sender |
 | `email_client:<email>` | OAUTH_TOKENS | Owner email → clientId |
 | `migr:bot-modes-v1` | OAUTH_TOKENS | One-time mode migration flag |
-| `adopted:<id>:<domain>` | OAUTH_TOKENS | Website-adoption alert sent |
+| `unlisted:<id>:<domain>` | OAUTH_TOKENS | "Used on a website that is not on your list" alert sent |
+| `unlisted:<id>:sent` | OAUTH_TOKENS | 7-day cooldown, so the owner gets at most one such email a week |
 
 Other OAUTH_TOKENS keys are session and login state: `device:*`, `totp:*`, `setup:*`, `exchange:*`, `pending_2fa:*`.
 
@@ -253,8 +256,10 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
 **Chat widget and chatbot-api:**
 - **Website gate (`siteGate`):**
   - A bot answers only on its saved websites, plus web.bytesfx.com for previews.
-  - A client bot with an empty list adopts the first real website it's used on, once. The owner is emailed via
-    `/api/webhooks/domain-adopted`.
+  - The Bytes bot (`default`) answers on web.bytesfx.com and nowhere else.
+  - A client bot with an empty list answers nowhere: nothing is saved automatically, so a site that reached the bot
+    first cannot claim it. The owner is told once, via `/api/webhooks/domain-unlisted`, and adds the website
+    themselves. Only bots set up before onboarding required a website have an empty list.
   - Onboarding now requires a website.
 - **Question order:** need, then name and email in one question, then timeline, then budget. The email is
   asked for twice at most. Design and evidence: "Chatbot Conversion Design"

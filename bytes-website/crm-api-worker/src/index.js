@@ -63,7 +63,7 @@ app.use('*', async (c, next) => {
 // Session cookies are SameSite=None (the API is on another site than the dashboard), so a hostile
 // page could otherwise POST to the API with the user's cookie. Browsers always send Origin on
 // cross-site POST/PUT/DELETE; refuse any that isn't ours. Public beacon/webhook routes are exempt.
-const CSRF_EXEMPT = new Set(['/api/public/pageview', '/api/webhooks/new-lead', '/api/webhooks/domain-adopted', '/api/public/website-lead', '/api/verify-email', '/api/unsubscribe']);
+const CSRF_EXEMPT = new Set(['/api/public/pageview', '/api/webhooks/new-lead', '/api/webhooks/domain-unlisted', '/api/public/website-lead', '/api/verify-email', '/api/unsubscribe']);
 app.use('/api/*', async (c, next) => {
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(c.req.method) && !CSRF_EXEMPT.has(c.req.path)) {
         const origin = c.req.header('Origin');
@@ -95,6 +95,24 @@ async function safeEqual(a, b) {
     let diff = 0;
     for (let i = 0; i < ua.length; i++) diff |= ua[i] ^ ub[i];
     return diff === 0;
+}
+
+// ─── Webhook signatures ─────────────────────────────────────────────────────
+// The webhook routes are public, so a call has to prove it came from the chat worker: the
+// body and a timestamp are signed together with a secret the two workers share, and the
+// signature travels in a header. A call that carries no valid one is refused.
+// Until WEBHOOK_SECRET is set in both workers the routes still answer, and say so loudly.
+const WEBHOOK_MAX_AGE_MS = 5 * 60 * 1000;
+async function webhookAllowed(c, rawBody) {
+    const secret = c.env.WEBHOOK_SECRET;
+    if (!secret) {
+        console.warn('[Webhook] WEBHOOK_SECRET is not set: this call was not checked');
+        return true;
+    }
+    const signature = c.req.header('X-Bytes-Signature') || '';
+    const ts = Number(c.req.header('X-Bytes-Timestamp') || 0);
+    if (!signature || !Number.isFinite(ts) || Math.abs(Date.now() - ts) > WEBHOOK_MAX_AGE_MS) return false;
+    return safeEqual(await signHmac(`${ts}.${rawBody}`, secret), signature);
 }
 
 // Per-IP rate limit kept in KV (approximate across the edge, enough to stop scripted guessing)
@@ -1200,8 +1218,10 @@ app.get('/api/leads', requireAuth, async (c) => {
 // leads: only a lead created in the last 10 minutes that was never processed qualifies, it is
 // processed once, and its client comes from the database row, not from the request.
 app.post('/api/webhooks/new-lead', async (c) => {
+    const raw = await c.req.text();
+    if (!(await webhookAllowed(c, raw))) return c.json({ error: 'Bad signature' }, 401);
     let body;
-    try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+    try { body = JSON.parse(raw); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
     const { leadId } = body;
 
     if (!leadId || typeof leadId !== 'number') return c.json({ error: 'leadId is required and must be a number' }, 400);
@@ -1935,21 +1955,29 @@ function siteDomain(v) {
     return t.includes('.') && DOMAIN_RE.test(t) && !/^[\d.]+$/.test(t) && t !== 'web.bytesfx.com' ? t : null;
 }
 
-// chatbot-api adopted the first website an unconnected bot was installed on: tell the owner.
-// Public, so it only acts when the bot's saved list really is that one domain, and once per domain.
-app.post('/api/webhooks/domain-adopted', async (c) => {
-    let body; try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+// The chat worker found a bot being used on a website that is not on its owner's list.
+// Nothing is saved: the owner is told once, so they can add the website themselves. A site
+// that reached the bot first must not be able to claim it.
+app.post('/api/webhooks/domain-unlisted', async (c) => {
+    const raw = await c.req.text();
+    if (!(await webhookAllowed(c, raw))) return c.json({ error: 'Bad signature' }, 401);
+    let body; try { body = JSON.parse(raw); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
     const clientId = String(body.clientId || ''), domain = siteDomain(body.domain);
     if (!/^[a-z0-9][a-z0-9_\-]{0,63}$/i.test(clientId) || !domain || clientId === HOUSE_CLIENT_ID) return c.json({ ok: false }, 400);
     const cfg = JSON.parse(await c.env.CLIENT_SETTINGS.get(`client:${clientId}`) || '{}');
-    if (!(Array.isArray(cfg.allowedDomains) && cfg.allowedDomains.length === 1 && cfg.allowedDomains[0] === domain)) return c.json({ ok: false }, 409);
-    const flag = `adopted:${clientId}:${domain}`;
+    // Only a website that is not on the list is worth telling the owner about
+    if (Array.isArray(cfg.allowedDomains) && cfg.allowedDomains.includes(domain)) return c.json({ ok: false }, 409);
+    const flag = `unlisted:${clientId}:${domain}`;
     if (await c.env.OAUTH_TOKENS.get(flag)) return c.json({ ok: true, duplicate: true });
     await c.env.OAUTH_TOKENS.put(flag, '1', { expirationTtl: 90 * 86400 });
+    // One email a week per client, so a site cannot flood the owner with them
+    const cooldown = `unlisted:${clientId}:sent`;
+    if (await c.env.OAUTH_TOKENS.get(cooldown)) return c.json({ ok: true, duplicate: true });
+    await c.env.OAUTH_TOKENS.put(cooldown, '1', { expirationTtl: 7 * 86400 });
     const mail = await getMailSettings(c.env, clientId);
     const to = alertAddress(c.env, clientId, await clientConfig(c.env, clientId), mail);
     if (to) {
-        await sendMail(mail, to, `Your chatbot is now connected to ${domain}`, emailShell(`<p>Your BytesFX chatbot was installed on <strong>${escapeHtml(domain)}</strong>, so we saved it as your chatbot's website. From now on it only answers there.</p><p>If that isn't your website, remove it in your dashboard under Chatbot → Install, and add the right one.</p><p><a href="${DASH(c.env)}" style="display:inline-block;background:#3987e5;color:#fff;padding:0.6rem 1.1rem;border-radius:8px;text-decoration:none;">Open the dashboard</a></p>`)).catch(e => console.error('[Adopt] mail', e));
+        await sendMail(mail, to, `Your chatbot was used on ${domain}`, emailShell(`<p>Your BytesFX chatbot was used on <strong>${escapeHtml(domain)}</strong>, which is not on its website list. It did not answer there, and nothing was changed.</p><p>If that is your website, add it in your dashboard under Chatbot → Install, and the chatbot will answer there. If it is not, ignore this email: nothing was saved and nothing was sent.</p><p><a href="${DASH(c.env)}" style="display:inline-block;background:#3987e5;color:#fff;padding:0.6rem 1.1rem;border-radius:8px;text-decoration:none;">Open the dashboard</a></p>`)).catch(e => console.error('[Unlisted] mail', e));
     }
     return c.json({ ok: true });
 });
