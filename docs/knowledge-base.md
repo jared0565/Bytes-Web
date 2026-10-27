@@ -410,6 +410,13 @@ so anything that waits for the address to change will not run after a tap on one
   twice at most. The design notes are in the "Chatbot Conversion Design" artifact,
   `https://claude.ai/code/artifact/dc745756-cf9a-4083-99c7-3dc8d084490c` (private to the owner's claude.ai account;
   ask the owner for a copy).
+  - **Which bot a client gets.** The Bytes bot is only the one on web.bytesfx.com: `client:default` in KV has no
+    `systemPrompt` of its own (checked 27 Oct 2026), so it runs the prompt in the code (`HOUSE_ABOUT`, `HOUSE_STEPS`,
+    `HOUSE_FACTS`, `HOUSE_RULES`). A client bot is a separate record with its own prompt, mode, model and website
+    list. It uses its own saved prompt when it has 40 characters or more once the unfilled `[blanks]` lines are dropped
+    (sign-up writes one), and otherwise a neutral one built from its company name, services and booking link
+    (`clientDefaultParts`). Either way it speaks only for that business, and never for BytesFX: the Bytes facts,
+    prices and contact details are in the house prompt alone.
   - Scripted bots, the Bytes bot and an AI bot with no prompt of its own (`clientDefaultParts`) all follow this order.
   - A client's AI bot with its own prompt (40 characters or more, once lines with unfilled `[blanks]` are dropped)
     follows that prompt. For the Bytes bot, any saved prompt counts. The sign-up prompt (`starterPrompt` in
