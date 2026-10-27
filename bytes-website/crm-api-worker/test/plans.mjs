@@ -37,3 +37,46 @@ const b = JSON.parse(kv.get('client:biz'));
 ok('Business → Pro: mode AI, white label removed, badge still optional', b.mode === 'ai' && !b.widgetName && !b.widgetAccentColor && b.showBranding === false, kv.get('client:biz'));
 [st, j] = await call(await tok('', 'admin'), 'POST', '/api/admin/clients/biz/plan', { plan: 'starter' });
 ok('Pro → Starter: badge forced back on', JSON.parse(kv.get('client:biz')).showBranding === true, kv.get('client:biz'));
+
+// ── A plan change caps the website list ──────────────────────────────────────
+// The widget answers on every domain in the saved list, so a downgrade has to cut the
+// list down to what the new plan covers. Otherwise a downgraded client keeps running
+// the widget on websites the new plan does not include.
+const siteList = (n, p) => Array.from({ length: n }, (_, i) => `${p}${i}.com`);
+kv.set('client:dw1', JSON.stringify({ mode: 'ai_plus', allowedDomains: siteList(25, 'b') }));   // business
+kv.set('client:dw2', JSON.stringify({ mode: 'ai_plus', allowedDomains: siteList(50, 'e') }));   // enterprise
+kv.set('client:dw3', JSON.stringify({ mode: 'ai', allowedDomains: siteList(10, 'p') }));        // pro
+kv.set('client:dw4', JSON.stringify({ mode: 'scripted', allowedDomains: siteList(3, 'old') })); // free
+kv.set('client:default', JSON.stringify({ mode: 'ai', allowedDomains: siteList(4, 'house') })); // the Bytes website
+db.exec(`INSERT INTO crm_settings VALUES ('dw1','ai',0,'business',0,0);
+         INSERT INTO crm_settings VALUES ('dw2','ai',0,'enterprise',0,0);
+         INSERT INTO crm_settings VALUES ('dw3','ai',0,'pro',0,0);
+         INSERT INTO crm_settings VALUES ('dw4','ai',0,'free',0,0);
+         INSERT INTO crm_settings VALUES ('default','ai',0,'free',0,0);`);
+const listOf = (id) => JSON.parse(kv.get(`client:${id}`)).allowedDomains;
+[st, j] = await call(await tok('', 'admin'), 'POST', '/api/admin/clients/dw1/plan', { plan: 'free' });
+ok('Business → Free: the website list is cut to 1', listOf('dw1').length === 1, listOf('dw1').length);
+[st, j] = await call(await tok('', 'admin'), 'POST', '/api/admin/clients/dw2/plan', { plan: 'business' });
+ok('Enterprise → Business: the website list is cut to 25', listOf('dw2').length === 25, listOf('dw2').length);
+[st, j] = await call(await tok('', 'admin'), 'POST', '/api/admin/clients/dw3/plan', { plan: 'business' });
+ok('Pro → Business: an upgrade keeps the whole list', listOf('dw3').length === 10, listOf('dw3').length);
+[st, j] = await call(await tok('', 'admin'), 'POST', '/api/admin/clients/dw3/plan', { plan: 'starter' });
+ok('Business → Starter: the website list is cut to 3', listOf('dw3').length === 3, listOf('dw3').length);
+// The cut list keeps the first websites, not the last ones
+ok('The websites kept are the first ones', listOf('dw3')[0] === 'p0.com', listOf('dw3')[0]);
+// A client cannot put the list back after a downgrade
+[st, j] = await call(await tok('dw1'), 'POST', '/api/config', { settings: { allowedDomains: siteList(5, 'x') } });
+ok('A client cannot restore a cut website list', listOf('dw1').length === 1, listOf('dw1').length);
+[st, j] = await call(await tok('dw1'), 'POST', '/api/installations', { allowedDomains: siteList(5, 'x') });
+ok('A client over the plan limit is refused when saving websites', st === 400 && j.planLimited, `${st} ${j.error}`);
+// An admin's save is capped by the plan too
+[st, j] = await call(await tok('', 'admin'), 'POST', '/api/config', { clientId: 'dw1', settings: { allowedDomains: siteList(4, 'z') } });
+ok('An admin save is cut to the plan limit', listOf('dw1').length === 1, listOf('dw1').length);
+// The hourly pass repairs a list left over from before the fix, and leaves the Bytes website alone
+const enforcePlanLimits = mod.__internals.enforcePlanLimits;
+ok('The hourly pass exists', typeof enforcePlanLimits === 'function', typeof enforcePlanLimits);
+if (typeof enforcePlanLimits === 'function') {
+    await enforcePlanLimits(env);
+    ok('The hourly pass cuts a list left over from an earlier downgrade', listOf('dw4').length === 1, listOf('dw4').length);
+    ok('The hourly pass leaves the Bytes website\'s own bot alone', listOf('default').length === 4, listOf('default').length);
+}
