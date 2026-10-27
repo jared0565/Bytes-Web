@@ -248,7 +248,8 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
   - The build enforces it: `bytes-website/scripts/check-consent.mjs` fails when a third-party script could run while
     `ASK` is false, and `scripts/test-consent.mjs` checks the rules. Both run in `npm run build`.
 - **Link previews and the Share button** (`public/share.js`): the homepage, the legal pages and onboarding each have
-  their own `og:` and `twitter:` tags. Images: `public/og-home.jpg` (homepage and legal pages) and `public/og-trial.jpg`
+  their own `og:` and `twitter:` tags. Images: `public/og-home-2.jpg` (homepage and legal pages, since 27 Oct 2026; the
+  older `public/og-home.jpg` is kept for posts that already show it) and `public/og-trial.jpg`
   (onboarding), 1200x630 JPEG of about 80 KB, made from `bytes-website/og-src/` (not deployed; how to remake them is at
   the top of `og-src/home.html`).
   - X shows only the image, no title or description, so the offer is in the picture. LinkedIn and Facebook share
@@ -280,7 +281,7 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
   the bot's Services as buttons under a one-line greeting ("Hi! How can we help?"), then "Something else", which
   puts the cursor in the text box.
   - The list comes from `/public/config` (`services`: 8 at most, 60 characters each). The Bytes bot falls back to
-    Websites, Web applications, AI chatbots (`HOUSE_SERVICES`) when none are saved. A bot with no services keeps the
+    Websites, Web applications, AI chatbots, Website Upgrading (`HOUSE_SERVICES`) when none are saved. A bot with no services keeps the
     old greeting and shows no buttons, and so does the site chat when the settings can't be read.
   - A tap sends the service name as an ordinary first message, so it counts toward the 10 per chat and 30 per day.
     Script bots match it exactly (`matchService`) and go straight to name and email. AI bots are told which choices

@@ -340,6 +340,10 @@ Each entry says where the code is. Start there before changing anything.
   widget for client websites. A change to one usually belongs in both.
 - **Pricing** is built from `plans.json`. `?upgrade=<plan>&client=<id>#pricing` highlights a plan and pre-fills the request.
 - **Contact form** posts to `POST /api/public/website-lead`.
+- **The services the site sells.** Four: websites, website upgrading, custom applications and AI chatbots. They are named
+  in the homepage's services bento (`src/main.js`), in the contact form's service list, in the footer's Services list (the
+  homepage and the four legal pages), in the CRM's service labels (`WEBSITE_SERVICES`, crm-api) and in the house bot's
+  prompt and button list (`HOUSE_SERVICES`, chatbot-api). A change to one service is a change in all of them.
 
 **Cookie banner** (`public/consent.js`, loaded first in `<head>` by the homepage, the four legal pages and onboarding):
 
@@ -367,13 +371,13 @@ Each entry says where the code is. Start there before changing anything.
 **Link previews and the Share button** (`public/share.js`):
 
 - The homepage, the legal pages and onboarding each have their own `og:` and `twitter:` tags.
-- Images: `public/og-home.jpg` (homepage and legal pages) and `public/og-trial.jpg` (onboarding). Both are 1200×630
-  JPEGs of about 80 KB, made from `bytes-website/og-src/`. They are not deployed from there. Instructions for remaking
-  them are at the top of `og-src/home.html`.
+- Images: `public/og-home-2.jpg` (homepage and legal pages, since 27 Oct 2026) and `public/og-trial.jpg` (onboarding).
+  Both are 1200×630 JPEGs of about 80 KB, made from `bytes-website/og-src/`. They are not deployed from there.
+  Instructions for remaking them are at the top of `og-src/home.html`.
 - X shows only the image, with no title or description, so the offer has to be in the picture. LinkedIn and Facebook
   share links take only the address, so their text comes from `og:title` and `og:description`.
 - A changed image needs a new filename, because platforms cache previews by address. `og-image.png` is kept for posts
-  that already show it.
+  that already show it, and so is the older `public/og-home.jpg`, which the new image replaced.
 - The legal pages' Share button shares the homepage, through `data-share-path="/"` on `<html>`.
 - Shared and copied links carry `utm_source=<target>`. crm-api's `UTM_NAMES` gives each a name in Analytics.
   `track.js` removes the `utm_*` tags from the address bar once the visit is counted.
@@ -424,7 +428,7 @@ so anything that waits for the address to change will not run after a tap on one
 - **Service choices.** When a chat opens, both chat boxes show the bot's services as buttons under a one-line greeting,
   then a "Something else" button that puts the cursor in the text box.
   - The list comes from `/public/config` (`services`: 8 at most, 60 characters each). The Bytes bot falls back to
-    Websites, Web applications, AI chatbots (`HOUSE_SERVICES`) when none are saved. A bot with no services shows no buttons.
+    Websites, Web applications, AI chatbots, Website Upgrading (`HOUSE_SERVICES`) when none are saved. A bot with no services shows no buttons.
   - A tap sends the service name as an ordinary first message, so it counts toward the 10 per chat and 30 per day.
     Script bots match it exactly (`matchService`). AI bots are told which choices are on screen (the `CHOICES` part of
     the prompt).
