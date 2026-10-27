@@ -1,0 +1,58 @@
+window.CAMPAIGN = [
+  {
+    id: 'li-01-website', platform: 'LinkedIn', theme: 'portal', stage: 'Discovery', offer: 'Free consultation',
+    kicker: 'WEBSITES · APPS · AI CHATBOTS', lines: ['Turn visits', 'into', 'enquiries.'], accent: 2,
+    sub: 'Build a clearer path from first click to first conversation.', cta: 'Get a free consultation',
+    headline: 'Build a clearer path to your next enquiry',
+    caption: 'Getting visitors to your website is only the first step.\n\nCan they understand your offer, ask a question and take the next step?\n\nBytesFX builds conversion-focused websites, custom applications and AI chatbots for businesses that want a clearer path from attention to enquiry.\n\nPlanning a new website or improving an existing one? Tell us your goals and request a free consultation.\n\n{url}\n\n#WebDevelopment #BusinessGrowth #BytesFX',
+    alt: 'BytesFX: Turn visits into enquiries. Mint glass flows through an amber portal. Get a free consultation.', path: '/#contact', campaign: 'visits_enquiries_li_web_a'
+  },
+  {
+    id: 'li-02-chatbot', platform: 'LinkedIn', theme: 'chat', stage: 'Consideration', offer: '7-day AI trial',
+    kicker: 'AI CHATBOT + LEAD CAPTURE', lines: ['The next enquiry', 'could arrive', 'after hours.'], accent: 2,
+    sub: 'Answer questions. Capture contact details. Keep the conversation moving.', cta: 'Start your 7-day free trial',
+    headline: 'Give visitors a way to enquire after hours',
+    caption: 'Your next potential customer may visit after your team has signed off.\n\nGive them a way to ask questions and leave their details. The BytesFX AI chatbot can answer questions about your business, qualify enquiries and bring leads into your dashboard.\n\nTry AI replies and AI email follow-ups free for 7 days. No card needed.\n\nTrial: 1 website, 10 leads/day, 50 contacts total; BytesFX badge included. After the trial, Free uses guided scripted chat. Paid AI plans start at US$29/month; upgrades are arranged with the team.\n\n{url}\n\n#AIChatbot #LeadGeneration #BytesFX',
+    alt: 'BytesFX: The next enquiry could arrive after hours. Illustrated visitor question and assistant reply. Start your 7-day free trial. No card needed. Trial limits apply.', path: '/onboarding/', campaign: 'visits_enquiries_li_trial_a'
+  },
+  {
+    id: 'li-03-followup', platform: 'LinkedIn', theme: 'flow', stage: 'Decision', offer: '7-day AI trial',
+    kicker: 'FROM FIRST QUESTION TO FOLLOW-UP', lines: ['Capture the lead.', 'Keep the', 'context.'], accent: 2,
+    sub: 'Conversations, enquiries and proposal drafts. One place to move work forward.', cta: 'Try BytesFX free for 7 days',
+    headline: 'A lead is the start of the conversation',
+    caption: 'A name and email address are a starting point. The useful part is knowing what the person needs.\n\nBytesFX connects website conversations with lead capture, email follow-up and AI-drafted proposals. Review the draft before sending it to your prospect.\n\nExplore the workflow with a 7-day free AI trial. No card needed.\n\nTrial: 1 website, 10 leads/day, 50 contacts total; BytesFX badge included. After the trial, Free uses guided scripted chat. Paid AI plans start at US$29/month; upgrades are arranged with the team.\n\n{url}\n\n#SalesOperations #LeadGeneration #BytesFX',
+    alt: 'BytesFX: Capture the lead. Keep the context. A conceptual flow connects conversation, lead, follow-up and proposal draft. Try free for 7 days. Trial limits apply.', path: '/onboarding/', campaign: 'visits_enquiries_li_followup_a'
+  },
+  {
+    id: 'fb-01-website', platform: 'Facebook', theme: 'portal', stage: 'Discovery', offer: 'Free consultation',
+    kicker: 'A BETTER NEXT STEP FOR YOUR VISITORS', lines: ['A great website', 'starts a', 'conversation.'], accent: 2,
+    sub: 'Websites, apps and AI chatbots built around your business goals.', cta: 'Request a free consultation',
+    headline: 'Make your next website work harder',
+    caption: 'Your website has visitors. Give them a clear reason to get in touch.\n\nBytesFX builds websites, custom apps and AI chatbots that help people understand your offer and take the next step.\n\nThinking about a new site or a refresh? Tell our London studio what you want to achieve.\n\nRequest your free consultation → {url}\n\n#SmallBusiness #WebDesign #BytesFX',
+    alt: 'BytesFX: A great website starts a conversation. Glowing mint glass and amber portal. Request a free consultation.', path: '/#contact', campaign: 'visits_enquiries_fb_web_a'
+  },
+  {
+    id: 'fb-02-chatbot', platform: 'Facebook', theme: 'chat', stage: 'Consideration', offer: '7-day AI trial',
+    kicker: 'LET YOUR WEBSITE KEEP TALKING', lines: ['You switch off.', 'Your website', 'can answer.'], accent: 2,
+    sub: 'An AI chatbot that helps visitors ask questions and leave their details.', cta: 'Try it free for 7 days',
+    headline: 'Try an AI chatbot on your website',
+    caption: 'Busy running your business? Give website visitors a way to ask questions while you focus on the day.\n\nThe BytesFX AI chatbot answers questions about your business and captures enquiry details for your dashboard.\n\nTry AI replies and email follow-ups free for 7 days. No card needed.\n\nTrial: 1 website, 10 leads/day, 50 contacts total; BytesFX badge included. After the trial, Free uses guided scripted chat. Paid AI plans start at US$29/month; upgrades are arranged with the team.\n\nStart here → {url}\n\n#SmallBusinessTools #AIChatbot #BytesFX',
+    alt: 'BytesFX: You switch off. Your website can answer. Illustrative chat exchange. Try free for 7 days. No card needed. Trial limits apply.', path: '/onboarding/', campaign: 'visits_enquiries_fb_trial_a'
+  },
+  {
+    id: 'fb-03-followup', platform: 'Facebook', theme: 'flow', stage: 'Decision', offer: '7-day AI trial',
+    kicker: 'MAKE THE NEXT CONVERSATION EASIER', lines: ['An enquiry.', 'A follow-up.', 'A way forward.'], accent: 2,
+    sub: 'Capture the details. Follow up by email. Review an AI-drafted proposal.', cta: 'Start your 7-day free trial',
+    headline: 'Keep the next step in view',
+    caption: 'Someone asks about your service. What happens next?\n\nBytesFX brings website leads, conversations and email follow-up into one workflow. AI can draft a proposal for you to review before you send it.\n\nSee how it fits your business with a 7-day free AI trial. No card needed.\n\nTrial: 1 website, 10 leads/day, 50 contacts total; BytesFX badge included. After the trial, Free uses guided scripted chat. Paid AI plans start at US$29/month; upgrades are arranged with the team.\n\nTry it here → {url}\n\n#BusinessTools #LeadGeneration #BytesFX',
+    alt: 'BytesFX: An enquiry. A follow-up. A way forward. Conceptual workflow from conversation to proposal draft. Start your 7-day free trial. Trial limits apply.', path: '/onboarding/', campaign: 'visits_enquiries_fb_followup_a'
+  }
+];
+window.campaignUrl = function (post, medium = 'organic_social') {
+  const url = new URL(post.path, 'https://web.bytesfx.com');
+  url.searchParams.set('utm_source', post.platform.toLowerCase());
+  url.searchParams.set('utm_medium', medium);
+  url.searchParams.set('utm_campaign', post.campaign);
+  url.searchParams.set('utm_content', post.id);
+  return url.href;
+};
