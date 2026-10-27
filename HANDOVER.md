@@ -1,6 +1,6 @@
 # BytesFX — Project Handover
 
-Last updated: 12 Oct 2026. Everything below is merged into `main` and deployed.
+Last updated: 27 Oct 2026. Everything below is merged into `main` and deployed.
 Read this file and `CLAUDE.md` before changing anything.
 
 ---
@@ -214,7 +214,10 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
   (1 website, badge on). A paid plan always gets its own entitlements, even during a trial.
 - **Admin-only settings:** bot mode, AI model, effort and the sales email models are set by admins only, in Manage
   Clients. Clients see them read-only and their saves never change them.
-- **Plan changes:** the bot moves to the new plan's top mode. Downgrades force the badge on and strip white-label fields.
+- **Plan changes:** the bot moves to the new plan's top mode. Downgrades force the badge on, strip white-label fields
+  and cut the saved website list to the new plan's limit (the first websites are kept). The list is also cut when an
+  admin saves a client's websites, and an hourly pass (at :07, with the other hourly jobs) cuts any list left over
+  from an earlier downgrade.
 - **Plan changes are manual:** there is **no payment integration**. Admins change plans in Manage Clients. "Choose
   <plan>" on the Pricing section pre-fills the contact form.
 
@@ -565,8 +568,8 @@ gitignored).
     - Free after the trial still gets AI email work: the questions email, the reading of replies and proposal drafts
       have no plan check. Only campaigns are held back (`aiFollowUps`). With auto-send on, template follow-ups go out
       on Free too, although the approve button is refused.
-    - A plan change resets the bot's mode, badge and branding but not its website list: a downgrade keeps the websites
-      until the client next saves the list.
+    - A plan change resets the bot's mode, badge, branding and website list. The list is cut to the new plan's limit
+      on the change itself, so it is no longer one of the open items (fixed 27 Oct 2026).
     - The dashboard's trial banner names websites and the badge as Free limits, not leads (the Pricing line now does).
     - The site chat's canned replies for when the chat service is down (`getFallbackResponse` in `src/main.js`)
       promise delivery times, case studies and a proposal within 24 hours.

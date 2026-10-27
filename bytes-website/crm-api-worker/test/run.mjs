@@ -16,7 +16,10 @@ cpSync(join(here, '..', 'src'), join(build, 'src'), { recursive: true });
 const plans = pathToFileURL(join(here, '..', '..', 'public', 'plans.json')).href;
 const idx = join(build, 'src', 'index.js');
 writeFileSync(idx, readFileSync(idx, 'utf8').replace("from '../../public/plans.json';", `from '${plans}' with { type: 'json' };`)
-    + '\nexport { signJWT, app as __app, generateOAuthState };\n');
+    + '\nexport { signJWT, app as __app, generateOAuthState };\n'
+    // `typeof` on a name the build does not have is safe, so a suite can ask for a helper
+    // that only exists in a later commit and report a FAIL rather than crash the module
+    + '\nexport const __internals = { enforcePlanLimits: typeof enforcePlanLimits !== "undefined" ? enforcePlanLimits : null };\n');
 writeFileSync(join(build, 'package.json'), '{"type":"module"}');
 
 const all = readdirSync(here).filter(f => f.endsWith('.mjs') && f !== 'run.mjs').map(f => f.slice(0, -4));

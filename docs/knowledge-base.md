@@ -313,8 +313,9 @@ tied to the visitor's network, on purpose, so a phone that changes network keeps
   (1 website, badge on). A paid plan always gets its own entitlements, even during a trial.
 - **Admin-only settings:** bot mode, AI model, effort and the sales email models are set by admins only, in Manage
   Clients. Clients see them read-only, and their saves never change them.
-- **Plan changes:** the bot moves to the new plan's top mode. A downgrade forces the badge on and strips white-label
-  fields.
+- **Plan changes:** the bot moves to the new plan's top mode. A downgrade forces the badge on, strips white-label
+  fields and cuts the saved website list to what the new plan allows (the first websites are kept). The list is also
+  cut when an admin saves a client's websites, and an hourly pass cuts any list left over from an earlier downgrade.
 - **Plan changes are manual.** There is **no payment integration**. Admins change plans in Manage Clients. "Choose
   <plan>" on the Pricing section pre-fills the contact form.
 
@@ -665,7 +666,9 @@ The owner's full list, with the detail, is in `HANDOVER.md` section 11. The main
 - **Test clients.** On 12 Oct 2026 `HANDOVER.md` listed seven test clients to delete with the Delete client button
   (not re-checked here: that needs the live dashboard).
 - **Lead-limit caps.** Paid plans say "unlimited". Caps would be added in `plans.json`; enforcement already reads them.
-- **Plan change and websites.** A downgrade keeps the saved website list until the client next saves it.
+- **Plan change and websites.** Fixed on 27 Oct 2026: a downgrade now cuts the saved website list to the new plan's
+  limit at once (and an hourly pass repairs a list left over from an earlier downgrade). Before that, a downgrade kept
+  the list until the client next saved it, so the widget kept working on websites the new plan did not include.
 - **Free plan after the trial.** AI email work (the questions email, reply reading and proposal drafts) has no plan check.
   Only campaigns are held back.
 - **Pricing copy against the code.** Some claims on the Pricing section are not enforced by code (for example, premium
