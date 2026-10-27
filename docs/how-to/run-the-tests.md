@@ -23,12 +23,21 @@ node test/run.mjs
 npx tsc --noEmit -p .             # typecheck
 ```
 
-**Website build** (also copies `public/` into `dist/`):
+**Website build** (also copies `public/` into `dist/`). The build runs two checks of its own first, and stops if
+either fails:
 
 ```
 cd bytes-website
 npm run build
 ```
+
+- `scripts/check-consent.mjs` fails the build when the CSP allows a third-party script, or a page loads one from
+  another host, while the cookie banner is off (`ASK = false` in `public/consent.js`). It is the guard that keeps
+  "no tag sets a cookie without asking" true.
+- `scripts/test-consent.mjs` checks the consent rules themselves: a planted cookie grants nothing, the cookie is the
+  fallback when browser storage is blocked, and a visitor's own saved choice is honoured.
+
+Run either on its own with `node scripts/check-consent.mjs` or `node scripts/test-consent.mjs` from `bytes-website`.
 
 ## Reading the results
 

@@ -10,6 +10,8 @@
   var MAX_AGE_DAYS = 180;                  // ICO/CNIL guidance: re-ask at most every 6–13 months
   // Ask on a first visit? Off while no tag on the site sets cookies (the CSP in _headers runs only our own scripts).
   // Before adding Google Analytics, Google Ads or a pixel: set this to true and bump VERSION, so everyone is asked.
+  // The build checks that: bytes-website/scripts/check-consent.mjs fails if a third-party script could
+  // run while this is false, so the two cannot drift apart.
   var ASK = false;
   var EEA_UK_CH = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','IS','LI','NO','GB','CH'];
   var gpc = navigator.globalPrivacyControl === true;
@@ -32,6 +34,19 @@
   window.gtag('set', 'ads_data_redaction', true);  // strip ad identifiers while ad_storage is denied
   window.gtag('set', 'url_passthrough', true);     // keep gclid/wbraid in URLs so cookieless conversions still attribute
 
+  // The cookie is a fallback for when browser storage is blocked. It is only read when storage
+  // has actually failed, so a cookie planted by another site (a sibling bytesfx.com host, for
+  // instance) can never grant consent on its own. On https it carries the __Host- prefix, which
+  // only this exact host can set.
+  var storageBroken = false;
+  var COOKIE = location.protocol === 'https:' ? '__Host-' + KEY : KEY;
+  function storageWorks() {
+    try {
+      localStorage.setItem(KEY + '_probe', '1');
+      localStorage.removeItem(KEY + '_probe');
+      return true;
+    } catch (e) { storageBroken = true; return false; }
+  }
   function read() {
     try {
       var c = JSON.parse(localStorage.getItem(KEY) || 'null');
@@ -39,10 +54,11 @@
       var legacy = localStorage.getItem('cookieConsent');   // old Accept/Decline banner
       // Saved once in the new form, so it expires like any other choice
       if (!c && legacy) return store(legacy === 'accepted', legacy === 'accepted');
-    } catch (e) { /* storage blocked: the cookie below still holds the choice */ }
+    } catch (e) { storageBroken = true; }
+    if (!storageBroken) return null;
     try {
       // Written next to the stored copy with the same lifetime, so it is only the fallback when storage is blocked
-      var m = document.cookie.match(new RegExp('(?:^|; )' + KEY + '=(a?)(m?)-(\\d+)'));
+      var m = document.cookie.match(new RegExp('(?:^|; )' + COOKIE + '=(a?)(m?)-(\\d+)'));
       if (m && Number(m[3]) === VERSION) return { v: VERSION, ts: null, analytics: !!m[1], marketing: !!m[2] };
     } catch (e) {}
     return null;
@@ -62,8 +78,8 @@
     try {
       localStorage.setItem(KEY, JSON.stringify(c));
       localStorage.removeItem('cookieConsent');
-    } catch (e) {}
-    document.cookie = KEY + '=' + (c.analytics ? 'a' : '') + (c.marketing ? 'm' : '') + '-' + VERSION +
+    } catch (e) { storageBroken = true; }
+    document.cookie = COOKIE + '=' + (c.analytics ? 'a' : '') + (c.marketing ? 'm' : '') + '-' + VERSION +
       '; Max-Age=' + MAX_AGE_DAYS * 86400 + '; Path=/; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '');
     return c;
   }
@@ -74,6 +90,7 @@
     return c;
   }
 
+  storageWorks();   // find out now whether browser storage is blocked, so the cookie fallback knows
   var stored = read();
   if (stored) apply(stored, false);
 
@@ -222,6 +239,7 @@
     get: read,
     reset: function () {
       try { localStorage.removeItem(KEY); } catch (e) {}
+      document.cookie = COOKIE + '=; Max-Age=0; Path=/' + (location.protocol === 'https:' ? '; Secure' : '');
       document.cookie = KEY + '=; Max-Age=0; Path=/';
       open(false);
     }

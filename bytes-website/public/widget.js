@@ -393,6 +393,10 @@
 
     const escapeAttr = (str) => String(str).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
+    // The server answers a site the chatbot is not connected to with no CORS header, so the
+    // browser keeps the body from this page. That answer (status 0) means "not connected".
+    const NOT_CONNECTED = "This chatbot isn't connected to this website yet. The site owner can add it in their BytesFX dashboard.";
+
     // --- Core UI Creation ---
     async function init() {
         const styleSheet = document.createElement("style");
@@ -587,6 +591,14 @@
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ message: message, clientId: clientId, sessionId: sessionId })
                 });
+
+                if (response.status === 0) {
+                    // The server answered, but the browser kept the body from this page: the
+                    // chatbot is not connected to this website
+                    removeTypingIndicator(typingId);
+                    appendMessage(NOT_CONNECTED, 'bot-message');
+                    return;
+                }
 
                 const data = await response.json();
                 removeTypingIndicator(typingId);

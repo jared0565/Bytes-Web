@@ -28,6 +28,39 @@ r = await req('POST', '/api/site-settings', { body: '{"companyName":"pwn"}', ori
 // H5 webhook
 r = await req('POST', '/api/webhooks/new-lead', { body: { leadId: 1, clientId: 'x' } }); ok('webhook on old lead refused', r.status === 404 && db.prepare('select pipeline_stage s from leads where id=1').get().s === 'active');
 r = await req('POST', '/api/webhooks/new-lead', { body: { leadId: 2 } }); const r2 = await req('POST', '/api/webhooks/new-lead', { body: { leadId: 2 } }); ok('webhook processes new lead once', r.status === 200 && r2.status === 404, `${r.status}/${r2.status}`);
+// H5b the webhook is signed once a secret is set: an unsigned or forged call is refused
+const { createHmac } = await import('node:crypto');
+const SECRET = 'shared-secret';
+const sign = (ts, body) => createHmac('sha256', SECRET).update(`${ts}.${body}`).digest('hex');
+const freshLead = id => db.exec(`INSERT INTO leads (id, client_id, name, email, timestamp, pipeline_stage, is_verified) VALUES (${id},'c1','S','s${id}@x.com',${now},'lead',0)`);
+freshLead(4); freshLead(5); freshLead(6); freshLead(7);
+const raw4 = JSON.stringify({ leadId: 4 }), raw5 = JSON.stringify({ leadId: 5 }), raw6 = JSON.stringify({ leadId: 6 }), raw7 = JSON.stringify({ leadId: 7 });
+env.WEBHOOK_SECRET = SECRET;
+const ts = Date.now();
+r = await req('POST', '/api/webhooks/new-lead', { body: raw4 }); ok('unsigned webhook refused', r.status === 401, String(r.status));
+r = await req('POST', '/api/webhooks/new-lead', { body: raw5, headers: { 'X-Bytes-Timestamp': String(ts), 'X-Bytes-Signature': 'f'.repeat(64) } }); ok('forged signature refused', r.status === 401, String(r.status));
+r = await req('POST', '/api/webhooks/new-lead', { body: raw6, headers: { 'X-Bytes-Timestamp': String(ts), 'X-Bytes-Signature': sign(ts, raw6) } }); ok('signed webhook accepted', r.status === 200, String(r.status));
+const old = ts - 10 * 60 * 1000;
+r = await req('POST', '/api/webhooks/new-lead', { body: raw7, headers: { 'X-Bytes-Timestamp': String(old), 'X-Bytes-Signature': sign(old, raw7) } }); ok('stale signature refused', r.status === 401, String(r.status));
+r = await req('POST', '/api/webhooks/new-lead', { body: raw7, headers: { 'X-Bytes-Timestamp': String(ts), 'X-Bytes-Signature': sign(ts, raw5) } }); ok('signature for another body refused', r.status === 401, String(r.status));
+delete env.WEBHOOK_SECRET;
+// H5c the production config must not carry the flags that open a debug path or a local origin
+const { readFileSync } = await import('node:fs');
+const crmToml = readFileSync(new URL('../../wrangler.toml', import.meta.url), 'utf8');
+const chatJsonc = readFileSync(new URL('../../../../chatbot-api/wrangler.jsonc', import.meta.url), 'utf8');
+ok('the production config sets no NODE_ENV', !/NODE_ENV/.test(crmToml + chatJsonc));
+ok('the production config sets no ALLOW_LOCALHOST', !/ALLOW_LOCALHOST/.test(crmToml + chatJsonc));
+r = await req('GET', '/api/force-test-webhook'); ok('the debug route is gone', r.status === 404, String(r.status));
+// H5d a local page must not be able to act as the signed-in owner with the session cookie
+const sessionJwt = await m.signJWT({ role: 'admin', clientId: 'agency_demo' }, 'x');
+r = await req('GET', '/api/site-settings', { headers: { Cookie: 'session=' + sessionJwt }, origin: 'https://web.bytesfx.com' });
+ok('the session cookie works from the site', r.status === 200, String(r.status));
+r = await req('GET', '/api/site-settings', { headers: { Cookie: 'session=' + sessionJwt }, origin: 'http://localhost:3000' });
+ok('the session cookie is ignored from a local port', r.status === 401, String(r.status));
+r = await req('GET', '/api/site-settings', { headers: { Cookie: 'session=' + sessionJwt, Authorization: 'Bearer ' + sessionJwt }, origin: 'http://localhost:3000' });
+ok('the dashboard still works locally with its header token', r.status === 200, String(r.status));
+r = await req('GET', '/api/site-settings', { headers: { Cookie: 'session=' + sessionJwt }, origin: 'http://localhost:9999' });
+ok('a local port that is not allowlisted is refused outright', r.status === 401 || r.status === 403, String(r.status));
 // H6 admin key
 r = await req('GET', '/api/auth/totp/setup', { headers: { 'X-Admin-Key': 'super-secret' } }); ok('totp setup refused once set', r.status === 410);
 for (let i = 0; i < 10; i++) await req('POST', '/api/auth/login', { body: { key: 'wrong' + i }, origin: 'https://web.bytesfx.com', headers: { 'CF-Connecting-IP': '6.6.6.6' } });

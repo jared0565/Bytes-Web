@@ -18,13 +18,15 @@ production request mocked in Playwright. Running the workers is for when the tes
 - The API addresses are constants with no local setting: `CHAT_API_URL` and `CRM_API_URL` in `bytes-website/src/main.js`,
   and `API_BASE` and `CHATBOT_API` in `bytes-website/public/dashboard/main.js`.
 - crm-api accepts browser requests from `http://localhost:5173` and `http://localhost:3000` (its `ALLOWED_ORIGINS`, in
-  `crm-api-worker/wrangler.toml`), so the dev server reaches it. `vite preview` (4173) is not on that list.
-- chatbot-api echoes any caller's address in its CORS reply, and the Bytes bot answers on any website while it has no
-  website list of its own (the code expects none). So the site chat reaches production from any port, including
-  `vite preview`.
-- So on a local copy, **the contact form creates a real lead and emails the owner** (from 5173 or 3000), and **an email
-  address typed into the site chat creates a real lead and sends that address a real confirmation email** (from any
-  port). Don't send either without the owner's go-ahead, and mock both in Playwright.
+  `crm-api-worker/wrangler.toml`). `vite preview` (4173) is not on that list.
+- **The session cookie is ignored for a local origin** (since 27 Oct 2026). Any process on this machine could serve a
+  page on one of those ports, and the browser would attach the session cookie to the request, so the cookie alone no
+  longer signs anyone in from there. The dashboard sends its JWT in a header as well, and a local page cannot read
+  that, so the dashboard still works locally. The public routes (the contact form) still answer a local origin.
+- chatbot-api answers a caller only on a site the bot may answer on, and the Bytes bot answers on `web.bytesfx.com`
+  only. So a local copy's site chat no longer reaches production: the chat is refused with "not connected".
+- So on a local copy, **the contact form creates a real lead and emails the owner** (from 5173 or 3000). Don't send it
+  without the owner's go-ahead, and mock it in Playwright.
 - Browsing is safe: `track.js` sends no page views from an `http://` address.
 
 For layout and copy work, build the site, preview it, and mock the API requests:

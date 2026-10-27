@@ -20,13 +20,14 @@ let [st, j] = await post('/api/register', { clientId: 'shop-abc123', ownerEmail:
 ok('signup without a website is refused', st === 400 && j.field === 'website', j.error);
 [st, j] = await post('/api/register', { clientId: 'shop-abc123', ownerEmail: 'o@shop.com', settings: { companyName: 'Shop', website: 'https://www.Shop.com/about' } });
 ok('signup saves the website as the only allowed domain', st === 200 && JSON.stringify(JSON.parse(kv.get('client:shop-abc123')).allowedDomains) === '["shop.com"]', `${st} ${kv.get('client:shop-abc123')}`);
-// adoption webhook
+// the chat worker tells us a bot was used on a website that is not on its list
 kv.set('client:old-bot', JSON.stringify({ allowedDomains: ['found.com'], alertEmail: 'owner@old.com' }));
 db.exec(`INSERT INTO crm_settings VALUES ('old-bot','ai',0,'free',0,0)`);
 kv.set('mail:old-bot', JSON.stringify({ provider: 'resend', fromEmail: 'hi@old.com', apiKey: 're_x' }));
-[st, j] = await post('/api/webhooks/domain-adopted', { clientId: 'old-bot', domain: 'evil.com' });
-ok('webhook ignores a domain the bot does not have', st === 409);
-[st, j] = await post('/api/webhooks/domain-adopted', { clientId: 'old-bot', domain: 'found.com' });
-ok('owner emailed once about the adopted site', st === 200 && sent.some(m => m.to[0] === 'owner@old.com' && /connected to found.com/.test(m.subject)), JSON.stringify(sent.map(m => m.to)));
-const n = sent.length; [st, j] = await post('/api/webhooks/domain-adopted', { clientId: 'old-bot', domain: 'found.com' });
+[st, j] = await post('/api/webhooks/domain-unlisted', { clientId: 'old-bot', domain: 'found.com' });
+ok('nothing to tell about a site the bot already has', st === 409);
+[st, j] = await post('/api/webhooks/domain-unlisted', { clientId: 'old-bot', domain: 'other.com' });
+ok('owner emailed once about the site that is not on the list', st === 200 && sent.some(m => m.to[0] === 'owner@old.com' && /used on other.com/.test(m.subject)), JSON.stringify(sent.map(m => m.to)));
+ok('nothing was added to the website list', JSON.parse(kv.get('client:old-bot')).allowedDomains.join() === 'found.com', kv.get('client:old-bot'));
+const n = sent.length; [st, j] = await post('/api/webhooks/domain-unlisted', { clientId: 'old-bot', domain: 'other.com' });
 ok('no duplicate email', sent.length === n && j.duplicate);
