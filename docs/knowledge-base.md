@@ -88,7 +88,7 @@ bytes-website/                     The website and its static assets
     src/auth.js                    OAuth providers (Google, Facebook, LinkedIn)
     migrations/                    0001 to 0003; some tables and columns are created in code instead (section 5)
     data-fixes/                    One-off SQL for the live database, run by hand
-    test/                          node test/run.mjs: 15 suites
+    test/                          node test/run.mjs: 16 suites
     wrangler.toml                  Config for crm-api (use --config wrangler.toml with Wrangler)
 
 research/                          Notes and analysis; not used by the build
@@ -623,7 +623,7 @@ Requires **Node 22.5 or newer** (the tests use `node:sqlite`). Run `npm install`
 
 | Check | Command (from the folder shown) | What it proves |
 |---|---|---|
-| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 15 suites (240 checks on 17 Oct 2026) |
+| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 16 suites (269 checks on 27 Oct 2026) |
 | One or a few crm-api suites | `node test/run.mjs flow plans` | Only the named suites |
 | chatbot-api tests | `chatbot-api`: `node test/run.mjs` | 3 suites: `chat` (whole requests to the chat endpoint), `gate` (website gate), `scripted` (135 checks on 17 Oct 2026) |
 | Typecheck | `chatbot-api`: `npx tsc --noEmit -p .` | TypeScript types |
@@ -642,13 +642,14 @@ The crm-api suites, with what they cover:
 | `t` | Auth and onboarding |
 | `modes` | Plan-based modes |
 | `plans` | Plan limits |
-| `site` | Signup website and adoption email |
+| `site` | Signup website and the "used on a website that is not on your list" alert |
 | `brand` | The BytesFX name in emails and code, and the one-off data fix |
 | `seq` | Follow-up emails that are not AI-written |
 | `pv` | Page views from the website |
 | `greet` | How emails greet a lead, with and without a name |
 | `find` | The screen after confirming, and the questions email it names |
 | `pages` | The screens reached from an email link |
+| `local-origin` | The session cookie is not honoured from a local port |
 
 The suites run the worker in Node with `node:sqlite`, with mocked KV, R2, mail and LLM. They run against a scratch copy in
 `test/.build`, which is git-ignored. The runner treats every `.mjs` file in `test/` (other than `run.mjs`) as a suite, so
