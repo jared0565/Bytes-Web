@@ -229,6 +229,21 @@ function effectiveMode(saved, ps) {
     const allowed = modesForPlan(ps), m = normalizeMode(saved);
     return allowed.includes(m) ? m : allowed[allowed.length - 1];
 }
+// Websites a plan allows (plans.json "domains"; -1 = unlimited). A plan we do not know
+// (an old or hand-set row) sets no limit, so nothing is cut for it.
+function domainLimit(ps) {
+    const p = PLAN_BY_ID[ps?.plan];
+    if (!p || p.domains == null) return null;
+    return p.domains;
+}
+// Cuts a saved website list to what the plan covers. The widget answers on every domain in
+// the list, so a list longer than the plan allows keeps a downgraded client running on
+// websites the new plan does not include. Returns null when there is nothing to cut.
+function trimDomains(list, ps) {
+    const limit = domainLimit(ps);
+    if (!Array.isArray(list) || limit === null || limit === -1 || list.length <= limit) return null;
+    return list.slice(0, limit);
+}
 // Writes the plan-capped mode back to the bot's config (bestForPlan: switch to the plan's top mode)
 async function syncBotMode(env, clientId, bestForPlan = false) {
     const raw = await env.CLIENT_SETTINGS.get(`client:${clientId}`);
@@ -243,6 +258,13 @@ async function syncBotMode(env, clientId, bestForPlan = false) {
     // Downgrades lose what the new plan doesn't include: badge back on, custom widget branding off
     if (!ent.removeBadge || mode === 'scripted') cfg.showBranding = true;
     if (!ent.whiteLabel) { delete cfg.widgetName; delete cfg.widgetAccentColor; delete cfg.widgetAvatar; }
+    // A plan change caps the website list too: the widget keeps working on every domain in
+    // the saved list, so a downgrade has to cut the ones the new plan no longer covers
+    const keptDomains = trimDomains(cfg.allowedDomains, ps);
+    if (keptDomains) {
+        console.log(`[Plan] ${clientId}: website list cut from ${cfg.allowedDomains.length} to ${keptDomains.length} (${ps.plan} allows ${domainLimit(ps)})`);
+        cfg.allowedDomains = keptDomains;
+    }
     if (JSON.stringify(cfg) !== before) await env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify(cfg));
     return mode;
 }
@@ -269,6 +291,32 @@ async function migrateBotModes(env) {
     } while (cursor);
     await env.OAUTH_TOKENS.put('migr:bot-modes-v1', String(Date.now()));
     console.log(`[Migrate] Bot modes checked for ${n} bots`);
+}
+
+// Hourly: make every saved website list match its plan. A plan change cuts the list at once,
+// and this closes the gap left by a downgrade made before that, or by any other route.
+async function enforcePlanLimits(env) {
+    let cursor, cut = 0, checked = 0;
+    do {
+        const page = await env.CLIENT_SETTINGS.list({ prefix: 'client:', cursor, limit: 1000 });
+        for (const k of page.keys) {
+            const id = k.name.slice('client:'.length);
+            if (id === HOUSE_CLIENT_ID) continue; // the Bytes website's own bot is not on a plan
+            const raw = await env.CLIENT_SETTINGS.get(k.name);
+            if (!raw) continue;
+            let cfg; try { cfg = JSON.parse(raw); } catch { continue; }
+            const ps = await getPlanStatus(env, id);
+            const kept = trimDomains(cfg.allowedDomains, ps);
+            checked++;
+            if (!kept) continue;
+            console.log(`[Plan] ${id}: website list cut from ${cfg.allowedDomains.length} to ${kept.length} (${ps.plan} allows ${domainLimit(ps)})`);
+            cfg.allowedDomains = kept;
+            await env.CLIENT_SETTINGS.put(k.name, JSON.stringify(cfg));
+            cut++;
+        }
+        cursor = page.list_complete ? null : page.cursor;
+    } while (cursor);
+    if (cut) console.log(`[Plan] website lists cut to plan: ${cut} of ${checked} clients`);
 }
 
 // Lead limits from plans.json; `included` = leads already saved that this check should count
@@ -1803,6 +1851,13 @@ app.post('/api/config', requireAuth, async (c) => {
     if (settings.allowedDomains !== undefined) {
         if (!Array.isArray(settings.allowedDomains)) return bad('allowedDomains must be a list.');
         settings.allowedDomains = [...new Set(settings.allowedDomains.filter(d => typeof d === 'string').map(d => d.trim().toLowerCase()).filter(d => DOMAIN_RE.test(d)))].slice(0, 50);
+        // The plan's website limit applies to an admin's save as well, so a list cannot be
+        // written past what the plan covers (a client is refused at /api/installations)
+        const keptDomains = trimDomains(settings.allowedDomains, planStatus);
+        if (keptDomains) {
+            console.log(`[Plan] ${clientId}: website list cut from ${settings.allowedDomains.length} to ${keptDomains.length} (${planStatus.plan} allows ${domainLimit(planStatus)})`);
+            settings.allowedDomains = keptDomains;
+        }
     }
     if (settings.showBranding !== undefined) settings.showBranding = settings.showBranding !== false;
     const salesErr = cleanSalesSettings(settings, settings);
@@ -3424,6 +3479,7 @@ export default {
         if (new Date(event.scheduledTime || Date.now()).getUTCMinutes() === 7) {
             ctx.waitUntil(cleanupLeadFiles(env).catch(e => console.error('[Files cleanup]', e)));
             ctx.waitUntil(migrateBotModes(env).catch(e => console.error('[Migrate modes]', e)));
+            ctx.waitUntil(enforcePlanLimits(env).catch(e => console.error('[Plan limits]', e)));
             ctx.waitUntil(ensurePageViews(env).then(() => env.DB.prepare('DELETE FROM page_views WHERE ts < ?').bind(Date.now() - 400 * DAY_MS).run()).catch(e => console.error('[Pageview retention]', e)));
         }
     }
