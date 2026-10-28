@@ -1,4 +1,4 @@
-# Image 03 readability revision — LinkedIn and Facebook
+# Image 03 readability revision: LinkedIn and Facebook
 
 The original full amber background made the composition visually loud. Dark green emphasis had 3.98:1 contrast on amber; although sufficient for large text, the colour hierarchy and small supporting labels were difficult to scan at feed size. Workflow labels were 20px (LinkedIn), stage numbers 13px and trial notes 17–18px in the native exports.
 

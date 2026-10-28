@@ -2,7 +2,7 @@
 
 Proposed · not published
 
-## li-01-website — LinkedIn
+## li-01-website: LinkedIn
 
 Image: assets/li-01-website.png (1200 × 1200)
 
@@ -24,7 +24,7 @@ https://web.bytesfx.com/?utm_source=linkedin&utm_medium=organic_social&utm_campa
 
 **Paid URL:** https://web.bytesfx.com/?utm_source=linkedin&utm_medium=paid_social&utm_campaign=visits_enquiries_li_web_a&utm_content=li-01-website#contact
 
-## li-02-chatbot — LinkedIn
+## li-02-chatbot: LinkedIn
 
 Image: assets/li-02-chatbot.png (1200 × 1200)
 
@@ -46,7 +46,7 @@ https://web.bytesfx.com/onboarding/?utm_source=linkedin&utm_medium=organic_socia
 
 **Paid URL:** https://web.bytesfx.com/onboarding/?utm_source=linkedin&utm_medium=paid_social&utm_campaign=visits_enquiries_li_trial_a&utm_content=li-02-chatbot
 
-## li-03-followup — LinkedIn
+## li-03-followup: LinkedIn
 
 Image: assets/li-03-followup.png (1200 × 1200)
 
@@ -68,7 +68,7 @@ https://web.bytesfx.com/onboarding/?utm_source=linkedin&utm_medium=organic_socia
 
 **Paid URL:** https://web.bytesfx.com/onboarding/?utm_source=linkedin&utm_medium=paid_social&utm_campaign=visits_enquiries_li_followup_a&utm_content=li-03-followup
 
-## fb-01-website — Facebook
+## fb-01-website: Facebook
 
 Image: assets/fb-01-website.png (1080 × 1350)
 
@@ -88,7 +88,7 @@ Request your free consultation → https://web.bytesfx.com/?utm_source=facebook&
 
 **Paid URL:** https://web.bytesfx.com/?utm_source=facebook&utm_medium=paid_social&utm_campaign=visits_enquiries_fb_web_a&utm_content=fb-01-website#contact
 
-## fb-02-chatbot — Facebook
+## fb-02-chatbot: Facebook
 
 Image: assets/fb-02-chatbot.png (1080 × 1350)
 
@@ -110,7 +110,7 @@ Start here → https://web.bytesfx.com/onboarding/?utm_source=facebook&utm_mediu
 
 **Paid URL:** https://web.bytesfx.com/onboarding/?utm_source=facebook&utm_medium=paid_social&utm_campaign=visits_enquiries_fb_trial_a&utm_content=fb-02-chatbot
 
-## fb-03-followup — Facebook
+## fb-03-followup: Facebook
 
 Image: assets/fb-03-followup.png (1080 × 1350)
 
