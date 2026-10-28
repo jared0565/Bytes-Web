@@ -22,6 +22,6 @@ The review page uses local assets and no tracking. Clicking an external destinat
 ## In the repository
 
 This pack is committed under `output/campaign-2026-10/`, and the review screenshots under `output/playwright/`. The
-zip beside it (`output/BytesFX-campaign-review.zip`) holds the same files packed up, so it is not committed twice —
-rebuild it from this folder when it is needed. None of this is deployed: the website, the APIs and the publishing
+zip beside it (`output/BytesFX-campaign-review.zip`) holds the same files packed up, so it is not committed twice.
+Rebuild it from this folder when it is needed. None of this is deployed: the website, the APIs and the publishing
 accounts are untouched by it.

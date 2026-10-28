@@ -1,4 +1,4 @@
-# Review checks — 18 October 2026
+# Review checks: 18 October 2026
 
 Reviewed in a headed Microsoft Edge browser at http://127.0.0.1:8765/.
 

@@ -1,4 +1,4 @@
-# BytesFX — Turn visits into enquiries
+# BytesFX: Turn visits into enquiries
 
 Proposed campaign · 18 October 2026 · Not published
 
@@ -44,7 +44,7 @@ Suggested cadence: two posts per week per platform. Tuesday/Thursday for LinkedI
 
 Reply to substantive questions with a helpful answer and the relevant destination. Do not redirect every commenter into a private sales message. Obtain permission before quoting any customer conversation or result.
 
-### Supporting post 1 — website clarity
+### Supporting post 1: website clarity
 
 **LinkedIn:**
 
@@ -66,7 +66,7 @@ If the next step feels unclear, that is a useful place to start. BytesFX builds 
 Thinking about a refresh? Request a free consultation:
 https://web.bytesfx.com/?utm_source=facebook&utm_medium=organic_social&utm_campaign=visits_enquiries_fb_clarity#contact
 
-### Supporting post 2 — trial FAQ
+### Supporting post 2: trial FAQ
 
 **LinkedIn:**
 
@@ -88,7 +88,7 @@ BytesFX offers 7 days of AI replies and AI email follow-ups. No card needed. Tri
 See whether it fits:
 https://web.bytesfx.com/onboarding/?utm_source=facebook&utm_medium=organic_social&utm_campaign=visits_enquiries_fb_faq
 
-### Supporting post 3 — proposal review
+### Supporting post 3: proposal review
 
 **LinkedIn:**
 
@@ -110,7 +110,7 @@ BytesFX helps collect the details, follow up by email and draft a proposal. You 
 Try the workflow free for 7 days. No card needed. Trial: 1 website, 10 leads/day, 50 total contacts, badge included. After trial, Free uses scripted chat. Paid AI plans from US$29/month; upgrades arranged with our team.
 https://web.bytesfx.com/onboarding/?utm_source=facebook&utm_medium=organic_social&utm_campaign=visits_enquiries_fb_review
 
-### Supporting post 4 — consultation fit
+### Supporting post 4: consultation fit
 
 **LinkedIn:**
 
