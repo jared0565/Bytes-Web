@@ -338,14 +338,26 @@ Each entry says where the code is. Start there before changing anything.
 
 - **Homepage sections and the site's chat box.** Markup is in `index.html`. `public/widget.js` is a separate embeddable
   widget for client websites. A change to one usually belongs in both.
-- **The AI chatbot page** (`/ai-chatbot/`, source `bytes-website/ai-chatbot/index.html`) sells the chatbot on its own: hero
-  with a demo chat, what it does, three steps, the plans, questions, and the same live site chat as the homepage.
+- **The AI chatbot page** (`/ai-chatbot/`, source `bytes-website/ai-chatbot/index.html`) sells the chatbot on its own.
+  It keeps the homepage's colours, type and buttons but has its own composition (styles in `src/chatbot.css`), so it
+  doesn't read as the homepage: the opening holds the chat itself, then what it does (pieces of the real screens with
+  example data), three steps with the install line, the plans, questions and a closing call to action. Section heads
+  are left-aligned with no label above them.
+  - The chat in the opening is the Bytes bot built into the page, with no floating button. `src/chatbot-page.js`
+    passes `initChatbot` its own `sessionKey` (a chat begun on the homepage doesn't carry on there, and the
+    reverse) and its own quick questions about the chatbot, ending in a "Start my free trial" link to
+    `/onboarding/`. The bot isn't told which page a message came from, so each question stands on its own.
   - Plain HTML, so search engines and AI tools read it without running a script. `vite.config.js` writes the plan
     cards (`src/plans-html.js`), the questions and the structured data (`src/chatbot-content.js`) and the `{{...}}`
-    values into it from `plans.json` on every build. `scripts/check-chatbot-page.mjs` runs after `vite build` and
-    fails the build when a plan, price or question differs, a placeholder is left, or sitemap/robots are missing.
+    values (trial days, currency, the lowest paid price) into it from `plans.json` on every build.
+    `scripts/check-chatbot-page.mjs` runs after `vite build` and fails the build when a plan, price or question
+    differs, a placeholder is left, sitemap/robots are missing, the opening loses the chat or its facts drift from
+    `plans.json`, a label comes back above a heading, the install line differs from the dashboard's
+    (`config-embed` in `public/dashboard/main.js`), the homepage's chatbot heading repeats the page's, or the faint
+    text colour (`--text-faint` in `home.css`, shared with the homepage) drops under 4.5:1 on any surface.
   - A paid plan's button goes to the homepage contact form as `/?plan=<id>#contact` (with `&client=<id>` when the
-    visitor came from the dashboard), until checkout is online. Free starts the trial at `/onboarding/`.
+    visitor came from the dashboard), until checkout is online. Free says "Start free" and notes the AI trial it
+    includes; it goes to `/onboarding/`.
   - Old links to the homepage pricing (`?upgrade=<plan>` or `#pricing`, including badge links saved on clients' bots)
     are sent to `/ai-chatbot/` by `src/main.js`, keeping the plan, client and referral details. New badge links,
     the dashboard's upgrade buttons, onboarding and the Bytes bot's pricing link point at the page directly.

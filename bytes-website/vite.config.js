@@ -22,6 +22,7 @@ function chatbotPage() {
           trialDays: data.trial.days,
           trialSummary: data.trial.summary,
           currency: data.currency,
+          fromPrice: Math.min(...data.plans.filter((p) => p.price > 0).map((p) => p.price)), // the lowest paid plan
         };
         return html
           .replace(/\{\{(\w+)\}\}/g, (m, k) => (k in values ? String(values[k]) : m))

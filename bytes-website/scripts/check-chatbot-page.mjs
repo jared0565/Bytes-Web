@@ -65,6 +65,55 @@ check(!JSON.stringify(nodes).includes('Rating'), 'ratings in the structured data
 const copy = text(html.replace(/<script[\s\S]*?<\/script>/g, '').replace(/<style[\s\S]*?<\/style>/g, ''));
 check(!copy.includes('—'), 'an em dash in the page copy');
 
+// The page opens with the chatbot itself, built into the page: not the homepage's scripted console beside a
+// floating chat, which made the two pages look alike
+const hero = html.match(/<section id="home"[\s\S]*?<\/section>/)?.[0] || '';
+check(hero.includes('id="chatbot-window"') && hero.includes('id="chatInput"'), 'the opening section does not hold the chat itself');
+check(!html.includes('id="btnOpenChat"') && !html.includes('chatbot-launcher'), 'the page still has the floating chat button');
+check(!hero.includes('hx-console') && !/>\s*Live\s*</i.test(hero), 'the opening section still has the scripted "Live" demo');
+check(!html.includes('hx-kicker') && !html.includes('hx-eyebrow'), 'a small label above a heading: let the heading speak');
+const minPaid = Math.min(...plans.plans.filter(p => p.price > 0).map(p => p.price));
+const heroText = text(hero);
+check(heroText.includes(`Plans from ${plans.currency}${minPaid} a month`) && heroText.includes(`${plans.trial.days}-day AI trial`),
+    `the opening's facts do not say "Plans from ${plans.currency}${minPaid} a month" and "${plans.trial.days}-day AI trial" (plans.json)`);
+// Its quick questions end in a way to sign up, and its conversation is its own (not the homepage chat's)
+const pageJs = readFileSync(join(site, 'src', 'chatbot-page.js'), 'utf8');
+check(/label: 'Start my free trial', href: '\/onboarding\/'/.test(pageJs), 'the chat on the page offers no "Start my free trial" choice to /onboarding/');
+check(/sessionKey: '(?!bytesfx_chat_default')[\w-]+'/.test(pageJs), 'the chat on the page shares the homepage conversation');
+
+// The Free card starts the free plan; the trial comes with it
+const freeCard = html.match(/<article[^>]*data-plan="free"[\s\S]*?<\/article>/)?.[0] || '';
+check(/>Start free</.test(freeCard) && text(freeCard).includes(`Includes a ${plans.trial.days}-day AI trial`), 'the Free card does not say "Start free" and the trial it includes');
+
+// The install line shown is the one the dashboard gives a client, with a stand-in for the ID
+const dashJs = readFileSync(join(site, 'public', 'dashboard', 'main.js'), 'utf8');
+const embed = dashJs.match(/config-embed'\)\.textContent = safeId \? `([^`]*)` \+ 'script>'/)?.[1];
+const shownCode = (html.match(/<code class="cb-install">([\s\S]*?)<\/code>/)?.[1] || '')
+    .replace(/\r\n/g, '\n').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+check(embed && shownCode === `${embed.replace('${safeId}', 'your-client-id').replace(/\\n/g, '\n')}script>`,
+    `the install line shown (${JSON.stringify(shownCode)}) is not the dashboard's (public/dashboard/main.js, config-embed)`);
+
+// The homepage's chatbot section has its own heading, so the two pages don't share one
+const homeJs = readFileSync(join(site, 'src', 'main.js'), 'utf8');
+const norm = (s) => text(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const teaserH2 = norm(homeJs.match(/<section id="chatbot"[\s\S]*?<h2>([\s\S]*?)<\/h2>/)?.[1] || '');
+const pageH1 = norm(html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)?.[1] || '');
+check(teaserH2 && pageH1 && !teaserH2.includes(pageH1.split(' ').slice(0, 4).join(' ')), `the homepage's chatbot heading ("${teaserH2}") repeats this page's ("${pageH1}")`);
+
+// Faint text stays readable (4.5:1) on every surface it sits on. The legal pages' stylesheet (public/site.css)
+// carries its own copy of the colour, which must stay the same.
+const homeCss = readFileSync(join(site, 'src', 'home.css'), 'utf8');
+const token = (n) => homeCss.match(new RegExp(`--${n}:\\s*(#[0-9a-f]{6})`, 'i'))?.[1];
+const legalFaint = readFileSync(join(site, 'public', 'site.css'), 'utf8').match(/--text-faint:\s*(#[0-9a-f]{6})/i)?.[1];
+check(legalFaint && legalFaint.toLowerCase() === (token('text-faint') || '').toLowerCase(), `the legal pages' faint text (${legalFaint}, public/site.css) differs from the site's (${token('text-faint')}, src/home.css)`);
+const lum = (h) => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255).map(v => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)).reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
+const faint = token('text-faint');
+// The four surfaces, and the Recommended plan card's amber tint over ink-2 (measured in the browser)
+for (const [name, bg] of [['ink-0', token('ink-0')], ['ink-1', token('ink-1')], ['ink-2', token('ink-2')], ['ink-3', token('ink-3')], ['the Recommended card', '#24302b']]) {
+    check(faint && bg && ratio(faint, bg) >= 4.5, `faint text ${faint} on ${name} (${bg}) is ${faint && bg ? ratio(faint, bg).toFixed(2) : '?'}:1; it needs 4.5:1`);
+}
+
 // Search basics
 const sitemap = read('sitemap.xml') || '';
 check(sitemap.includes('<loc>https://web.bytesfx.com/ai-chatbot/</loc>') && sitemap.includes('<loc>https://web.bytesfx.com/</loc>'), 'sitemap.xml does not list the homepage and the AI chatbot page');

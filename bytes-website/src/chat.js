@@ -4,60 +4,22 @@ import PLAN_DATA from '../public/plans.json';
 // The messages shown in this tab
 const chatHistory = [];
 
-export function initChatbot() {
+// The homepage's chat floats over the page and opens from a button. The AI chatbot page builds the chat into
+// the page instead (no button), and passes:
+//   sessionKey  its own conversation, so a chat begun on the homepage doesn't carry on in it (and the reverse)
+//   choices     its own quick questions, shown when a chat opens in place of the bot's services:
+//               { label } sends the label as the visitor's message; { label, href } is a link
+export function initChatbot({ sessionKey = 'bytesfx_chat_default', choices: pageChoices = null } = {}) {
   const btnOpen = document.getElementById('btnOpenChat');
   const btnClose = document.getElementById('btnCloseChat');
   const chatWindow = document.getElementById('chatbot-window');
   const chatForm = document.getElementById('chatForm');
   const chatInput = document.getElementById('chatInput');
 
-  if (!btnOpen || !chatWindow) return;
-
-  // A phone or tablet brings up its keyboard when the text box is selected, and the keyboard covers half the
-  // screen. There the text box is selected only when the visitor asks for it: by tapping it or "Other / not sure",
-  // or by sending a message they typed. With a mouse it is selected as soon as the chat opens.
-  const keyboardOnScreen = () => window.matchMedia('(pointer: coarse)').matches;
-
-  // On a phone the chat fills the screen, but the keyboard covers the lower part of it and the page is not made
-  // shorter for it. The chat is sized to the part still in view (the phone rule in style.css reads these two
-  // values), so the header stays at the top and the text box sits on the keyboard.
-  const view = window.visualViewport;
-  let viewHeight = 0;
-  const fitToView = () => {
-    if (!view) return;
-    // Closed, or zoomed by hand (which also changes the part in view): back to the whole screen
-    if (chatWindow.classList.contains('hidden') || Math.abs(view.scale - 1) > 0.01) {
-      chatWindow.style.removeProperty('--chat-top');
-      chatWindow.style.removeProperty('--chat-height');
-      viewHeight = 0;
-      return;
-    }
-    chatWindow.style.setProperty('--chat-top', `${view.offsetTop}px`);
-    chatWindow.style.setProperty('--chat-height', `${view.height}px`);
-    // The keyboard came up: keep what the visitor is answering in view, which is the question above the choices
-    // or the last message
-    const messages = document.getElementById('chat-messages');
-    if (messages && view.height < viewHeight) messages.scrollTop = messages.querySelector('.chat-choices') ? 0 : messages.scrollHeight;
-    viewHeight = view.height;
-  };
-  view?.addEventListener('resize', fitToView);
-  view?.addEventListener('scroll', fitToView);
-
-  // Open chatbot
-  btnOpen.addEventListener('click', () => {
-    chatWindow.classList.remove('hidden');
-    btnOpen.classList.add('hidden');
-    if (!keyboardOnScreen()) chatInput?.focus();
-    fitToView();
-  });
-
-  // Close chatbot. The text box is let go, so the keyboard goes with the chat.
-  btnClose?.addEventListener('click', () => {
-    chatWindow.classList.add('hidden');
-    btnOpen.classList.remove('hidden');
-    chatInput?.blur();
-    fitToView();
-  });
+  if (!chatWindow) return;
+  storageKey = sessionKey;
+  try { chatSessionId = sessionStorage.getItem(storageKey); } catch (_) { chatSessionId = null; /* storage blocked */ }
+  if (btnOpen) initFloating({ btnOpen, btnClose, chatWindow, chatInput });
 
   // One message has a character limit (plans.json "chat"; the server enforces it too).
   // The count appears for the last fifth, so a pasted text that was cut short is not a surprise.
@@ -81,30 +43,49 @@ export function initChatbot() {
   let choices = null;
   let started = false;
   const hideChoices = () => { choices?.remove(); choices = null; };
-  const showChoices = (services) => {
-    if (started || chatSessionId || !chatMessages || !chatInput || !services.length) return;
-    const greeting = chatMessages.querySelector('.bot-message p');
-    // One line, so the question and the three default services fit the window without scrolling
-    if (greeting) greeting.textContent = 'Hi! How can we help?';
+  const canOffer = () => !started && !chatSessionId && chatMessages && chatInput;
+  const newChoices = (label) => {
     choices = document.createElement('div');
     choices.className = 'chat-choices';
     choices.setAttribute('role', 'group');
-    choices.setAttribute('aria-label', 'What you need');
-    const addChoice = (label, onTap, extra) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = extra ? `chat-choice ${extra}` : 'chat-choice';
-      btn.textContent = label; // text only: a service name can never become HTML
-      btn.addEventListener('click', onTap);
-      choices.appendChild(btn);
-    };
+    choices.setAttribute('aria-label', label);
+  };
+  const addChoice = (label, onTap, extra) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = extra ? `chat-choice ${extra}` : 'chat-choice';
+    btn.textContent = label; // text only: a service name can never become HTML
+    btn.addEventListener('click', onTap);
+    choices.appendChild(btn);
+  };
+  const showChoices = (services) => {
+    if (!canOffer() || !services.length) return;
+    const greeting = chatMessages.querySelector('.bot-message p');
+    // One line, so the question and the three default services fit the window without scrolling
+    if (greeting) greeting.textContent = 'Hi! How can we help?';
+    newChoices('What you need');
     services.forEach((service) => addChoice(service, () => send(service)));
     // Named as the contact form's last option, so the chat's choices match the form's
     addChoice('Other / not sure', () => chatInput.focus(), 'chat-choice-other');
     chatMessages.appendChild(choices);
   };
+  // A page's own questions. The greeting stays the page's, and the text box is always in view for anything else.
+  const showPageChoices = () => {
+    if (!canOffer()) return;
+    newChoices('Questions to ask');
+    pageChoices.forEach((c) => {
+      if (!c.href) { addChoice(c.label, () => send(c.label)); return; }
+      const a = document.createElement('a');
+      a.className = 'chat-choice chat-choice-go';
+      a.href = c.href;
+      a.textContent = c.label;
+      choices.appendChild(a);
+    });
+    chatMessages.appendChild(choices);
+  };
+  if (pageChoices?.length) showPageChoices();
   // The list comes from the bot's settings. If it can't be read, the chat opens as before, with no buttons.
-  if (!chatSessionId) {
+  else if (!chatSessionId) {
     fetch(`${CHAT_API_URL}/public/config?clientId=default`)
       .then((res) => (res.ok ? res.json() : null))
       .then((cfg) => showChoices((Array.isArray(cfg?.services) ? cfg.services : []).filter((s) => typeof s === 'string' && s.trim()).slice(0, 8)))
@@ -147,6 +128,55 @@ export function initChatbot() {
   });
 }
 
+// A phone or tablet brings up its keyboard when the text box is selected, and the keyboard covers half the
+// screen. There the text box is selected only when the visitor asks for it: by tapping it or "Other / not sure",
+// or by sending a message they typed. With a mouse it is selected as soon as the chat opens.
+const keyboardOnScreen = () => window.matchMedia('(pointer: coarse)').matches;
+
+// The floating chat: a button opens it and its × closes it
+function initFloating({ btnOpen, btnClose, chatWindow, chatInput }) {
+  // On a phone the chat fills the screen, but the keyboard covers the lower part of it and the page is not made
+  // shorter for it. The chat is sized to the part still in view (the phone rule in style.css reads these two
+  // values), so the header stays at the top and the text box sits on the keyboard.
+  const view = window.visualViewport;
+  let viewHeight = 0;
+  const fitToView = () => {
+    if (!view) return;
+    // Closed, or zoomed by hand (which also changes the part in view): back to the whole screen
+    if (chatWindow.classList.contains('hidden') || Math.abs(view.scale - 1) > 0.01) {
+      chatWindow.style.removeProperty('--chat-top');
+      chatWindow.style.removeProperty('--chat-height');
+      viewHeight = 0;
+      return;
+    }
+    chatWindow.style.setProperty('--chat-top', `${view.offsetTop}px`);
+    chatWindow.style.setProperty('--chat-height', `${view.height}px`);
+    // The keyboard came up: keep what the visitor is answering in view, which is the question above the choices
+    // or the last message
+    const messages = document.getElementById('chat-messages');
+    if (messages && view.height < viewHeight) messages.scrollTop = messages.querySelector('.chat-choices') ? 0 : messages.scrollHeight;
+    viewHeight = view.height;
+  };
+  view?.addEventListener('resize', fitToView);
+  view?.addEventListener('scroll', fitToView);
+
+  // Open chatbot
+  btnOpen.addEventListener('click', () => {
+    chatWindow.classList.remove('hidden');
+    btnOpen.classList.add('hidden');
+    if (!keyboardOnScreen()) chatInput?.focus();
+    fitToView();
+  });
+
+  // Close chatbot. The text box is let go, so the keyboard goes with the chat.
+  btnClose?.addEventListener('click', () => {
+    chatWindow.classList.add('hidden');
+    btnOpen.classList.remove('hidden');
+    chatInput?.blur();
+    fitToView();
+  });
+}
+
 function addChatMessage(text, sender) {
   const chatMessages = document.getElementById('chat-messages');
   if (!chatMessages) return;
@@ -164,7 +194,8 @@ function addChatMessage(text, sender) {
     a.className = 'chat-link';
     a.textContent = part.replace(/^https:\/\//, '');
     if (a.origin === location.origin && a.pathname === location.pathname && a.hash) {
-      // A place on this page (the contact form): close the chat and go there
+      // A place on this page (the contact form, the plans): close a floating chat and go there. A chat built
+      // into the page has no × and stays where it is.
       a.addEventListener('click', (e) => {
         e.preventDefault();
         document.getElementById('btnCloseChat')?.click();
@@ -205,9 +236,9 @@ function removeTypingIndicator() {
 const CHAT_API_URL = 'https://ai.bytesfx.com';
 const LINKEDIN_URL = 'https://www.linkedin.com/in/fbmacagba/';
 
-// The conversation is kept on the server; this tab only holds its opaque id
+// The conversation is kept on the server; this tab only holds its opaque id, under the page's key (initChatbot)
+let storageKey = 'bytesfx_chat_default';
 let chatSessionId = null;
-try { chatSessionId = sessionStorage.getItem('bytesfx_chat_default'); } catch (_) { /* storage blocked */ }
 
 // Ask the AI backend, falling back to canned replies if it's unreachable
 async function generateChatResponse(userMessage) {
@@ -220,7 +251,7 @@ async function generateChatResponse(userMessage) {
     const data = await res.json();
     if (data.sessionId && data.sessionId !== chatSessionId) {
       chatSessionId = data.sessionId;
-      try { sessionStorage.setItem('bytesfx_chat_default', chatSessionId); } catch (_) { /* storage blocked */ }
+      try { sessionStorage.setItem(storageKey, chatSessionId); } catch (_) { /* storage blocked */ }
     }
     if (res.ok && data.response) {
       return data.response;
