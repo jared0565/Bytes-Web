@@ -347,6 +347,10 @@ Each entry says where the code is. Start there before changing anything.
   The chat's buttons use the contact form's names and order (Website development, Website Upgrading, Application
   development, Chatbot solutions, then "Other / not sure"), so a lead records the same service from either; a check in
   the chatbot-api tests compares the two.
+- **No claim without evidence.** The homepage proof row and the legal pages' strip say only what is true today: a
+  reply within 24 hours, a chatbot that captures leads 24/7, and free to start with no card. The old 150+ projects,
+  98% satisfaction and 50% ROI figures were removed in November 2026 because no records backed them, and so were
+  the offline chat replies' delivery times and portfolio claims. Add a figure only when records back it.
 
 **Cookie banner** (`public/consent.js`, loaded first in `<head>` by the homepage, the four legal pages and onboarding):
 
