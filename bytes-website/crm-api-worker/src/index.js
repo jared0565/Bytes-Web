@@ -903,7 +903,9 @@ app.get('/api/auth/exchange', async (c) => {
     let data;
     try { data = JSON.parse(raw); } catch { return c.json({ error: 'Token not found or already used' }, 404); }
     if (data.nonce && !(await safeEqual(cleanNonce(c.req.query('nonce')), data.nonce))) return c.json({ error: 'This sign-in link was started in another browser. Please sign in again.' }, 401);
-    return c.json({ name: data.name, email: data.email, provider: data.provider });
+    // With the ad tag the visitor arrived with, when the server kept one through the sign-in
+    return c.json({ name: data.name, email: data.email, provider: data.provider,
+        ...(data.source && { source: data.source }), ...(data.campaign && { campaign: data.campaign }) });
 });
 
 // Pre-OAuth device trust check — called via fetch before the OAuth redirect.
@@ -960,6 +962,8 @@ app.get('/api/auth/:provider', async (c) => {
     const nonce  = cleanNonce(c.req.query('n'));
     if (!nonce) return c.redirect(`${dest === 'dashboard' ? (c.env.FRONTEND_DASHBOARD_URL || '/dashboard/') : (c.env.FRONTEND_ONBOARDING_URL || '/onboarding/')}?social_error=invalid_state`);
     const state  = await generateOAuthState(c.env.OAUTH_STATE_SECRET, dest, bypass, nonce);
+    // A sign-up's ad tag waits here while the visitor signs in (keepSigninTag)
+    if (dest === 'onboarding') await keepSigninTag(c, nonce);
 
     let authUrl = '';
     if (provider === 'google') {
@@ -1083,7 +1087,8 @@ app.get('/api/auth/:provider/callback', async (c) => {
             name: userData.name || '',
             email: userData.email || '',
             provider,
-            nonce
+            nonce,
+            ...(await takeSigninTag(c, nonce))
         }), { expirationTtl: 300 });
 
         return c.redirect(`${onboardUrl}?social_token=${exchangeToken}`);
@@ -1704,6 +1709,31 @@ async function saveSignupSource(c, clientId, body) {
         await ensureSignupColumns(c.env);
         await c.env.DB.prepare('UPDATE crm_settings SET signup_source = ?, signup_campaign = ? WHERE client_id = ?').bind(source, campaign, clientId).run();
     } catch (err) { signupColumnsReady = false; console.error('[Signup source]', err); }
+}
+
+// A Google, Facebook or LinkedIn sign-in leaves the onboarding page, and the page comes back without the ad tag
+// in its address. The tag is kept here under the sign-in's one-time nonce, for as long as the sign-in is valid,
+// and handed back with the name and email. The provider never sees it. Never kept for Do Not Track or Global
+// Privacy Control, and never in the way of a sign-in.
+const signinTagKey = (nonce) => `signin_tag:${nonce}`;
+async function keepSigninTag(c, nonce) {
+    if (!nonce || asksNotToTrack(c)) return;
+    const source = tagText(c.req.query('source'), 60), campaign = tagText(c.req.query('campaign'), 80);
+    if (!source && !campaign) return;
+    try {
+        await c.env.OAUTH_TOKENS.put(signinTagKey(nonce), JSON.stringify({ source, campaign }), { expirationTtl: 600 });
+    } catch (err) { console.error('[Signin tag]', err); }
+}
+async function takeSigninTag(c, nonce) {
+    if (!nonce) return {};
+    try {
+        const raw = await c.env.OAUTH_TOKENS.get(signinTagKey(nonce));
+        if (!raw) return {};
+        await c.env.OAUTH_TOKENS.delete(signinTagKey(nonce)); // used once
+        const t = JSON.parse(raw);
+        const source = tagText(t.source, 60), campaign = tagText(t.campaign, 80);
+        return { ...(source && { source }), ...(campaign && { campaign }) };
+    } catch (err) { console.error('[Signin tag]', err); return {}; }
 }
 // A period's sign-ups by source and campaign, beside the visitors each source brought (first pages).
 // A sign-up carries only an ad tag, so "Not tagged" gets no rate: its visits are split between Direct
