@@ -688,6 +688,8 @@ the login setup page and authenticator apps. The old name was replaced on 11 Oct
   - crm-api keeps it in `OAUTH_TOKENS` as `signin_tag:<nonce>` for 10 minutes, the life of the sign-in's state
     (`keepSigninTag`). Not for `DNT: 1` / `Sec-GPC: 1`, an untagged sign-in, or a dashboard login. The redirect to the
     provider carries no tag.
+  - The start needs no sign-in, so one network address keeps at most 5 tags an hour (`overIpLimit`, counter
+    `rl:signin-tag:<ip>`, separate from sign-ups' `rl:register:`). Past that the sign-in goes on without the tag.
   - The callback takes it (and deletes it) into the `exchange:` record, and `/api/auth/exchange` returns it with the
     name and email (`takeSigninTag`). The page adds it to its tag unless the browser opted out, and register saves it
     as above.
@@ -740,7 +742,7 @@ Requires **Node 22.5 or newer** (the tests use `node:sqlite`). Run `npm install`
 
 | Check | Command (from the folder shown) | What it proves |
 |---|---|---|
-| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 19 suites (355 checks on 1 Nov 2026) |
+| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 19 suites (361 checks on 1 Nov 2026) |
 | One or a few crm-api suites | `node test/run.mjs flow plans` | Only the named suites |
 | chatbot-api tests | `chatbot-api`: `node test/run.mjs` | 3 suites: `chat` (whole requests to the chat endpoint), `gate` (website gate), `scripted` (143 checks on 1 Nov 2026) |
 | Typecheck | `chatbot-api`: `npx tsc --noEmit -p .` | TypeScript types |

@@ -1721,6 +1721,9 @@ async function keepSigninTag(c, nonce) {
     const source = tagText(c.req.query('source'), 60), campaign = tagText(c.req.query('campaign'), 80);
     if (!source && !campaign) return;
     try {
+        // Anyone can call this, so one network address keeps at most 5 tags an hour, like sign-ups (its own
+        // counter, so it never uses up the address's sign-ups). Past that the sign-in goes on without the tag.
+        if (await overIpLimit(c, 'signin-tag', 5, 3600)) return;
         await c.env.OAUTH_TOKENS.put(signinTagKey(nonce), JSON.stringify({ source, campaign }), { expirationTtl: 600 });
     } catch (err) { console.error('[Signin tag]', err); }
 }

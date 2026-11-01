@@ -28,10 +28,13 @@ const get = (path, headers = {}) => mod.__app.fetch(new Request('http://x' + pat
 let seq = 0;
 const nonce = () => `n${String(++seq).padStart(3, '0')}${'a'.repeat(28)}`;
 const keptTags = () => [...OT.mp.keys()].filter(k => k.startsWith('signin_tag:'));
+// Each sign-in from its own network address unless a test names one (an address may keep 5 tags an hour)
+let ipSeq = 0;
+const nextIp = () => `10.1.0.${++ipSeq}`;
 // One sign-in, as the browser makes it: onboarding starts it, Google returns the state it was given to the
 // callback, and onboarding exchanges the token. Returns where each step went and what the exchange gave.
 async function signIn(n, query = '', headers = {}) {
-  const start = await get(`/api/auth/google?n=${n}${query}`, headers);
+  const start = await get(`/api/auth/google?n=${n}${query}`, { 'CF-Connecting-IP': nextIp(), ...headers });
   const toProvider = start.headers.get('location') || '';
   const kept = OT.mp.get(`signin_tag:${n}`) ?? null;
   const state = toProvider.startsWith('https://accounts.google.com') ? new URL(toProvider).searchParams.get('state') : null;
@@ -77,13 +80,13 @@ ok('a tag of only spaces or control characters keeps nothing', !r.kept && !('sou
 
 // A tag belongs to its own sign-in
 const a = nonce();
-await get(`/api/auth/google?n=${a}&source=fb&campaign=spring-sale`);
+await get(`/api/auth/google?n=${a}&source=fb&campaign=spring-sale`, { 'CF-Connecting-IP': nextIp() });
 r = await signIn(nonce());
 ok("another sign-in never gets someone else's tag", !('source' in r.data) && OT.mp.has(`signin_tag:${a}`), JSON.stringify(r.data));
 
 // A dashboard sign-in is not a sign-up: nothing is kept
 before = keptTags().length;
-const dash = await get(`/api/auth/google?n=${nonce()}&redirect=dashboard&source=fb&campaign=spring-sale`);
+const dash = await get(`/api/auth/google?n=${nonce()}&redirect=dashboard&source=fb&campaign=spring-sale`, { 'CF-Connecting-IP': nextIp() });
 ok('a dashboard sign-in keeps nothing', (dash.headers.get('location') || '').startsWith('https://accounts.google.com') && keptTags().length === before, keptTags().join(','));
 
 // The store failing never stops a sign-in
@@ -95,3 +98,21 @@ failTagGet = true;
 r = await signIn(nonce(), '&source=fb&campaign=spring-sale');
 ok('if the kept tag cannot be read, the sign-in still comes back with the name and email', /social_token=/.test(r.toOnboarding || '') && r.exStatus === 200 && r.data?.email === 'ferdy@example.com' && !('source' in r.data), `${r.toOnboarding} ${JSON.stringify(r.data)}`);
 failTagGet = false;
+
+// One network address keeps at most 5 tags an hour, like sign-ups; past that only the tag is dropped
+const busy = '10.9.9.9';
+const fromBusy = { 'CF-Connecting-IP': busy };
+const untaggedFirst = await signIn(nonce(), '', fromBusy);
+await signIn(nonce(), '&source=fb&campaign=spring-sale', { ...fromBusy, 'Sec-GPC': '1' });
+await get(`/api/auth/google?n=${nonce()}&redirect=dashboard&source=fb&campaign=spring-sale`, fromBusy);
+ok('untagged, opted-out and dashboard sign-ins do not count towards the limit', !OT.mp.has(`rl:signin-tag:${busy}`) && untaggedFirst.exStatus === 200, OT.mp.get(`rl:signin-tag:${busy}`));
+let keptFromBusy = 0;
+for (let i = 0; i < 5; i++) { const x = await signIn(nonce(), '&source=fb&campaign=spring-sale', fromBusy); if (x.data?.source === 'fb') keptFromBusy++; }
+ok('5 tagged sign-ins from one address in an hour each keep their tag', keptFromBusy === 5, keptFromBusy);
+before = keptTags().length;
+r = await signIn(nonce(), '&source=fb&campaign=spring-sale', fromBusy);
+ok('the 6th from that address keeps no tag', keptTags().length === before && !r.kept && !('source' in (r.data || {})), `${r.kept} ${JSON.stringify(r.data)}`);
+ok('  but its sign-in still goes to Google and comes back', r.toProvider.startsWith('https://accounts.google.com') && /social_token=/.test(r.toOnboarding || '') && r.exStatus === 200 && r.data?.email === 'ferdy@example.com', r.toOnboarding);
+r = await signIn(nonce(), '&source=fb&campaign=spring-sale');
+ok('another address still keeps its tag', r.data?.source === 'fb', JSON.stringify(r.data));
+ok("the limit has its own counter and leaves the address's sign-ups alone", OT.mp.get(`rl:signin-tag:${busy}`) === '5' && !OT.mp.has(`rl:register:${busy}`), `${OT.mp.get(`rl:signin-tag:${busy}`)} ${OT.mp.get(`rl:register:${busy}`)}`);
