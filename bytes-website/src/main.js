@@ -661,7 +661,7 @@ function renderHomePage() {
         <div class="hx-hero-copy">
           <p class="hx-eyebrow reveal" style="--d:0">
             <span class="hx-pulse" aria-hidden="true"></span>
-            London studio · Websites, apps &amp; AI chatbots
+            Websites, upgrades, apps &amp; AI&nbsp;chatbots
           </p>
           <h1 class="hx-title reveal" style="--d:1">
             Websites that turn <em>visitors</em> into <span class="hx-underline">customers</span>.
