@@ -6,7 +6,7 @@ them. Run `npm install` first in each folder. Node 22.5 or newer is required.
 
 Each block starts from the repo root.
 
-**crm-api** (16 suites, 269 checks on 27 Oct 2026):
+**crm-api** (17 suites, 313 checks on 1 Nov 2026):
 
 ```
 cd bytes-website/crm-api-worker
@@ -15,7 +15,7 @@ node test/run.mjs flow plans      # or only the suites you name
 npx wrangler deploy --dry-run --config wrangler.toml   # bundle check; deploys nothing
 ```
 
-**chatbot-api** (3 suites, `chat`, `gate` and `scripted`, 135 checks on 17 Oct 2026). Its runner always runs every suite:
+**chatbot-api** (3 suites, `chat`, `gate` and `scripted`, 141 checks on 1 Nov 2026). Its runner always runs every suite:
 
 ```
 cd chatbot-api

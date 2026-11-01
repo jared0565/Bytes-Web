@@ -55,7 +55,7 @@ bytes-website/
     src/auth.js                OAuth providers (Google, Facebook, LinkedIn)
     migrations/                Early D1 schema (later tables are created lazily, see §5)
     data-fixes/                One-off SQL for the live database, run by hand (see §7, Brand name)
-    test/                      node test/run.mjs (16 suites, ~269 checks)
+    test/                      node test/run.mjs (17 suites, 313 checks on 1 Nov 2026)
 research/                      Notes
 ```
 
@@ -423,18 +423,30 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
    with no answer after 3 days, the proposal is drafted with `[blanks]`.
 4. **Proposal:** AI-drafted for every lead who replies, and **never sent automatically**.
    - The owner edits it in the drawer; Send is blocked while `[blanks]` remain.
-   - Once sent: the lead moves to Opportunity, gets one nudge after 3 quiet days, and a "yes" reply is flagged.
+   - Once sent: the lead moves to Opportunity, gets up to three follow-ups if they stay quiet (days 3, 7 and 12), and
+     a "yes" reply is flagged.
 5. **Won/Lost** records an amount or reason. Analytics shows reply rate, win rate, revenue won and time to close.
 6. **Stop rules:** follow-ups stop on reply, Won/Lost or unsubscribe (link plus `List-Unsubscribe` header, on every
    automatic email after the questions email).
 
-- **Follow-ups that are not AI-written** (`generateRuleSequence`): three short built-in emails in the business's
-  name, mentioning the service the lead asked about. They are used when the campaign mode is not AI, and when the AI
-  write fails.
+- **Follow-ups that are not AI-written** (`generateRuleSequence`, copy in `crm-api-worker/src/frameworks.js`): three
+  short built-in emails in the business's name, mentioning the service the lead asked about, on days 1, 3 and 6. They
+  are used when the campaign mode is not AI, and when the AI write fails.
   - The Bytes site can store its own instead: a row in `email_templates` named "Standard Web Design Sequence" under
     client `default` or `agency_demo`. It is optional. A template under any other client is never used for Bytes.
   - The live database had no such row on 2026-10-11 (counted, not read), so Bytes leads get the built-in emails.
     `migrations/0001_init.sql` seeds one under `agency_demo`; why it is gone from the live database is not known.
+
+- **Framework campaigns** (1 Nov 2026, `crm-api-worker/src/frameworks.js`; details in the knowledge base, section 7):
+  - **Proof and offers** in the sales settings, saved by any role: work you can point to, how you work, what you commit
+    to, a free first step, and a reason to act now with a required end date. Code inserts them word for word; they never
+    go into an AI prompt or `/public/config`. An empty box skips its part.
+  - **Campaign:** email 1 the problem, email 2 before and after (P.S. first proof item), email 3 how we'd do it
+    (P.S. free first step). Days 1, 3 and 6.
+  - **Proposal:** a "Why this works for you" section, then "How we work", "Work you can see" and "What you can count
+    on" before "Next step" when saved.
+  - **After a sent proposal:** day 3 did you receive it (plus proof), day 7 the reason to act now (only while it runs),
+    day 12 the last email (plus commitments). Handled before the cron's `replied_at` check.
 
 - **Owner alerts** go to the alerts email (Settings → Sales follow-up).
 - **Models:** drafting and reading models are admin-set; default GPT-6 Luna, falling back to Gemini 2.5 Flash.
@@ -468,7 +480,7 @@ https address in crm-api's `ALLOWED_ORIGINS`. Its reply is the one crm-api reply
 **Crons** (crm-api, every minute):
 - Verification emails
 - Drip sequences
-- Sales tasks (reminders, checkpoints, details timeouts, proposal nudges)
+- Sales tasks (reminders, checkpoints, details timeouts, the three follow-ups after a proposal)
 - Trial expiry (Free → scripted)
 
 Hourly at :07:
@@ -497,7 +509,7 @@ Hourly at :07:
 Requires **Node 22.5+** (uses `node:sqlite`). Run `npm install` first in each worker folder.
 
 ```
-cd bytes-website/crm-api-worker && node test/run.mjs        # all 16 suites, or: node test/run.mjs flow plans
+cd bytes-website/crm-api-worker && node test/run.mjs        # all 17 suites, or: node test/run.mjs flow plans
 cd chatbot-api && node test/run.mjs                         # website gate, prompts, scripted flow, chat endpoint
 cd chatbot-api && npx tsc --noEmit -p .                     # typecheck
 cd bytes-website/crm-api-worker && npx wrangler deploy --dry-run --config wrangler.toml   # bundle check, nothing is deployed
@@ -522,6 +534,7 @@ instead: without `--config wrangler.toml`, Wrangler (seen on 4.72) uses the `wra
 | `site` | Signup website, adoption email |
 | `brand` | The BytesFX name in emails and code, the one-off data fix |
 | `seq` | Follow-up emails that are not AI-written |
+| `frame` | Framework campaigns: Proof and offers, campaign emails, proposal blocks, follow-ups after a proposal |
 | `pv` | Page views from the website |
 | `greet` | How emails greet a lead, with and without a name |
 | `find` | The screen after confirming: names the questions email, promises it only when it is sent; that email has no unsubscribe link |

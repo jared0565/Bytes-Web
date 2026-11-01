@@ -88,7 +88,7 @@ bytes-website/                     The website and its static assets
     src/auth.js                    OAuth providers (Google, Facebook, LinkedIn)
     migrations/                    0001 to 0003; some tables and columns are created in code instead (section 5)
     data-fixes/                    One-off SQL for the live database, run by hand
-    test/                          node test/run.mjs: 16 suites
+    test/                          node test/run.mjs: 17 suites
     wrangler.toml                  Config for crm-api (use --config wrangler.toml with Wrangler)
 
 research/                          Notes and analysis; not used by the build
@@ -246,7 +246,7 @@ run.
 
 | Key | Namespace | Holds |
 |---|---|---|
-| `client:<id>` | `CLIENT_SETTINGS` | The bot's configuration: company name, mode, system prompt, model, effort, services, allowed domains, branding, widget settings, questions, booking link, alert email, drafting and reading models |
+| `client:<id>` | `CLIENT_SETTINGS` | The bot's configuration: company name, mode, system prompt, model, effort, services, allowed domains, branding, widget settings, questions, booking link, alert email, drafting and reading models, Proof and offers (`proof`, `howWeWork`, `commitments`, `freeStep`, `actNow`) |
 | `mail:<id>` | `OAUTH_TOKENS` | A client's email sender |
 | `email_client:<email>` | `OAUTH_TOKENS` | Maps an owner's email to a client ID |
 | `migr:bot-modes-v1` | `OAUTH_TOKENS` | One-time mode-migration flag |
@@ -510,8 +510,8 @@ filters, CSV export and a lead drawer.
 3. **Brief.** An AI reads the reply for need, goals, budget, timeline, references and links. Anything missing is asked for
    **once**. If there is no answer after 3 days, the proposal is drafted with `[blanks]` in it.
 4. **Proposal.** Drafted by AI for every lead who replies, and **never sent automatically**. The owner edits it in the
-   drawer. Send is blocked while any `[blanks]` remain. Once sent, the lead moves to Opportunity, gets one nudge after 3
-   quiet days, and a "yes" reply is flagged.
+   drawer. Send is blocked while any `[blanks]` remain. Once sent, the lead moves to Opportunity, gets up to three
+   follow-ups if they stay quiet (days 3, 7 and 12, see "Framework campaigns" below), and a "yes" reply is flagged.
 5. **Won or Lost** records an amount or a reason. Analytics shows reply rate, win rate, revenue won and time to close.
 6. **Stop rules.** Follow-ups stop on a reply, on Won or Lost, or on unsubscribe. Every automatic email after the
    questions email carries an unsubscribe link and a `List-Unsubscribe` header.
@@ -531,17 +531,40 @@ flowchart TD
   ask -- "no answer after 3 days" --> blanks["Proposal drafted with [blanks]"]
   draft --> owner["Owner edits and sends: never automatic<br/>Send is blocked while [blanks] remain"]
   blanks --> owner
-  owner --> opp["Lead moves to Opportunity<br/>one nudge after 3 quiet days"]
+  owner --> opp["Lead moves to Opportunity<br/>up to 3 follow-ups: days 3, 7 and 12"]
   opp --> outcome{"Outcome"}
   outcome -- Won --> won["Amount recorded"]
   outcome -- Lost --> lost["Reason recorded"]
 ```
 
-**Built-in follow-ups** (`generateRuleSequence`): three short emails in the business's name, mentioning the service the
-lead asked about. `autoSequence` uses them when the campaign mode is `rule`, when it is `ai` but the plan has no AI
-follow-ups, and when the AI write fails. Mode `manual` sends nothing automatically. The Bytes site can store its own
-version as a row in `email_templates` called "Standard Web Design Sequence" under client `default` or `agency_demo`. It
-is optional, and a template under any other client is never used for Bytes.
+**Built-in follow-ups** (`generateRuleSequence`, copy in `crm-api-worker/src/frameworks.js`): three short emails in the
+business's name, mentioning the service the lead asked about, on days 1, 3 and 6. `autoSequence` uses them when the
+campaign mode is `rule`, when it is `ai` but the plan has no AI follow-ups, and when the AI write fails. Mode `manual`
+sends nothing automatically. The Bytes site can store its own version as a row in `email_templates` called "Standard
+Web Design Sequence" under client `default` or `agency_demo`. It is optional, and a template under any other client is
+never used for Bytes. A stored template is sent as it is, with no P.S. lines.
+
+**Framework campaigns** (built 1 Nov 2026, `crm-api-worker/src/frameworks.js`). Every email that works towards a close
+follows a marketing framework, built only from what the lead told us and what the business saved as true. A lead gets at
+most 7 of these emails, fewer when they reply, are marked Won or Lost, or unsubscribe.
+
+- **Proof and offers** (sales settings, every role can save them): work you can point to (up to 5 lines, each with an
+  optional https link), how you work, what you commit to, a free first step, and a reason to act now, which must have
+  an end date. Code puts this text into emails word for word. It never goes into an AI prompt, and chatbot-api's
+  `/public/config` never returns it. An empty box means that part is skipped.
+- **Campaign** (the lead has not answered the questions email): email 1 names the problem, email 2 contrasts before
+  and after, email 3 explains how we'd do it and asks for one next step. Days 1, 3 and 6, for AI and built-in emails
+  alike. The first saved proof item is added as a P.S. under email 2, the free first step under email 3.
+- **Proposal:** a "Why this works for you" section after "What you need". The fallback template leaves it as a
+  `[WHY THIS FITS THEIR GOALS]` blank. When saved, "How we work", "Work you can see" (the first two proof items) and
+  "What you can count on" go in just before "Next step". They are added after the check that sends AI text holding a
+  link or a price to the fallback template, so a saved link or price never triggers it.
+- **Follow-ups after a sent proposal** (task kinds `proposal_nudge`, `proposal_nudge_2`, `proposal_nudge_3`):
+  - Day 3: did you receive it, reply YES, plus the first proof item when one is saved.
+  - Day 7: the reason to act now and its end date. Skipped when none is saved or the end date has passed.
+  - Day 12: the last email, plus the saved commitments.
+  - They are handled before the cron's `replied_at` check, because every proposal lead has already replied. Any reply
+    after the proposal cancels the rest.
 
 **Email that reaches the inbox.** Gmail's tab placement is the mailbox's own decision. The parts the code controls:
 
@@ -592,19 +615,19 @@ the login setup page and authenticator apps. The old name was replaced on 11 Oct
 
 ### Settings and Manage Clients (dashboard)
 
-- **Settings** (admin, for the Bytes website): bot behaviour and mode, services, sales follow-up, the website email
-  sender, and the status bar (reply tracking and file storage, with a warning at 8 GB).
+- **Settings** (admin, for the Bytes website): bot behaviour and mode, services, sales follow-up (with Proof and
+  offers), the website email sender, and the status bar (reply tracking and file storage, with a warning at 8 GB).
 - **Manage Clients** (admin): plan and trial, bot mode, model and effort, services and chatbot settings, a test lead,
   and **Delete client**, which needs a typed confirmation and removes the D1 rows, R2 files and KV keys.
-- **Client Chatbot page:** install code and websites, behaviour (read-only), services, campaigns and sales follow-up,
-  and the email sender.
+- **Client Chatbot page:** install code and websites, behaviour (read-only), services, campaigns and sales follow-up
+  (with Proof and offers), and the email sender.
 
 ### Scheduled jobs (crm-api crons)
 
 crm-api's only cron trigger runs every minute (`wrangler.toml`). The hourly jobs run on the run whose minute is 07 (UTC).
 
-- **Every minute:** verification emails, drip sequences, sales tasks (reminders, checkpoints, detail timeouts, proposal
-  nudges), and trial expiry (Free → scripted).
+- **Every minute:** verification emails, drip sequences, sales tasks (reminders, checkpoints, detail timeouts, the
+  three follow-ups after a proposal), and trial expiry (Free → scripted).
 - **Hourly, at :07 UTC:** page-view retention, lead-file cleanup (90 days after Lost, or after 90 quiet days; Won keeps
   its files), and the one-time mode migration.
 
@@ -634,9 +657,9 @@ Requires **Node 22.5 or newer** (the tests use `node:sqlite`). Run `npm install`
 
 | Check | Command (from the folder shown) | What it proves |
 |---|---|---|
-| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 16 suites (269 checks on 27 Oct 2026) |
+| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 17 suites (313 checks on 1 Nov 2026) |
 | One or a few crm-api suites | `node test/run.mjs flow plans` | Only the named suites |
-| chatbot-api tests | `chatbot-api`: `node test/run.mjs` | 3 suites: `chat` (whole requests to the chat endpoint), `gate` (website gate), `scripted` (135 checks on 17 Oct 2026) |
+| chatbot-api tests | `chatbot-api`: `node test/run.mjs` | 3 suites: `chat` (whole requests to the chat endpoint), `gate` (website gate), `scripted` (141 checks on 1 Nov 2026) |
 | Typecheck | `chatbot-api`: `npx tsc --noEmit -p .` | TypeScript types |
 | Bundle check | `bytes-website/crm-api-worker`: `npx wrangler deploy --dry-run --config wrangler.toml` | Nothing is deployed. It should list the DB, KV, R2 and LLM bindings. "No bindings found" means it checked the website worker instead |
 | Website build | `bytes-website`: `npm run build` | Builds the site and copies `public/` |
@@ -656,6 +679,7 @@ The crm-api suites, with what they cover:
 | `site` | Signup website and the "used on a website that is not on your list" alert |
 | `brand` | The BytesFX name in emails and code, and the one-off data fix |
 | `seq` | Follow-up emails that are not AI-written |
+| `frame` | Framework campaigns: Proof and offers settings, campaign emails, proposal blocks, follow-ups after a proposal |
 | `pv` | Page views from the website |
 | `greet` | How emails greet a lead, with and without a name |
 | `find` | The screen after confirming, and the questions email it names |
