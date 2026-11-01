@@ -88,7 +88,7 @@ bytes-website/                     The website and its static assets
     src/auth.js                    OAuth providers (Google, Facebook, LinkedIn)
     migrations/                    0001 to 0003; some tables and columns are created in code instead (section 5)
     data-fixes/                    One-off SQL for the live database, run by hand
-    test/                          node test/run.mjs: 18 suites
+    test/                          node test/run.mjs: 19 suites
     wrangler.toml                  Config for crm-api (use --config wrangler.toml with Wrangler)
 
 research/                          Notes and analysis; not used by the build
@@ -257,7 +257,8 @@ run.
 | `unlisted:<id>:<domain>` | `OAUTH_TOKENS` | Set once the "used on a website that is not on your list" alert has been sent |
 | `unlisted:<id>:sent` | `OAUTH_TOKENS` | Set for 7 days after an alert, so the owner gets at most one a week |
 
-Other `OAUTH_TOKENS` keys hold session and login state: `device:*`, `totp:*`, `setup:*`, `exchange:*`, `pending_2fa:*`.
+Other `OAUTH_TOKENS` keys hold session and login state: `device:*`, `totp:*`, `setup:*`, `exchange:*`, `pending_2fa:*`,
+and `signin_tag:*` (a sign-up's ad tag during a social sign-in, 10 minutes).
 
 ---
 
@@ -682,10 +683,18 @@ the login setup page and authenticator apps. The old name was replaced on 11 Oct
   each beside the visitors that source brought on first pages, and the rate between them.
   - "Not tagged" has no rate, because its visits are split between Direct and the referrer names.
   - A source's visitors also include untagged visits from the same site, so its rate can read low.
-- Known gap: a Google or Facebook sign-in reloads the onboarding page from the sign-in callback without the tag, so
-  those sign-ups show as "Not tagged".
+- A Google, Facebook or LinkedIn sign-in leaves the onboarding page and comes back from the callback without the tag in
+  the address. So the page adds the tag to its own sign-in start (`/api/auth/:provider?n=<nonce>&source=&campaign=`).
+  - crm-api keeps it in `OAUTH_TOKENS` as `signin_tag:<nonce>` for 10 minutes, the life of the sign-in's state
+    (`keepSigninTag`). Not for `DNT: 1` / `Sec-GPC: 1`, an untagged sign-in, or a dashboard login. The redirect to the
+    provider carries no tag.
+  - The callback takes it (and deletes it) into the `exchange:` record, and `/api/auth/exchange` returns it with the
+    name and email (`takeSigninTag`). The page adds it to its tag unless the browser opted out, and register saves it
+    as above.
+  - A store failure at either step drops the tag, never the sign-in.
 - The privacy policy says so in section 8 (added 1 Nov 2026). Change that sentence if this changes what is saved.
-- Tests: crm-api `signup` suite. The browser side was checked with Playwright, which is not part of the test run.
+- Tests: crm-api `signup` and `signin` suites. The browser side was checked with Playwright, which is not part of the
+  test run.
 
 ### Settings and Manage Clients (dashboard)
 
@@ -731,7 +740,7 @@ Requires **Node 22.5 or newer** (the tests use `node:sqlite`). Run `npm install`
 
 | Check | Command (from the folder shown) | What it proves |
 |---|---|---|
-| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 18 suites (338 checks on 1 Nov 2026) |
+| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 19 suites (355 checks on 1 Nov 2026) |
 | One or a few crm-api suites | `node test/run.mjs flow plans` | Only the named suites |
 | chatbot-api tests | `chatbot-api`: `node test/run.mjs` | 3 suites: `chat` (whole requests to the chat endpoint), `gate` (website gate), `scripted` (143 checks on 1 Nov 2026) |
 | Typecheck | `chatbot-api`: `npx tsc --noEmit -p .` | TypeScript types |
@@ -759,6 +768,8 @@ The crm-api suites, with what they cover:
 | `find` | The screen after confirming, and the questions email it names |
 | `pages` | The screens reached from an email link |
 | `local-origin` | The session cookie is not honoured from a local port |
+| `signup` | Where sign-ups come from: the ad tag saved at sign-up, and the "Sign-ups by source" counts |
+| `signin` | The ad tag kept through a Google, Facebook or LinkedIn sign-in |
 
 The suites run the worker in Node with `node:sqlite`, with mocked KV, R2, mail and LLM. They run against a scratch copy in
 `test/.build`, which is git-ignored. The runner treats every `.mjs` file in `test/` (other than `run.mjs`) as a suite, so

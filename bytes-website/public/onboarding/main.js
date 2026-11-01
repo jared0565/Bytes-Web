@@ -3,13 +3,19 @@ const API_BASE = 'https://crm-api.bmorris0565.workers.dev';
 // Where this sign-up came from: the ad tag on this page's address (track.js brings it along from the
 // page the visitor arrived on). Read now: track.js is deferred, so it runs after this script and then
 // takes the utm_ tags out of the address bar. Nothing is sent for Do Not Track or Global Privacy
-// Control (the API checks as well). A Google or Facebook sign-in reloads this page without the tag.
+// Control (the API checks as well). A Google, Facebook or LinkedIn sign-in brings this page back
+// without the tag, so the tag goes with the sign-in to our server, which keeps it and hands it back.
+const optedOut = () => { try { return navigator.doNotTrack === '1' || window.doNotTrack === '1' || navigator.globalPrivacyControl === true; } catch { return false; } };
+const tagOf = (source, campaign) => {
+    source = typeof source === 'string' ? source.slice(0, 60) : '';
+    campaign = typeof campaign === 'string' ? campaign.slice(0, 80) : '';
+    return { ...(source && { source }), ...(campaign && { campaign }) };
+};
 const signupTag = (() => {
     try {
-        if (navigator.doNotTrack === '1' || window.doNotTrack === '1' || navigator.globalPrivacyControl === true) return {};
+        if (optedOut()) return {};
         const q = new URLSearchParams(window.location.search);
-        const source = (q.get('utm_source') || q.get('ref') || '').slice(0, 60), campaign = (q.get('utm_campaign') || '').slice(0, 80);
-        return { ...(source && { source }), ...(campaign && { campaign }) };
+        return tagOf(q.get('utm_source') || q.get('ref'), q.get('utm_campaign'));
     } catch { return {}; }
 })();
 
@@ -122,6 +128,8 @@ window.addEventListener('DOMContentLoaded', async () => {
 
             const userData = await res.json();
             const { name, email } = userData;
+            // The ad tag the server kept while the visitor signed in
+            if (!optedOut()) Object.assign(signupTag, tagOf(userData.source, userData.campaign));
 
             // If this email already has a chatbot, send them to the dashboard to sign in
             if (email) {
@@ -175,7 +183,9 @@ document.querySelectorAll('.btn-social').forEach(btn => {
         // else's sign-in link can't pre-fill this form with their details
         const nonce = Array.from(crypto.getRandomValues(new Uint8Array(24)), b => b.toString(16).padStart(2, '0')).join('');
         try { sessionStorage.setItem('login_nonce', nonce); } catch (_) {}
-        window.location.href = `${API_BASE}/api/auth/${encodeURIComponent(provider)}?n=${nonce}`;
+        // The ad tag goes to our server only (it keeps it for this sign-in); the provider never sees it
+        const tag = new URLSearchParams(signupTag).toString();
+        window.location.href = `${API_BASE}/api/auth/${encodeURIComponent(provider)}?n=${nonce}${tag ? `&${tag}` : ''}`;
     });
 });
 
