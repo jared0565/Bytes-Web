@@ -491,6 +491,8 @@ app.post('/api/register', async (c) => {
     await c.env.DB.prepare(
         'INSERT INTO crm_settings (client_id, default_campaign_mode, auto_approve_campaigns, plan, trial_started_at, trial_ends_at) VALUES (?, ?, ?, ?, ?, ?)'
     ).bind(clientId, 'ai', 0, 'free', now, trialEndsAt).run();
+    // The ad tag the visitor arrived with, for Analytics → Visitors (never stops a sign-up)
+    await saveSignupSource(c, clientId, body);
 
     // Issue a short-lived setup token for post-onboarding settings (no auth required)
     const setupToken = crypto.randomUUID();
@@ -1677,6 +1679,62 @@ function utmSourceName(src) {
     if (k.includes('.')) return sourceName(k);
     return src.charAt(0).toUpperCase() + src.slice(1);
 }
+
+// ─── Where sign-ups come from ───────────────────────────────────────────────
+// The onboarding page sends the ad tag the visitor arrived with (utm_source, or a badge's ref, and
+// utm_campaign); track.js carries it from page to page. It is saved on the client's crm_settings row:
+// '' = no tag, or a browser that sends Do Not Track / Global Privacy Control; NULL = signed up before
+// this was recorded. The columns are added here on first use, like ensureSales() does for leads.
+let signupColumnsReady = false;
+async function ensureSignupColumns(env) {
+    if (signupColumnsReady) return;
+    for (const col of ['signup_source TEXT', 'signup_campaign TEXT']) {
+        try { await env.DB.prepare(`ALTER TABLE crm_settings ADD COLUMN ${col}`).run(); } catch (_) { /* already there */ }
+    }
+    signupColumnsReady = true;
+}
+const tagText = (v, max) => typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, max) : '';
+const asksNotToTrack = (c) => c.req.header('Sec-GPC') === '1' || c.req.header('DNT') === '1';
+async function saveSignupSource(c, clientId, body) {
+    const quiet = asksNotToTrack(c);
+    const src = quiet ? '' : tagText(body.source, 60);
+    const source = src ? utmSourceName(src) : '';
+    const campaign = quiet ? '' : tagText(body.campaign, 80);
+    try {
+        await ensureSignupColumns(c.env);
+        await c.env.DB.prepare('UPDATE crm_settings SET signup_source = ?, signup_campaign = ? WHERE client_id = ?').bind(source, campaign, clientId).run();
+    } catch (err) { signupColumnsReady = false; console.error('[Signup source]', err); }
+}
+// A period's sign-ups by source and campaign, beside the visitors each source brought (first pages).
+// A sign-up carries only an ad tag, so "Not tagged" gets no rate: its visits are split between Direct
+// and the referrer names. Empty if the columns can't be read, so Visitors always loads.
+async function signupCounts(env, site, from, to) {
+    try {
+        await ensureSignupColumns(env);
+        const all = (sql, ...a) => env.DB.prepare(sql).bind(...a).all().then(r => r.results || []);
+        const S = 'signup_source IS NOT NULL AND trial_started_at >= ? AND trial_started_at < ?';
+        const V = 'site = ? AND ts >= ? AND ts < ? AND entry = 1';
+        const [bySource, byCampaign, sourceVisits, campaignVisits] = await Promise.all([
+            all(`SELECT signup_source AS name, COUNT(*) AS n FROM crm_settings WHERE ${S} GROUP BY 1`, from, to),
+            all(`SELECT signup_campaign AS name, COUNT(*) AS n FROM crm_settings WHERE ${S} AND signup_campaign IS NOT NULL AND signup_campaign != '' GROUP BY 1`, from, to),
+            all(`SELECT source AS name, COUNT(DISTINCT day || visitor) AS v FROM page_views WHERE ${V} AND source IS NOT NULL AND source != '' GROUP BY 1`, site, from, to),
+            all(`SELECT campaign AS name, COUNT(DISTINCT day || visitor) AS v FROM page_views WHERE ${V} AND campaign IS NOT NULL AND campaign != '' GROUP BY 1`, site, from, to),
+        ]);
+        const rows = (list, visits) => {
+            const seen = new Map(visits.map(r => [r.name, r.v]));
+            return list.map(r => {
+                const visitors = r.name ? seen.get(r.name) || 0 : null;
+                return { name: r.name || 'Not tagged', signups: r.n, visitors, rate: visitors ? r.n / visitors : null };
+            }).sort((a, b) => b.signups - a.signups || a.name.localeCompare(b.name)).slice(0, 20);
+        };
+        return { total: bySource.reduce((t, r) => t + r.n, 0), sources: rows(bySource, sourceVisits), campaigns: rows(byCampaign, campaignVisits) };
+    } catch (err) {
+        signupColumnsReady = false;
+        console.error('[Signups]', err);
+        return { total: 0, sources: [], campaigns: [] };
+    }
+}
+
 function uaParts(ua) {
     const device = /ipad|tablet|kindle|silk|(android(?!.*mobile))/i.test(ua) ? 'Tablet' : /mobi|iphone|ipod|android/i.test(ua) ? 'Mobile' : 'Desktop';
     const browser = /edg\//i.test(ua) ? 'Edge' : /opr\/|opera/i.test(ua) ? 'Opera' : /samsungbrowser/i.test(ua) ? 'Samsung Internet'
@@ -1777,7 +1835,9 @@ app.get('/api/analytics/visitors', requireAuth, async (c) => {
         current.chatRate = current.visitors ? Math.min(1, conversations / current.visitors) : null;
         current.leadRate = current.visitors ? leads / current.visitors : null;
         const label = (rows, map = (x) => x) => rows.map(r => ({ name: map(r.name), views: r.views, visitors: r.visitors }));
+        const signups = await signupCounts(c.env, site, from, to);
         return c.json({
+            signups,
             days, custom, from, to: to - 1, bucket: bucketMs === DAY_MS ? 'day' : 'week',
             current, previous, series, live: live?.n || 0, everTracked: first < now,
             pages: label(pages, n => n || '/'),
@@ -2114,8 +2174,10 @@ app.get('/api/crm-settings', requireAuth, async (c) => {
     try {
         let settings = await c.env.DB.prepare('SELECT * FROM crm_settings WHERE client_id = ?').bind(clientId).first();
         if (!settings) settings = { client_id: clientId, default_campaign_mode: 'ai', auto_approve_campaigns: 0, plan: 'free', trial_started_at: 0, trial_ends_at: 0 };
+        // Where the client signed up from is for Analytics → Visitors only
+        const { signup_source, signup_campaign, ...own } = settings;
         const planStatus = await getPlanStatus(c.env, clientId);
-        return c.json({ ...settings, ...planStatus });
+        return c.json({ ...own, ...planStatus });
     } catch (err) {
         console.error('[CRM Settings] Fetch error:', err);
         return c.json({ error: 'Failed to fetch settings' }, 500);

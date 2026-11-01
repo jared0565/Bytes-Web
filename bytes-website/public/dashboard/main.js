@@ -2808,6 +2808,21 @@ function renderVisitors(d) {
     bars('vw-countries', d.countries, 'No visits in this period yet.', vwCountry);
     bars('vw-devices', d.devices, 'No visits in this period yet.');
     bars('vw-browsers', d.browsers, 'No visits in this period yet.');
+    renderSignups(d.signups);
+}
+
+// Sign-ups of the period by the ad tag they arrived with (utm_source or a badge's ref), beside the visitors
+// that source brought. "Not tagged" has no rate: its visits are spread over Direct and the referrer names.
+function renderSignups(s) {
+    const el = document.getElementById('vw-signups');
+    if (!el) return;
+    if (!s || !s.total) { el.innerHTML = '<div class="viz-empty">No sign-ups recorded in this period yet. Sources are recorded for sign-ups from this update on.</div>'; return; }
+    const table = (rows, first) => `<div class="viz-table-scroll"><table><thead><tr><th>${first}</th><th>Sign-ups</th><th>Visitors</th><th>Sign-up rate</th></tr></thead><tbody>${rows.map(r => `<tr>
+        <td>${escapeHtml(r.name)}</td><td>${fmtInt(r.signups)}</td><td>${r.visitors == null ? 'n/a' : fmtInt(r.visitors)}</td>
+        <td>${r.rate == null ? 'n/a' : fmtPct(r.rate)}${r.visitors > 0 && r.visitors < MIN_SAMPLE ? ` <span class="viz-kpi-warn">n=${r.visitors}: too few for a reliable rate</span>` : ''}</td></tr>`).join('')}</tbody></table></div>`;
+    el.innerHTML = table(s.sources, 'Source')
+        + (s.campaigns.length ? `<p class="vw-subhead vw-sub">Campaigns (utm_campaign)</p>${table(s.campaigns, 'Campaign')}` : '')
+        + '<p class="viz-wait-note">"Not tagged" means no ad or badge tag, or a browser that asks not to be tracked. A rate divides sign-ups by that source\'s visitors in the period. Untagged visits from the same site count as visitors too, so a rate can read low.</p>';
 }
 
 function renderVisitorsTrend(d) {
@@ -2860,7 +2875,9 @@ function exportVisitorsCsv() {
         [], [d.bucket === 'week' ? 'week_of' : 'date', 'visitors', 'page_views'], ...d.series.map(s => [new Date(s.t).toISOString().slice(0, 10), s.visitors, s.views]),
         [], ['top_page', 'visitors', 'views'], ...d.pages.map(r => [r.name, r.visitors, r.views]),
         [], ['source', 'visitors', 'views'], ...d.sources.map(r => [r.name, r.visitors, r.views]),
-        [], ['country', 'visitors', 'views'], ...d.countries.map(r => [vwCountry(r.name), r.visitors, r.views])];
+        [], ['country', 'visitors', 'views'], ...d.countries.map(r => [vwCountry(r.name), r.visitors, r.views]),
+        ...(d.signups?.total ? [[], ['signup_source', 'signups', 'visitors', 'signup_rate'], ...d.signups.sources.map(r => [r.name, r.signups, r.visitors ?? '', r.rate ?? '']),
+            ...(d.signups.campaigns.length ? [[], ['signup_campaign', 'signups', 'visitors', 'signup_rate'], ...d.signups.campaigns.map(r => [r.name, r.signups, r.visitors ?? '', r.rate ?? ''])] : [])] : [])];
     const blob = new Blob(['﻿' + rows.map(r => r.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);

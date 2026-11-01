@@ -88,7 +88,7 @@ bytes-website/                     The website and its static assets
     src/auth.js                    OAuth providers (Google, Facebook, LinkedIn)
     migrations/                    0001 to 0003; some tables and columns are created in code instead (section 5)
     data-fixes/                    One-off SQL for the live database, run by hand
-    test/                          node test/run.mjs: 17 suites
+    test/                          node test/run.mjs: 18 suites
     wrangler.toml                  Config for crm-api (use --config wrangler.toml with Wrangler)
 
 research/                          Notes and analysis; not used by the build
@@ -214,7 +214,8 @@ never committed. Neither worker has one today.
 
 **D1 tables** (database `chatbot-db`):
 
-- `leads`, `chat_logs`, `email_sequences`, `crm_settings` (plan, trial dates, campaign mode, auto-approve)
+- `leads`, `chat_logs`, `email_sequences`, `crm_settings` (plan, trial dates, campaign mode, auto-approve, and where
+  the client signed up from)
 - `users`, `roles`, `automations`, `email_templates`
 - `page_views`: cookieless visit records, with country, device, browser, source and campaign
 - `lead_messages`: the email thread, plus scheduled tasks stored as `direction='task'`
@@ -235,6 +236,9 @@ never committed. Neither worker has one today.
 - crm-api `ensureSales()`: the `lead_messages` and `lead_files` tables, and ten `leads` columns: `thread_token`,
   `brief`, `replied_at`, `last_reply_at`, `outcome`, `deal_value`, `lost_reason`, `closed_at`, `unsubscribed`,
   `proposal`
+- crm-api `ensureSignupColumns()`: the `crm_settings` columns `signup_source` and `signup_campaign`, added on the first
+  sign-up or the first load of Analytics → Visitors. There is no migration for them: SQLite has no
+  `ADD COLUMN IF NOT EXISTS`, so one would fail on a database the worker has already changed.
 - chatbot-api `ensureSchema()`: the `leads.session_id` column, and the `chat_logs` columns `session_id`, `flag` (the AI's
   label for the message) and `visitor` (the scrambled visitor ID), plus indexes. It creates no tables. crm-api's
   `/api/logs` leaves `visitor` out of what it returns.
@@ -643,6 +647,29 @@ the login setup page and authenticator apps. The old name was replaced on 11 Oct
 - The dashboard's Analytics page shows chat, lead and visitor statistics, and the sales results. The Countries card
   shows the top 10.
 
+**Where sign-ups come from.**
+
+- A visitor who arrives from a tagged link (an ad's `utm_source` / `utm_campaign`, or a badge's `ref`) keeps the tag
+  on each link to another page of the site, because `track.js` adds it when the link is clicked. It does not do this
+  for links within the same page, the dashboard, downloads or other sites, nor for a link that already has a tag.
+  Nothing is stored in the browser.
+- `onboarding/main.js` reads the tag when the page loads, before `track.js` (deferred) clears the address bar, and
+  sends it with `/api/register` as `source` and `campaign`.
+- crm-api saves it on the client's `crm_settings` row, under the same names visits get (`utmSourceName`). The source is
+  cut to 60 characters and the campaign to 80, with control characters removed.
+  - `''` means no tag, or a request that sent `DNT: 1` or `Sec-GPC: 1`. The page also sends nothing for those browsers.
+  - `NULL` means the client signed up before this was recorded, or was created another way. Those clients are left
+    out of the counts.
+  - Saving the tag can never stop a sign-up.
+  - `/api/crm-settings` leaves both fields out of a client's own settings.
+- Analytics → Visitors has a "Sign-ups by source" table. It shows the period's sign-ups by source and by campaign,
+  each beside the visitors that source brought on first pages, and the rate between them.
+  - "Not tagged" has no rate, because its visits are split between Direct and the referrer names.
+  - A source's visitors also include untagged visits from the same site, so its rate can read low.
+- Known gap: a Google or Facebook sign-in reloads the onboarding page from the sign-in callback without the tag, so
+  those sign-ups show as "Not tagged".
+- Tests: crm-api `signup` suite. The browser side was checked with Playwright, which is not part of the test run.
+
 ### Settings and Manage Clients (dashboard)
 
 - **Settings** (admin, for the Bytes website): bot behaviour and mode, services, sales follow-up (with Proof and
@@ -687,7 +714,7 @@ Requires **Node 22.5 or newer** (the tests use `node:sqlite`). Run `npm install`
 
 | Check | Command (from the folder shown) | What it proves |
 |---|---|---|
-| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 17 suites (317 checks on 1 Nov 2026) |
+| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 18 suites (338 checks on 1 Nov 2026) |
 | One or a few crm-api suites | `node test/run.mjs flow plans` | Only the named suites |
 | chatbot-api tests | `chatbot-api`: `node test/run.mjs` | 3 suites: `chat` (whole requests to the chat endpoint), `gate` (website gate), `scripted` (143 checks on 1 Nov 2026) |
 | Typecheck | `chatbot-api`: `npx tsc --noEmit -p .` | TypeScript types |
