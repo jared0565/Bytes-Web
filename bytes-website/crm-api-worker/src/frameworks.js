@@ -11,6 +11,11 @@ const TEXT_LIMITS = { howWeWork: 600, commitments: 400, freeStep: 200 };
 const text = (v, n) => String(v ?? '').trim().slice(0, n);
 const validDate = (d) => DATE_RE.test(d) && !Number.isNaN(Date.parse(`${d}T00:00:00Z`)) && new Date(`${d}T00:00:00Z`).toISOString().startsWith(d);
 
+// Proof, "how we work" and commitments go into proposals, where [square brackets] mark blanks
+// the owner must fill before Send works, so saved text holding them would block every proposal
+const BRACKETS = 'Use round brackets instead of square ones: in proposals, square brackets mark blanks to fill in.';
+const hasBrackets = (s) => /[[\]]/.test(s);
+
 // Writes the cleaned fields present in src into out. Returns an error message, or null.
 export function cleanOffers(src, out) {
     if (src.proof !== undefined) {
@@ -19,12 +24,18 @@ export function cleanOffers(src, out) {
             const t = text(it?.text, 300), url = String(it?.url ?? '').trim();
             if (!t && !url) continue;
             if (url && !HTTPS_RE.test(url)) return 'A proof link must be a full https:// address.';
+            if (hasBrackets(t + url)) return BRACKETS;
             items.push({ text: t, url });
             if (items.length === 5) break;
         }
         out.proof = items;
     }
-    for (const [k, n] of Object.entries(TEXT_LIMITS)) if (src[k] !== undefined) out[k] = text(src[k], n);
+    for (const [k, n] of Object.entries(TEXT_LIMITS)) {
+        if (src[k] === undefined) continue;
+        const v = text(src[k], n);
+        if (k !== 'freeStep' && hasBrackets(v)) return BRACKETS;
+        out[k] = v;
+    }
     if (src.actNow !== undefined) {
         const t = text(src.actNow?.text, 200), until = String(src.actNow?.until ?? '').trim();
         if (!t) out.actNow = null;

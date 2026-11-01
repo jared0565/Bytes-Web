@@ -177,7 +177,7 @@ const BLOCKS = `How we work\n${HOW}\n\nWork you can see\n- Clinic site we built 
 // ── 4. Follow-ups after a proposal: days 3, 7 and 12, skipped when there's nothing true to say ─
 const COMMITS = 'Fixed quote. Two rounds of changes included.';
 db.exec(`INSERT INTO crm_settings VALUES ('nud1','ai',0,'pro',0,0), ('nud0','ai',0,'pro',0,0), ('nudx','ai',0,'pro',0,0)`);
-kv.set('client:nud1', JSON.stringify({ companyName: 'nud1 Co', proof: [PROOF], commitments: COMMITS, actNow: { text: 'Founding clients get 20% off', until: '2027-01-31' } }));
+kv.set('client:nud1', JSON.stringify({ companyName: 'nud1 Co', proof: [PROOF], commitments: COMMITS, actNow: { text: 'Founding clients get 20% off', until: '2099-01-31' } }));
 kv.set('client:nud0', JSON.stringify({ companyName: 'nud0 Co' }));
 kv.set('client:nudx', JSON.stringify({ companyName: 'nudx Co', actNow: { text: 'An old offer', until: '2026-01-31' } }));
 for (const id of ['nud1', 'nud0', 'nudx']) kv.set(`mail:${id}`, JSON.stringify({ provider: 'resend', fromEmail: `hi@${id}.com`, apiKey: 're_x' }));
@@ -205,7 +205,7 @@ const nudges = [];
   const f1 = texts.find(t => t.includes('Just checking you received the proposal below'));
   ok('follow-up 1 asks for YES and shows the first proof item', f1 && f1.includes("reply YES and we'll get started") && f1.includes('\n\nSome of our work, in case it helps: Clinic site we built https://clinic.example\n\nBest,\nThe nud1 Co team'), f1);
   const f2 = texts.find(t => t.includes('A quick note in case timing matters'));
-  ok('follow-up 2 names the offer and its end date while it runs', f2 && f2.startsWith('Hi Sam,\n\nA quick note in case timing matters: Founding clients get 20% off. This runs until 31 January 2027.\n\nTo go ahead, reply YES. If you have a question first, just ask.\n\nBest,\nThe nud1 Co team'), f2);
+  ok('follow-up 2 names the offer and its end date while it runs', f2 && f2.startsWith('Hi Sam,\n\nA quick note in case timing matters: Founding clients get 20% off. This runs until 31 January 2099.\n\nTo go ahead, reply YES. If you have a question first, just ask.\n\nBest,\nThe nud1 Co team'), f2);
   const f3 = texts.find(t => t.includes('This is our last email about the proposal'));
   ok('follow-up 3 is the last email and carries the commitments', f3 && f3.includes("so we won't keep filling your inbox") && f3.includes(`\n\nSo you know what you can count on: ${COMMITS}\n\nBest,\nThe nud1 Co team`), f3);
 }
@@ -236,3 +236,19 @@ const nudges = [];
 }
 ok('follow-ups have no em-dash', nudges.length === 5 && nudges.every(t => !/\u2014/.test(t)), `${nudges.length} checked`);
 ok('NUDGE_DAYS lists the three follow-ups', JSON.stringify(fw.NUDGE_DAYS) === '{"proposal_nudge":3,"proposal_nudge_2":7,"proposal_nudge_3":12}');
+
+// ── 5. Found in review ──────────────────────────────────────────────────────
+const BRACKETS = 'Use round brackets instead of square ones: in proposals, square brackets mark blanks to fill in.';
+{
+  const e1 = fw.cleanOffers({ commitments: 'Fixed quote [no surprises]' }, {});
+  const e2 = fw.cleanOffers({ howWeWork: 'Weekly calls [Mondays]' }, {});
+  const e3 = fw.cleanOffers({ proof: [{ text: 'Our [best] site', url: '' }] }, {});
+  const e4 = fw.cleanOffers({ freeStep: 'A free review [15 minutes]', actNow: { text: '20% off [founding clients]', until: '2099-01-31' } }, {});
+  ok('offers: square brackets are refused in what goes into proposals', e1 === BRACKETS && e2 === BRACKETS && e3 === BRACKETS && e4 === null, JSON.stringify([e1, e2, e3, e4]));
+  const [st, j] = await call(clientTok, 'POST', '/api/config', { settings: { commitments: 'Fixed quote [no surprises]' } });
+  ok('offers: /api/config refuses square brackets with that message', st === 400 && j.error === BRACKETS, `${st} ${JSON.stringify(j)}`);
+}
+{
+  const [st, j] = await call(clientTok, 'GET', '/api/config');
+  ok('offers: GET /api/config returns all five, so the client pages do not save them away', st === 200 && j.proof?.length === 2 && j.howWeWork === FIVE.howWeWork && j.commitments === FIVE.commitments && j.freeStep === FIVE.freeStep && j.actNow?.until === '2027-01-31', JSON.stringify(j).slice(0, 300));
+}

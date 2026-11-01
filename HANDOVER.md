@@ -55,7 +55,7 @@ bytes-website/
     src/auth.js                OAuth providers (Google, Facebook, LinkedIn)
     migrations/                Early D1 schema (later tables are created lazily, see §5)
     data-fixes/                One-off SQL for the live database, run by hand (see §7, Brand name)
-    test/                      node test/run.mjs (17 suites, 313 checks on 1 Nov 2026)
+    test/                      node test/run.mjs (17 suites, 316 checks on 1 Nov 2026)
 research/                      Notes
 ```
 
@@ -440,7 +440,8 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
 - **Framework campaigns** (1 Nov 2026, `crm-api-worker/src/frameworks.js`; details in the knowledge base, section 7):
   - **Proof and offers** in the sales settings, saved by any role: work you can point to, how you work, what you commit
     to, a free first step, and a reason to act now with a required end date. Code inserts them word for word; they never
-    go into an AI prompt or `/public/config`. An empty box skips its part.
+    go into an AI prompt or `/public/config`. An empty box skips its part. Square brackets are refused in the
+    proof, "how you work" and commitments (in a proposal they mark blanks that block Send).
   - **Campaign:** email 1 the problem, email 2 before and after (P.S. first proof item), email 3 how we'd do it
     (P.S. free first step). Days 1, 3 and 6.
   - **Proposal:** a "Why this works for you" section, then "How we work", "Work you can see" and "What you can count

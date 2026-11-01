@@ -551,7 +551,8 @@ most 7 of these emails, fewer when they reply, are marked Won or Lost, or unsubs
 - **Proof and offers** (sales settings, every role can save them): work you can point to (up to 5 lines, each with an
   optional https link), how you work, what you commit to, a free first step, and a reason to act now, which must have
   an end date. Code puts this text into emails word for word. It never goes into an AI prompt, and chatbot-api's
-  `/public/config` never returns it. An empty box means that part is skipped.
+  `/public/config` never returns it. An empty box means that part is skipped. Square brackets are refused in the
+  proof, "how you work" and commitments, because in a proposal they mark blanks that block Send.
 - **Campaign** (the lead has not answered the questions email): email 1 names the problem, email 2 contrasts before
   and after, email 3 explains how we'd do it and asks for one next step. Days 1, 3 and 6, for AI and built-in emails
   alike. The first saved proof item is added as a P.S. under email 2, the free first step under email 3.
@@ -657,7 +658,7 @@ Requires **Node 22.5 or newer** (the tests use `node:sqlite`). Run `npm install`
 
 | Check | Command (from the folder shown) | What it proves |
 |---|---|---|
-| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 17 suites (313 checks on 1 Nov 2026) |
+| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 17 suites (316 checks on 1 Nov 2026) |
 | One or a few crm-api suites | `node test/run.mjs flow plans` | Only the named suites |
 | chatbot-api tests | `chatbot-api`: `node test/run.mjs` | 3 suites: `chat` (whole requests to the chat endpoint), `gate` (website gate), `scripted` (141 checks on 1 Nov 2026) |
 | Typecheck | `chatbot-api`: `npx tsc --noEmit -p .` | TypeScript types |
