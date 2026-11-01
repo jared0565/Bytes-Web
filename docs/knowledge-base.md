@@ -668,6 +668,7 @@ the login setup page and authenticator apps. The old name was replaced on 11 Oct
   - A source's visitors also include untagged visits from the same site, so its rate can read low.
 - Known gap: a Google or Facebook sign-in reloads the onboarding page from the sign-in callback without the tag, so
   those sign-ups show as "Not tagged".
+- The privacy policy says so in section 8 (added 1 Nov 2026). Change that sentence if this changes what is saved.
 - Tests: crm-api `signup` suite. The browser side was checked with Playwright, which is not part of the test run.
 
 ### Settings and Manage Clients (dashboard)
