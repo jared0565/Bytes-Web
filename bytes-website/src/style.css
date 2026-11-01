@@ -1004,7 +1004,9 @@ section {
   right: 0;
   width: 380px;
   max-width: calc(100vw - 32px);
-  height: 500px;
+  /* Tall enough for the greeting and all five choices without scrolling. On a screen under about 770px tall the
+     open chat covers the right end of the site header; it sits above the header, so its × stays in view. */
+  height: 560px;
   max-height: calc(100vh - 150px);
   background: var(--bg-secondary);
   border: 1px solid var(--glass-border);
