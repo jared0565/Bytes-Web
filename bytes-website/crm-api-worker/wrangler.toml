@@ -45,6 +45,18 @@ binding = "LLM"
 service = "chatbot-api"
 entrypoint = "LlmService"
 
+# Workers Logs: errors only. Console errors and warnings, and uncaught exceptions, are kept (3 days on
+# the Free plan, 7 on Paid). The per-request line is off: it records request headers, which carry the
+# sign-in cookies, and the visitor's IP address, which the privacy policy says is kept for an hour at most.
+# redact_query_string keeps tokens and emails in query strings out of any URL Cloudflare logs.
+[observability]
+enabled = true
+head_sampling_rate = 1
+redact_query_string = true
+
+[observability.logs]
+invocation_logs = false
+
 # Cron trigger — runs the verification email follow-up worker every minute
 [triggers]
 crons = ["* * * * *"]

@@ -88,7 +88,7 @@ bytes-website/                     The website and its static assets
     src/auth.js                    OAuth providers (Google, Facebook, LinkedIn)
     migrations/                    0001 to 0003; some tables and columns are created in code instead (section 5)
     data-fixes/                    One-off SQL for the live database, run by hand
-    test/                          node test/run.mjs: 19 suites
+    test/                          node test/run.mjs: 20 suites
     wrangler.toml                  Config for crm-api (use --config wrangler.toml with Wrangler)
 
 research/                          Notes and analysis; not used by the build
@@ -185,6 +185,17 @@ includes `http://localhost:5173` and `http://localhost:3000` so a dev server can
 machine serve a page there and act as the signed-in owner. Since 27 Oct 2026 the cookie is therefore **ignored for a
 local origin**: only the JWT in the `Authorization` header counts there, and a local page cannot read that (it lives
 in the dashboard's own storage). The dashboard still works locally, because it sends both.
+
+**Logs (since 1 Nov 2026): errors only.** `wrangler.toml` turns Workers Logs on with `invocation_logs = false`, so
+Cloudflare keeps console errors and warnings and uncaught exceptions (3 days on the Free plan, 7 on Paid), but not the
+per-request line. Cloudflare's docs say that line records request headers: they carry the `session` and `device_token`
+cookies and the `Authorization` header, and most likely the visitor's IP address, which the privacy policy says is kept
+for an hour at most. Whether Cloudflare masks any of them is not documented. A crash
+logs `[CRM-API ERROR] <method> <path>` and the error (`app.onError`); the path never includes the query string, where
+sign-in nonces, unsubscribe tokens and emails travel. `redact_query_string = true` also strips query strings from any URL
+Cloudflare logs. Read the logs in the Cloudflare dashboard, on the crm-api Worker. To see every request
+while debugging something specific, set `invocation_logs = true`, deploy, and set it back afterwards. chatbot-api and
+the website worker still have full logging on (`"observability": { "enabled": true }` in their `wrangler.jsonc`).
 
 **chatbot-api**:
 
@@ -742,7 +753,7 @@ Requires **Node 22.5 or newer** (the tests use `node:sqlite`). Run `npm install`
 
 | Check | Command (from the folder shown) | What it proves |
 |---|---|---|
-| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 19 suites (365 checks on 1 Nov 2026) |
+| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 20 suites (369 checks on 1 Nov 2026) |
 | One or a few crm-api suites | `node test/run.mjs flow plans` | Only the named suites |
 | chatbot-api tests | `chatbot-api`: `node test/run.mjs` | 3 suites: `chat` (whole requests to the chat endpoint), `gate` (website gate), `scripted` (143 checks on 1 Nov 2026) |
 | Typecheck | `chatbot-api`: `npx tsc --noEmit -p .` | TypeScript types |
@@ -772,6 +783,7 @@ The crm-api suites, with what they cover:
 | `local-origin` | The session cookie is not honoured from a local port |
 | `signup` | Where sign-ups come from: the ad tag saved at sign-up, and the "Sign-ups by source" counts |
 | `signin` | The ad tag kept through a Google, Facebook or LinkedIn sign-in |
+| `errors` | The error handler's log line: it names the method and route, never the query string, and the caller gets only the generic reply |
 
 The suites run the worker in Node with `node:sqlite`, with mocked KV, R2, mail and LLM. They run against a scratch copy in
 `test/.build`, which is git-ignored. The runner treats every `.mjs` file in `test/` (other than `run.mjs`) as a suite, so
