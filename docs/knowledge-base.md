@@ -250,7 +250,7 @@ run.
 
 | Key | Namespace | Holds |
 |---|---|---|
-| `client:<id>` | `CLIENT_SETTINGS` | The bot's configuration: company name, mode, system prompt, model, effort, services, allowed domains, branding, widget settings, questions, booking link, alert email, drafting and reading models, Proof and offers (`proof`, `howWeWork`, `commitments`, `freeStep`, `actNow`) |
+| `client:<id>` | `CLIENT_SETTINGS` | The bot's configuration: company name, mode, system prompt, model, effort, services, allowed domains, branding, widget settings, questions, booking link, alert email (set to the sign-up email at sign-up; when empty, alerts go to the first admin for the Bytes website, else to the sender address), drafting and reading models, Proof and offers (`proof`, `howWeWork`, `commitments`, `freeStep`, `actNow`) |
 | `mail:<id>` | `OAUTH_TOKENS` | A client's email sender |
 | `email_client:<email>` | `OAUTH_TOKENS` | Maps an owner's email to a client ID |
 | `migr:bot-modes-v1` | `OAUTH_TOKENS` | One-time mode-migration flag |
@@ -742,7 +742,7 @@ Requires **Node 22.5 or newer** (the tests use `node:sqlite`). Run `npm install`
 
 | Check | Command (from the folder shown) | What it proves |
 |---|---|---|
-| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 19 suites (361 checks on 1 Nov 2026) |
+| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 19 suites (365 checks on 1 Nov 2026) |
 | One or a few crm-api suites | `node test/run.mjs flow plans` | Only the named suites |
 | chatbot-api tests | `chatbot-api`: `node test/run.mjs` | 3 suites: `chat` (whole requests to the chat endpoint), `gate` (website gate), `scripted` (143 checks on 1 Nov 2026) |
 | Typecheck | `chatbot-api`: `npx tsc --noEmit -p .` | TypeScript types |
@@ -761,7 +761,7 @@ The crm-api suites, with what they cover:
 | `t` | Auth and onboarding |
 | `modes` | Plan-based modes |
 | `plans` | Plan limits |
-| `site` | Signup website and the "used on a website that is not on your list" alert |
+| `site` | Signup website, the "used on a website that is not on your list" alert, and a new client's alerts going to their sign-up email |
 | `brand` | The BytesFX name in emails and code, and the one-off data fix |
 | `seq` | Follow-up emails that are not AI-written |
 | `frame` | Framework campaigns: Proof and offers settings, campaign emails, proposal blocks, follow-ups after a proposal |
