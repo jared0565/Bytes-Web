@@ -344,6 +344,9 @@ Each entry says where the code is. Start there before changing anything.
   in the homepage's services bento (`src/main.js`), in the contact form's service list, in the footer's Services list (the
   homepage and the four legal pages), in the CRM's service labels (`WEBSITE_SERVICES`, crm-api) and in the house bot's
   prompt and button list (`HOUSE_SERVICES`, chatbot-api). A change to one service is a change in all of them.
+  The chat's buttons use the contact form's names and order (Website development, Website Upgrading, Application
+  development, Chatbot solutions, then "Other / not sure"), so a lead records the same service from either; a check in
+  the chatbot-api tests compares the two.
 
 **Cookie banner** (`public/consent.js`, loaded first in `<head>` by the homepage, the four legal pages and onboarding):
 
@@ -426,9 +429,11 @@ so anything that waits for the address to change will not run after a tap on one
     follows that prompt. For the Bytes bot, any saved prompt counts. The sign-up prompt (`starterPrompt` in
     `public/onboarding/main.js`) asks only for name and email, so a bot left on it does not ask for timeline or budget.
 - **Service choices.** When a chat opens, both chat boxes show the bot's services as buttons under a one-line greeting,
-  then a "Something else" button that puts the cursor in the text box.
+  then a quieter button that puts the cursor in the text box: "Other / not sure" on the Bytes site (the contact form's
+  last option), "Something else" in `widget.js` for clients.
   - The list comes from `/public/config` (`services`: 8 at most, 60 characters each). The Bytes bot falls back to
-    Websites, Web applications, AI chatbots, Website Upgrading (`HOUSE_SERVICES`) when none are saved. A bot with no services shows no buttons.
+    Website development, Website Upgrading, Application development, Chatbot solutions (`HOUSE_SERVICES`, the contact
+    form's names) when none are saved in Settings → Services. A bot with no services shows no buttons.
   - A tap sends the service name as an ordinary first message, so it counts toward the 10 per chat and 30 per day.
     Script bots match it exactly (`matchService`). AI bots are told which choices are on screen (the `CHOICES` part of
     the prompt).
@@ -660,7 +665,7 @@ Requires **Node 22.5 or newer** (the tests use `node:sqlite`). Run `npm install`
 |---|---|---|
 | crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 17 suites (316 checks on 1 Nov 2026) |
 | One or a few crm-api suites | `node test/run.mjs flow plans` | Only the named suites |
-| chatbot-api tests | `chatbot-api`: `node test/run.mjs` | 3 suites: `chat` (whole requests to the chat endpoint), `gate` (website gate), `scripted` (141 checks on 1 Nov 2026) |
+| chatbot-api tests | `chatbot-api`: `node test/run.mjs` | 3 suites: `chat` (whole requests to the chat endpoint), `gate` (website gate), `scripted` (142 checks on 1 Nov 2026) |
 | Typecheck | `chatbot-api`: `npx tsc --noEmit -p .` | TypeScript types |
 | Bundle check | `bytes-website/crm-api-worker`: `npx wrangler deploy --dry-run --config wrangler.toml` | Nothing is deployed. It should list the DB, KV, R2 and LLM bindings. "No bindings found" means it checked the website worker instead |
 | Website build | `bytes-website`: `npm run build` | Builds the site and copies `public/` |

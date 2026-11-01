@@ -15,7 +15,7 @@ node test/run.mjs flow plans      # or only the suites you name
 npx wrangler deploy --dry-run --config wrangler.toml   # bundle check; deploys nothing
 ```
 
-**chatbot-api** (3 suites, `chat`, `gate` and `scripted`, 141 checks on 1 Nov 2026). Its runner always runs every suite:
+**chatbot-api** (3 suites, `chat`, `gate` and `scripted`, 142 checks on 1 Nov 2026). Its runner always runs every suite:
 
 ```
 cd chatbot-api

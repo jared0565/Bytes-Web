@@ -1107,7 +1107,7 @@ section {
   border-bottom-right-radius: var(--radius-sm);
 }
 
-/* Choices under the greeting when a chat opens: the services, then a quieter "Something else".
+/* Choices under the greeting when a chat opens: the services, then a quieter "Other / not sure".
    They sit on the visitor's side, outlined where a sent message is filled. */
 .chat-choices {
   align-self: flex-end;
