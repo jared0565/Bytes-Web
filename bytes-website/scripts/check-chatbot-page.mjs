@@ -80,6 +80,12 @@ check(heroText.includes(`Plans from ${plans.currency}${minPaid} a month`) && her
 const pageJs = readFileSync(join(site, 'src', 'chatbot-page.js'), 'utf8');
 check(/label: 'Start my free trial', href: '\/onboarding\/'/.test(pageJs), 'the chat on the page offers no "Start my free trial" choice to /onboarding/');
 check(/sessionKey: '(?!bytesfx_chat_default')[\w-]+'/.test(pageJs), 'the chat on the page shares the homepage conversation');
+// The questions go after the first message, and the way to sign up must not go with them: a link above the
+// text box, hidden until src/chat.js shows it (#chatGo)
+const chatTop = html.match(/<div id="chatbot-window"[\s\S]*?<form id="chatForm">/)?.[0] || '';
+const stay = chatTop.match(/<div id="chatGo"([^>]*)>\s*<a ([^>]*)>([^<]*)<\/a>\s*<\/div>/);
+check(stay && /\shidden(?=[\s>]|$)/.test(stay[1]) && /href="\/onboarding\/"/.test(stay[2]) && stay[3].trim() === 'Start my free trial',
+    'the chat keeps no "Start my free trial" link to /onboarding/ above its text box (a hidden div#chatGo holding the link)');
 
 // The Free card starts the free plan; the trial comes with it
 const freeCard = html.match(/<article[^>]*data-plan="free"[\s\S]*?<\/article>/)?.[0] || '';
