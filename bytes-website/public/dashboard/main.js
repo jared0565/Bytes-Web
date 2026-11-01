@@ -4152,7 +4152,7 @@ async function ldLoadThread(l) {
     const notes = [];
     if (!d.replyTracking) notes.push('Reply tracking isn\'t set up, so the lead\'s replies go to your inbox and won\'t show here. Use "They replied" when they answer.');
     if (d.unsubscribed) notes.push('This lead unsubscribed: no more automatic emails.');
-    if (d.pending?.task) notes.push(`Next automatic step: ${({ reminder: 'a reminder', checkpoint: 'closing emails if there\'s still no reply', details_timeout: 'if they haven\'t answered, we draft the proposal from what we know (for your review)', proposal_nudge: 'one gentle nudge about the proposal if they\'re still quiet' })[d.pending.task.kind] || 'a follow-up'} on ${ldFmtWhen(d.pending.task.scheduled_for)}.`);
+    if (d.pending?.task) notes.push(`Next automatic step: ${({ reminder: 'a reminder', checkpoint: 'closing emails if there\'s still no reply', details_timeout: 'if they haven\'t answered, we draft the proposal from what we know (for your review)', proposal_nudge: 'a follow-up about the proposal if they\'re still quiet', proposal_nudge_2: 'a reminder of your offer, if one is saved and still running', proposal_nudge_3: 'a last email about the proposal' })[d.pending.task.kind] || 'a follow-up'} on ${ldFmtWhen(d.pending.task.scheduled_for)}.`);
     const seq = d.pending?.sequence || [];
     if (seq.length) notes.push(seq.some(s => s.status === 'draft') ? `${seq.length} closing email${seq.length === 1 ? '' : 's'} drafted and waiting for your approval (Campaign button).` : `${seq.length} closing email${seq.length === 1 ? '' : 's'} scheduled; the next goes out ${ldFmtWhen(Math.max(Date.now(), seq[0].scheduled_for))}.`);
     const files = d.files || [];

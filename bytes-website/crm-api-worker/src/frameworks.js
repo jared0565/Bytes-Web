@@ -94,3 +94,29 @@ export function withExtras(body, extras) {
     const m = /^[ \t*#_]*next steps?\b/im.exec(body);
     return m ? `${body.slice(0, m.index)}${extras}\n\n${body.slice(m.index)}` : `${body}\n\n${extras}`;
 }
+
+// ─── Follow-ups after a sent proposal ────────────────────────────────────────
+// Task kind → days after the proposal is sent. Any reply, Won, Lost or unsubscribe cancels them.
+export const NUDGE_DAYS = { proposal_nudge: 3, proposal_nudge_2: 7, proposal_nudge_3: 12 };
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const longDate = (ymd) => { const [y, m, d] = ymd.split('-').map(Number); return `${d} ${MONTHS[m - 1]} ${y}`; };
+
+// The follow-up's text, or null when there is nothing true to say (follow-up 2 without a running offer)
+export function nudgeBody(kind, { first, company, offers, now }) {
+    const o = offers || {};
+    const sign = `Best,\nThe ${company ? `${company} team` : 'team'}`;
+    if (kind === 'proposal_nudge') {
+        return `Hi ${first},\n\nJust checking you received the proposal below. If it looks right, reply YES and we'll get started. If you'd like anything changed, reply with what you'd like adjusted.`
+            + (o.proof?.length ? `\n\nSome of our work, in case it helps: ${proofLine(o.proof[0])}` : '') + `\n\n${sign}`;
+    }
+    if (kind === 'proposal_nudge_2') {
+        if (!actNowLive(o, now)) return null;
+        return `Hi ${first},\n\nA quick note in case timing matters: ${o.actNow.text.replace(/[\s.!]+$/, '')}. This runs until ${longDate(o.actNow.until)}.\n\nTo go ahead, reply YES. If you have a question first, just ask.\n\n${sign}`;
+    }
+    if (kind === 'proposal_nudge_3') {
+        return `Hi ${first},\n\nThis is our last email about the proposal, so we won't keep filling your inbox. If you'd like to go ahead, now or later, reply YES and we'll pick it up from there.`
+            + (o.commitments ? `\n\nSo you know what you can count on: ${o.commitments}` : '') + `\n\n${sign}`;
+    }
+    return null;
+}

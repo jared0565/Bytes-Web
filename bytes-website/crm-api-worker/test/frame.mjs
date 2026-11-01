@@ -173,3 +173,66 @@ const BLOCKS = `How we work\n${HOW}\n\nWork you can see\n- Clinic site we built 
   ok('withExtras appends when there is no Next step line', w('Hi Priya,\n\nBest,\nThe team', 'How we work\nX') === 'Hi Priya,\n\nBest,\nThe team\n\nHow we work\nX' && w('Hi\n\nNext step\nReply YES', '') === 'Hi\n\nNext step\nReply YES', String(w('Hi Priya,\n\nBest,\nThe team', 'How we work\nX')));
   ok('proposalExtras gives nothing when nothing is saved', has('proposalExtras') && fw.proposalExtras(fw.offersOf({})) === '');
 }
+
+// ── 4. Follow-ups after a proposal: days 3, 7 and 12, skipped when there's nothing true to say ─
+const COMMITS = 'Fixed quote. Two rounds of changes included.';
+db.exec(`INSERT INTO crm_settings VALUES ('nud1','ai',0,'pro',0,0), ('nud0','ai',0,'pro',0,0), ('nudx','ai',0,'pro',0,0)`);
+kv.set('client:nud1', JSON.stringify({ companyName: 'nud1 Co', proof: [PROOF], commitments: COMMITS, actNow: { text: 'Founding clients get 20% off', until: '2027-01-31' } }));
+kv.set('client:nud0', JSON.stringify({ companyName: 'nud0 Co' }));
+kv.set('client:nudx', JSON.stringify({ companyName: 'nudx Co', actNow: { text: 'An old offer', until: '2026-01-31' } }));
+for (const id of ['nud1', 'nud0', 'nudx']) kv.set(`mail:${id}`, JSON.stringify({ provider: 'resend', fromEmail: `hi@${id}.com`, apiKey: 're_x' }));
+const addVerified = db.prepare("INSERT INTO leads (id, client_id, name, email, service, is_verified, pipeline_stage, timestamp) VALUES (?, ?, 'Sam Lee', ?, 'Websites', 1, 'priority', ?)");
+const sendProposal = async (id, client) => {
+  addVerified.run(id, client, `lead${id}@clinic.com`, now);
+  const tok = await mod.signJWT({ role: 'client', clientId: client }, 'x');
+  const t0 = Date.now();
+  const [st] = await call(tok, 'POST', `/api/leads/${id}/proposal`, { action: 'send', body: `Hi Sam,\n\nWhat you need\nA new site.\n\nInvestment\n£3,000\n\nNext step\nReply YES to go ahead.\n\nThe ${client} Co team` });
+  return { st, t0, tasks: db.prepare("SELECT kind, status, scheduled_for FROM lead_messages WHERE lead_id = ? AND direction = 'task' ORDER BY scheduled_for").all(id) };
+};
+const runDue = async (id) => {
+  db.prepare("UPDATE lead_messages SET scheduled_for = 0 WHERE lead_id = ? AND direction = 'task' AND status = 'scheduled'").run(id);
+  sent.length = 0;
+  await mod.default.scheduled({ scheduledTime: Date.now() }, env, ctx); await settle();
+  return sent.filter(e => e.to[0] === `lead${id}@clinic.com`).map(e => e.text);
+};
+const nudges = [];
+{
+  const { st, t0, tasks } = await sendProposal(30, 'nud1');
+  ok('sending a proposal schedules follow-ups on days 3, 7 and 12', st === 200 && tasks.map(t => `${t.kind}@${Math.round((t.scheduled_for - t0) / DAY)}`).join() === 'proposal_nudge@3,proposal_nudge_2@7,proposal_nudge_3@12' && tasks.every(t => t.status === 'scheduled'), JSON.stringify(tasks.map(t => [t.kind, ((t.scheduled_for - t0) / DAY).toFixed(1)])));
+  db.prepare('UPDATE leads SET replied_at = ? WHERE id = 30').run(Date.now());
+  const texts = await runDue(30); nudges.push(...texts);
+  ok('a lead who replied still gets the follow-ups after the proposal', texts.length === 3, `${texts.length} sent`);
+  const f1 = texts.find(t => t.includes('Just checking you received the proposal below'));
+  ok('follow-up 1 asks for YES and shows the first proof item', f1 && f1.includes("reply YES and we'll get started") && f1.includes('\n\nSome of our work, in case it helps: Clinic site we built https://clinic.example\n\nBest,\nThe nud1 Co team'), f1);
+  const f2 = texts.find(t => t.includes('A quick note in case timing matters'));
+  ok('follow-up 2 names the offer and its end date while it runs', f2 && f2.startsWith('Hi Sam,\n\nA quick note in case timing matters: Founding clients get 20% off. This runs until 31 January 2027.\n\nTo go ahead, reply YES. If you have a question first, just ask.\n\nBest,\nThe nud1 Co team'), f2);
+  const f3 = texts.find(t => t.includes('This is our last email about the proposal'));
+  ok('follow-up 3 is the last email and carries the commitments', f3 && f3.includes("so we won't keep filling your inbox") && f3.includes(`\n\nSo you know what you can count on: ${COMMITS}\n\nBest,\nThe nud1 Co team`), f3);
+}
+{
+  await sendProposal(31, 'nud0');
+  const texts = await runDue(31); nudges.push(...texts);
+  ok('follow-up 2 is skipped without a reason to act now', texts.length === 2 && !texts.some(t => t.includes('timing matters')), `${texts.length} sent`);
+  ok('follow-ups 1 and 3 leave out proof and commitments when none are saved', texts.length === 2 && !texts.some(t => t.includes('Some of our work') || t.includes('So you know what you can count on')));
+}
+{
+  await sendProposal(32, 'nudx');
+  const texts = await runDue(32);
+  ok('follow-up 2 is skipped after the end date', texts.length === 2 && !texts.some(t => t.includes('An old offer')), `${texts.length} sent`);
+}
+{
+  await sendProposal(33, 'nud1');
+  const token = db.prepare('SELECT thread_token FROM leads WHERE id = 33').get().thread_token;
+  await mod.default.email({ to: `reply+${token}@reply.bytesfx.com`, from: 'lead33@clinic.com', raw: new Response(`From: lead33@clinic.com\r\nTo: reply+${token}@reply.bytesfx.com\r\nSubject: Re: x\r\n\r\nCould we move the start to April?\r\n`).body, setReject: () => {} }, env, ctx); await settle();
+  const left = db.prepare("SELECT count(*) n FROM lead_messages WHERE lead_id = 33 AND direction = 'task' AND kind LIKE 'proposal_nudge%' AND status = 'scheduled'").get().n;
+  const texts = await runDue(33);
+  ok('a reply cancels the remaining follow-ups', left === 0 && !texts.some(t => /proposal below|timing matters|last email about the proposal/.test(t)), `${left} still scheduled, ${texts.length} sent`);
+}
+{
+  await sendProposal(34, 'nud1'); await sendProposal(35, 'nud1'); await sendProposal(36, 'nud1');
+  db.exec("UPDATE leads SET outcome = 'won' WHERE id = 34; UPDATE leads SET outcome = 'lost' WHERE id = 35; UPDATE leads SET unsubscribed = 1 WHERE id = 36");
+  const sentTo = [...await runDue(34), ...await runDue(35), ...await runDue(36)];
+  ok('Won, Lost or unsubscribe stops the follow-ups', sentTo.length === 0, `${sentTo.length} sent`);
+}
+ok('follow-ups have no em-dash', nudges.length === 5 && nudges.every(t => !/\u2014/.test(t)), `${nudges.length} checked`);
+ok('NUDGE_DAYS lists the three follow-ups', JSON.stringify(fw.NUDGE_DAYS) === '{"proposal_nudge":3,"proposal_nudge_2":7,"proposal_nudge_3":12}');

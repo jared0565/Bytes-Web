@@ -6,7 +6,7 @@ import PostalMime from 'postal-mime';
 // The one list of plans (prices, limits, features), shared with the website and dashboard
 import PLAN_DATA from '../../public/plans.json';
 // Proof and offers settings, and the framework copy built from them
-import { OFFER_FIELDS, cleanOffers, offersOf, campaignPS, ruleCampaignSteps, CAMPAIGN_DAYS, proposalExtras, withExtras } from './frameworks.js';
+import { OFFER_FIELDS, cleanOffers, offersOf, campaignPS, ruleCampaignSteps, CAMPAIGN_DAYS, proposalExtras, withExtras, NUDGE_DAYS, nudgeBody } from './frameworks.js';
 
 // ─── Native Web Crypto JWT (no external library — Workers crypto.subtle) ─────
 async function signJWT(payload, secret, expiresIn = 28800) {
@@ -3299,11 +3299,13 @@ async function handleSalesCron(env) {
             await env.DB.prepare("UPDATE lead_messages SET status = 'done' WHERE id = ? AND status = 'scheduled'").bind(task.id).run();
             const lead = await env.DB.prepare('SELECT * FROM leads WHERE id = ?').bind(task.lead_id).first();
             if (!lead || lead.outcome || lead.unsubscribed) continue;
-            if (task.kind === 'proposal_nudge') {
-                // Any reply since the proposal cancels this task, so reaching here means silence
+            if (task.kind in NUDGE_DAYS) {
+                // Follow-ups after a proposal. Any reply since it was sent cancels them, so reaching
+                // here means silence (replied_at is set from the earlier answers, hence before that check)
                 if (parseProposal(lead.proposal)?.status !== 'sent') continue;
                 const company = (await companyNameFor(env, lead.client_id)) || '';
-                await sendThreadEmail(env, lead, { kind: 'nudge', body: `Hi ${firstName(lead.name)},\n\nJust checking you received the proposal below. If it looks right, reply YES and we'll get started. If you'd like anything changed, reply with what you'd like adjusted.\n\nBest,\nThe ${company || 'team'}${company ? ' team' : ''}` });
+                const body = nudgeBody(task.kind, { first: firstName(lead.name), company, offers: offersOf(await clientConfig(env, lead.client_id)), now: Date.now() });
+                if (body) await sendThreadEmail(env, lead, { kind: 'nudge', body });
                 continue;
             }
             if (task.kind === 'details_timeout') {
@@ -3399,9 +3401,9 @@ app.post('/api/leads/:id/proposal', requireAuth, async (c) => {
     }
     const p = { ...(current || { ai: false, draftedAt: now }), status: 'sent', body: text, sentAt: now, acceptedAt: null };
     await c.env.DB.prepare("UPDATE leads SET proposal = ?, updated_at = ?, pipeline_stage = CASE WHEN outcome IS NULL THEN 'opportunity' ELSE pipeline_stage END WHERE id = ?").bind(JSON.stringify(p), now, id).run();
-    // One gentle nudge in 3 days if they go quiet (cancelled by any reply)
+    // Up to three follow-ups if they go quiet (days 3, 7 and 12), all cancelled by any reply
     await cancelAutomation(c.env, id);
-    await scheduleTask(c.env, lead, 'proposal_nudge', 3);
+    for (const [kind, days] of Object.entries(NUDGE_DAYS)) await scheduleTask(c.env, lead, kind, days);
     return c.json({ proposal: p });
 });
 
