@@ -1783,6 +1783,10 @@ body.light-mode .viz-mode { background: rgba(0, 0, 0, 0.03); }
 .vw-row-3 { grid-template-columns: 1.3fr 1fr 1fr; }
 .vw-row-2 { grid-template-columns: 1fr 1fr; margin-bottom: 2rem; }
 .vw-sub:not(:empty) { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--glass-border); }
+/* Four short columns: fit a phone, without the leads table's 1000px and no-wrap cells */
+.vw-signups table { min-width: 0; }
+.vw-signups th, .vw-signups td { white-space: normal; }
+.vw-signups .viz-kpi-warn { display: block; }
 .vw-subhead { margin: 0 0 0.5rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-secondary); }
 .vw-live { display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.78rem; color: var(--text-secondary); }
 .vw-live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-secondary); opacity: 0.5; }

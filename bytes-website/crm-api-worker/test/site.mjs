@@ -22,7 +22,7 @@ ok('signup without a website is refused', st === 400 && j.field === 'website', j
 ok('signup saves the website as the only allowed domain', st === 200 && JSON.stringify(JSON.parse(kv.get('client:shop-abc123')).allowedDomains) === '["shop.com"]', `${st} ${kv.get('client:shop-abc123')}`);
 // the chat worker tells us a bot was used on a website that is not on its list
 kv.set('client:old-bot', JSON.stringify({ allowedDomains: ['found.com'], alertEmail: 'owner@old.com' }));
-db.exec(`INSERT INTO crm_settings VALUES ('old-bot','ai',0,'free',0,0)`);
+db.exec(`INSERT INTO crm_settings (client_id, default_campaign_mode, auto_approve_campaigns, plan, trial_started_at, trial_ends_at) VALUES ('old-bot','ai',0,'free',0,0)`);
 kv.set('mail:old-bot', JSON.stringify({ provider: 'resend', fromEmail: 'hi@old.com', apiKey: 're_x' }));
 [st, j] = await post('/api/webhooks/domain-unlisted', { clientId: 'old-bot', domain: 'found.com' });
 ok('nothing to tell about a site the bot already has', st === 409);

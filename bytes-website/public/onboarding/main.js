@@ -1,5 +1,18 @@
 const API_BASE = 'https://crm-api.bmorris0565.workers.dev';
 
+// Where this sign-up came from: the ad tag on this page's address (track.js brings it along from the
+// page the visitor arrived on). Read now: track.js is deferred, so it runs after this script and then
+// takes the utm_ tags out of the address bar. Nothing is sent for Do Not Track or Global Privacy
+// Control (the API checks as well). A Google or Facebook sign-in reloads this page without the tag.
+const signupTag = (() => {
+    try {
+        if (navigator.doNotTrack === '1' || window.doNotTrack === '1' || navigator.globalPrivacyControl === true) return {};
+        const q = new URLSearchParams(window.location.search);
+        const source = (q.get('utm_source') || q.get('ref') || '').slice(0, 60), campaign = (q.get('utm_campaign') || '').slice(0, 80);
+        return { ...(source && { source }), ...(campaign && { campaign }) };
+    } catch { return {}; }
+})();
+
 // UI Elements
 const slides = document.querySelectorAll('.slide');
 const steps = document.querySelectorAll('.step-circle');
@@ -267,7 +280,8 @@ next2.addEventListener('click', async () => {
                     companyName: registrationData.company,
                     systemPrompt: prompt,
                     website: siteDomain(inputWebsite.value.trim()),
-                }
+                },
+                ...signupTag,
             })
         });
 
