@@ -18,7 +18,7 @@ function questions(data) {
     [`What is the difference between ${m.scripted.name}, ${m.ai.name} and ${m.ai_plus.name}?`,
       `The ${m.scripted.name} chatbot ${m.scripted.summary}. The ${m.ai.name} chatbot ${m.ai.summary}. ${m.ai_plus.name} is ${m.ai_plus.summary}.`],
     ['Where do my leads go?',
-      'Into your dashboard, together with the chat that produced each one, and it can email you an alert for every new lead. On paid plans the AI can also follow up with them by email.'],
+      'Into your dashboard, together with the chat that produced each one, and it can email you each time a lead confirms their address. On paid plans the AI can also follow up with them by email.'],
     ['Can I change or cancel my plan?',
       'Yes. Tell us what you would like and the team will reply within 24 hours to change or cancel it. If you cancel, your chatbot carries on with the Free plan.'],
     ["How is my visitors' data handled?",

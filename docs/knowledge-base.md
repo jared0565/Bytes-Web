@@ -349,6 +349,9 @@ Each entry says where the code is. Start there before changing anything.
   - Old links to the homepage pricing (`?upgrade=<plan>` or `#pricing`, including badge links saved on clients' bots)
     are sent to `/ai-chatbot/` by `src/main.js`, keeping the plan, client and referral details. New badge links,
     the dashboard's upgrade buttons, onboarding and the Bytes bot's pricing link point at the page directly.
+  - The "Powered by BytesFX" badge (`public/widget.js`) puts a client's referral ID in the query as `ref=`, ahead of
+    `#pricing`, so the page still scrolls to the plans and the visit statistics count the ID as the source
+    (`track.js` reads `ref` when a link has no `utm_source`). A bot with no saved badge link opens the page's plans.
   - The homepage keeps a short chatbot section (`renderChatbotTeaser`) and its menu says "AI Chatbot" instead of
     "Pricing". The site chat is `src/chat.js` and the shared page behaviour `src/ui.js`, loaded by both pages.
   - `public/sitemap.xml` lists the public pages (add a new page there); `public/robots.txt` names it and keeps

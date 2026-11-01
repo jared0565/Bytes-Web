@@ -412,11 +412,14 @@
         } catch (e) { console.error("Config fetch error:", e); }
 
         const showBranding = config.showBranding !== false;
-        const refId = encodeURIComponent(config.referralId || '');
-        const baseBadgeUrl = /^https:\/\//i.test(config.badgeUrl || '') ? config.badgeUrl : 'https://web.bytesfx.com/';
-        const brandingUrl = escapeAttr(refId
-            ? baseBadgeUrl + (baseBadgeUrl.includes('?') ? `&ref=${refId}` : `?ref=${refId}`)
-            : baseBadgeUrl);
+        // The badge opens the AI chatbot page on its plans. A referral ID goes into the query, ahead of any
+        // #section, so the page still scrolls to it and the visit statistics (track.js reads ?ref=) see the ID.
+        const defaultBadgeUrl = 'https://web.bytesfx.com/ai-chatbot/?upgrade=free#pricing';
+        let badge;
+        try { badge = new URL(/^https:\/\//i.test(config.badgeUrl || '') ? config.badgeUrl : defaultBadgeUrl); }
+        catch (_) { badge = new URL(defaultBadgeUrl); }
+        if (config.referralId) badge.searchParams.set('ref', String(config.referralId));
+        const brandingUrl = escapeAttr(badge.href);
 
         // White-label customization (business+ only — enforced by backend)
         const widgetName = escapeAttr(config.widgetName || 'BytesFX');
