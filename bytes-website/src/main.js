@@ -604,17 +604,17 @@ function getFallbackResponse(userMessage) {
 
   // Pricing
   if (message.includes('price') || message.includes('pricing') || message.includes('cost') || message.includes('expensive')) {
-    return "Every project is unique, and we tailor our solutions to your specific needs and budget. Our packages start at competitive rates with ROI-focused delivery. Shall I connect you with a specialist for a custom quote?";
+    return `Websites and apps are quoted once the team understands the project. Chatbot plans start free, and paid plans start at ${PLAN_DATA.currency}${Math.min(...PLAN_DATA.plans.filter(p => p.price > 0).map(p => p.price))} a month. Shall I pass your details to the team for a quote?`;
   }
 
   // Process / timeline
   if (message.includes('time') || message.includes('how long') || message.includes('process') || message.includes('timeline')) {
-    return "Our streamlined process typically delivers websites in 2-4 weeks and applications in 4-8 weeks. We prioritize fast delivery without compromising quality. Would you like to learn more about our process?";
+    return "Every project starts with a short conversation about what you need. The team then sends a written quote with the timeline, so you know both before anything starts. Would you like them to get in touch?";
   }
 
   // Portfolio / work
   if (message.includes('portfolio') || message.includes('work') || message.includes('projects') || message.includes('example')) {
-    return "We'd be happy to share our portfolio! Our work spans e-commerce, SaaS applications, and custom web solutions. Each project is designed with ROI and conversions in mind. Can I get your email to send you some relevant case studies?";
+    return "Tell me a little about what you have in mind, and the team will reply by email within 24 hours with how they would approach it. What's the best email for you?";
   }
 
   // Contact request
@@ -679,9 +679,10 @@ function renderHomePage() {
             <a href="#services" class="hx-btn hx-btn-ghost">See what we build</a>
           </div>
           <dl class="hx-stats reveal" style="--d:4">
-            <div><dt>Projects delivered</dt><dd><span class="counter-value" data-target="150" data-suffix="+">0</span></dd></div>
-            <div><dt>Client satisfaction</dt><dd><span class="counter-value" data-target="98" data-suffix="%">0</span></dd></div>
-            <div><dt>Average ROI increase</dt><dd><span class="counter-value" data-target="50" data-suffix="%">0</span></dd></div>
+            <!-- Only what is true today: no figure goes here until records back it -->
+            <div><dt>Reply to every enquiry</dt><dd><span class="counter-value" data-target="24" data-suffix="h">24h</span></dd></div>
+            <div><dt>Lead capture</dt><dd>24/7</dd></div>
+            <div><dt>No card to start</dt><dd>${PLAN_DATA.currency}0</dd></div>
           </dl>
         </div>
 
