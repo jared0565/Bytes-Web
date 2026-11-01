@@ -357,9 +357,10 @@ ok('a bot with no services saved gives an empty list, so no buttons are shown', 
 const HOUSE = ['Website development', 'Website Upgrading', 'Application development', 'Chatbot solutions'];
 ok('the Bytes bot falls back to its own four services, in the words its prompt uses', JSON.stringify(cfg.services) === JSON.stringify(HOUSE) && HOUSE.every(sv => baseSys.toLowerCase().includes(sv.toLowerCase())), JSON.stringify(cfg.services));
 // The website's contact form and its chat offer the same choices, so a lead records the same service name from either
-const siteJs = readFileSync(new URL('../../../bytes-website/src/main.js', import.meta.url), 'utf8');
+const siteJs = readFileSync(new URL('../../../bytes-website/src/main.js', import.meta.url), 'utf8'); // the contact form
+const chatJs = readFileSync(new URL('../../../bytes-website/src/chat.js', import.meta.url), 'utf8'); // the site chat
 const formChoices = [...(siteJs.match(/<select id="leadService"[\s\S]*?<\/select>/)?.[0] ?? '').matchAll(/<option value="[^"]+">([^<]+)<\/option>/g)].map(m => m[1]);
-const chatLast = siteJs.match(/addChoice\('([^']+)', \(\) => chatInput\.focus\(\)/)?.[1];
+const chatLast = chatJs.match(/addChoice\('([^']+)', \(\) => chatInput\.focus\(\)/)?.[1];
 ok("the website chat shows the contact form's choices, in the form's words and order", formChoices.length === 5 && JSON.stringify([...cfg.services, chatLast]) === JSON.stringify(formChoices), JSON.stringify({ chat: [...cfg.services, chatLast], form: formChoices }));
 kv.set('client:default', JSON.stringify({ mode: 'ai', services: ['Websites', '', 'x'.repeat(80), ...Array.from({ length: 9 }, (_, i) => `Service ${i}`)] }));
 const ownList = (await settings('default')).services || [];
