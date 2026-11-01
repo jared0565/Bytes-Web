@@ -1589,6 +1589,11 @@ body.light-mode .ld-drawer { --ld-ok: #0a7d0a; }
 
 /* Sales follow-up settings (website, client drawer, Chatbot page) */
 .sales-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 1rem; }
+.sales-offers { margin-top: 0.75rem; padding-top: 1rem; border-top: 1px solid var(--glass-border); }
+.sales-offers-head { font-size: 0.88rem; font-weight: 600; }
+.sales-offers-note { font-size: 0.75rem; color: var(--text-secondary); margin: 0.1rem 0 0.75rem; }
+.sales-offers .form-group textarea { min-height: 5.5rem; }
+.sales-act { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
 .sales-tracking { margin-top: 0.25rem; }
 .sales-tracking:empty { display: none; }
 @media (max-width: 700px) { .sales-grid { grid-template-columns: 1fr; } .ld-msg-out { margin-left: 0.5rem; } .ld-msg-in { margin-right: 0.5rem; } }
