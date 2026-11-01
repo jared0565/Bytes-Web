@@ -435,8 +435,10 @@ const requireAuth = async (c, next) => {
 };
 
 // ─── Global error handler: details go to the logs, never to the caller ───────
+// crm-api logs errors only (wrangler.toml), so this line is where a crash says which route failed.
+// c.req.path has no query string: sign-in nonces, unsubscribe tokens and emails travel there.
 app.onError((err, c) => {
-    console.error('[CRM-API ERROR]', err);
+    console.error('[CRM-API ERROR]', `${c.req.method} ${c.req.path.slice(0, 200)}`, err);
     return c.json({ error: 'Something went wrong. Please try again.' }, 500);
 });
 
