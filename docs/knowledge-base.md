@@ -390,6 +390,9 @@ Each entry says where the code is. Start there before changing anything.
 
 **Site chat on phones.** Both chat boxes fill the screen: the widget at 480px wide and under, the site chat at 768px
 and under. Neither shows its launcher while open. The × closes the chat.
+On wider screens the site chat is 560px tall (at most the screen height less 150px, `src/style.css`), so the greeting and
+all five choices show without scrolling. On screens under about 770px tall it covers the right end of the site header
+while open.
 
 - The site chat is styled by two stylesheets, both loaded: `bytes-website/style.css` (linked from `index.html`, holds the
   phone rules) and `bytes-website/src/style.css` (imported by `main.js`). A limit in one can undo a rule in the other,
