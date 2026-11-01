@@ -39,7 +39,7 @@ const seen = (rows) => `${rows.length} emails${rows.length ? ': ' + rows.map(r =
 
 let rows = await follow(1);
 ok('a Bytes lead gets three follow-ups when no template is stored', builtIn(rows), seen(rows));
-ok('they name the service the lead asked about', rows[0]?.subject === 'Thanks for your enquiry about Websites', rows[0]?.subject);
+ok('they name the service the lead asked about', rows[0]?.subject === 'Your enquiry about Websites', rows[0]?.subject);
 rows = await follow(2, { mode: 'ai' });
 ok('a Bytes lead gets them when the AI write fails', builtIn(rows), seen(rows));
 rows = await follow(3, { templates: [['agency_demo', JSON.stringify([{ email_number: 1, subject: 'Stored subject', body: 'Hi {name}, stored body' }])]] });

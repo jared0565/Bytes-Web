@@ -54,3 +54,26 @@ export function actNowLive(offers, now) {
 export function proofLine(item) {
     return [item?.text, item?.url].filter(Boolean).join(' ');
 }
+
+// ─── Campaign emails: the problem, before and after, how we'd do it ──────────
+// Days after the campaign starts that emails 1, 2 and 3 go out
+export const CAMPAIGN_DAYS = [1, 3, 6];
+
+// The saved fact a campaign email ends with: proof under email 2, the free first step under email 3
+export function campaignPS(offers, emailNumber) {
+    if (emailNumber === 2 && offers?.proof?.length) return `\n\nP.S. Some of our work: ${proofLine(offers.proof[0])}`;
+    if (emailNumber === 3 && offers?.freeStep) return `\n\nP.S. ${offers.freeStep}`;
+    return '';
+}
+
+// The built-in campaign. Bodies keep the {name} placeholder for the lead's first name.
+export function ruleCampaignSteps({ service, company, bookingUrl }, offers) {
+    const about = service ? ` about ${service}` : '';
+    const team = company ? `The ${company} team` : 'The team';
+    const next = bookingUrl ? `Pick a time that suits you: ${bookingUrl}` : 'Reply with a couple of times that suit you for a quick call.';
+    return [
+        { email_number: 1, subject: `Your enquiry${about}`, body: `Hi {name},\n\nThanks for getting in touch${about}. Things like this tend to slip down the list, and while they wait they can cost you time or customers.\n\nReply with a line or two about what you need, and we'll come back with how we'd solve it.\n\nBest,\n${team}` },
+        { email_number: 2, subject: "What it looks like once it's done", body: `Hi {name},\n\nRight now this is still on your list. Once it's done, it works for you instead of waiting for you. The step in between is a short conversation about what you need.\n\n${next}\n\nBest,\n${team}` + campaignPS(offers, 2) },
+        { email_number: 3, subject: "How we'd handle it", body: `Hi {name},\n\nHere's how it works with us: you tell us what you need, we send you a written proposal with the price, and you decide with everything in front of you.\n\nAre you still looking for help${about}? A quick reply is all it takes.\n\nBest,\n${team}` + campaignPS(offers, 3) },
+    ];
+}
