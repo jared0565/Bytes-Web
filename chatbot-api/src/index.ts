@@ -50,10 +50,10 @@ const HOUSE_FORM = 'https://web.bytesfx.com/#contact';
 const PLAN_LIST = (PLAN_DATA.plans as { name: string, price: number | null, period: string }[])
 	.map(p => p.price == null ? `${p.name} by quote` : p.price === 0 ? `${p.name} ${PLAN_DATA.currency}0` : `${p.name} ${PLAN_DATA.currency}${p.price} a ${p.period}`).join('; ');
 const HOUSE_ABOUT = `You are the AI assistant on the BytesFX website. BytesFX is a studio in London, UK that does four things for small and growing businesses:
-- websites built to convert (fast, mobile-first)
-- website upgrading (a rebuild of the site the business already has)
-- custom web applications (internal tools, client portals, integrations)
-- AI chatbots that answer visitors' questions and capture leads`;
+- Website development: websites built to convert (fast, mobile-first)
+- Website Upgrading: a rebuild of the site the business already has
+- Application development: custom web applications (internal tools, client portals, integrations)
+- Chatbot solutions: AI chatbots that answer visitors' questions and capture leads`;
 const HOUSE_STEPS = `Your job is to help the visitor, find out what they need, and pass their details to the team so a person can follow up by email within 24 hours. Chats are short, so every reply should move things forward.
 
 HOW A GOOD CHAT GOES
@@ -323,8 +323,9 @@ function cleanServices(v: unknown): string[] {
 	return (Array.isArray(v) ? v : []).map(x => clip(x, 60)).filter(Boolean).slice(0, 8);
 }
 // The choices a chat box shows as buttons when a chat opens: the Services list from the dashboard. The Bytes bot
-// falls back to the four things its prompt says BytesFX does (HOUSE_ABOUT), in the same words.
-const HOUSE_SERVICES = ['Websites', 'Web applications', 'AI chatbots', 'Website Upgrading'];
+// falls back to the four things its prompt says BytesFX does (HOUSE_ABOUT), named and ordered as on the website's
+// contact form, so a lead records the same service name from the chat as from the form.
+const HOUSE_SERVICES = ['Website development', 'Website Upgrading', 'Application development', 'Chatbot solutions'];
 function servicesOf(cfg: { services?: unknown } | null | undefined, house: boolean): string[] {
 	const list = cleanServices(cfg?.services);
 	return list.length || !house ? list : HOUSE_SERVICES;

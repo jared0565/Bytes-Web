@@ -353,11 +353,16 @@ ok('the widget is told the character limit', cfg.maxMessageChars === CHARS && CH
 // ─── Service choices: the chat box shows a bot's services as buttons when a chat opens ─────────
 ok("the chat box is given the bot's services", JSON.stringify((await settings('script')).services) === JSON.stringify(['SEO', 'Web design']), JSON.stringify(await settings('script')));
 ok('a bot with no services saved gives an empty list, so no buttons are shown', JSON.stringify((await settings('tiny')).services) === '[]', JSON.stringify(await settings('tiny')));
-const HOUSE = ['Websites', 'Web applications', 'AI chatbots', 'Website Upgrading'];
+const HOUSE = ['Website development', 'Website Upgrading', 'Application development', 'Chatbot solutions'];
 ok('the Bytes bot falls back to its own four services, in the words its prompt uses', JSON.stringify(cfg.services) === JSON.stringify(HOUSE) && HOUSE.every(sv => baseSys.toLowerCase().includes(sv.toLowerCase())), JSON.stringify(cfg.services));
+// The website's contact form and its chat offer the same choices, so a lead records the same service name from either
+const siteJs = readFileSync(new URL('../../../bytes-website/src/main.js', import.meta.url), 'utf8');
+const formChoices = [...(siteJs.match(/<select id="leadService"[\s\S]*?<\/select>/)?.[0] ?? '').matchAll(/<option value="[^"]+">([^<]+)<\/option>/g)].map(m => m[1]);
+const chatLast = siteJs.match(/addChoice\('([^']+)', \(\) => chatInput\.focus\(\)/)?.[1];
+ok("the website chat shows the contact form's choices, in the form's words and order", formChoices.length === 5 && JSON.stringify([...cfg.services, chatLast]) === JSON.stringify(formChoices), JSON.stringify({ chat: [...cfg.services, chatLast], form: formChoices }));
 kv.set('client:default', JSON.stringify({ mode: 'ai', services: ['Websites', '', 'x'.repeat(80), ...Array.from({ length: 9 }, (_, i) => `Service ${i}`)] }));
 const ownList = (await settings('default')).services || [];
-ok('services saved for the Bytes bot are used instead, cleaned: no blanks, 60 characters, 8 at most', ownList.length === 8 && ownList[0] === 'Websites' && ownList[1] === 'x'.repeat(60) && ownList.every(Boolean) && !ownList.includes('AI chatbots'), JSON.stringify(ownList));
+ok('services saved for the Bytes bot are used instead, cleaned: no blanks, 60 characters, 8 at most', ownList.length === 8 && ownList[0] === 'Websites' && ownList[1] === 'x'.repeat(60) && ownList.every(Boolean) && !ownList.includes('Chatbot solutions'), JSON.stringify(ownList));
 kv.set('client:default', JSON.stringify({ mode: 'ai' }));
 const refused = await settings('script', 'https://elsewhere.test');
 ok('a website that may not use the bot is given nothing', refused.status === 403 && !('services' in refused), JSON.stringify(refused));
@@ -370,13 +375,13 @@ c = chat('script');
 r = await send(c, 'Web design');
 ok('script bot: a tapped service is the need, so the first reply asks for name and email', !r.asked && /name and the best email/.test(r.text) && !/closest to what you need/.test(r.text), r.text);
 brain = () => '[business] Sure.';
-r = await send(chat(), 'Websites');
-ok('AI bots are told which choices the chat box shows, so a bare choice is read as the need', /The chat box shows the visitor these choices to tap when a chat opens: Websites; Web applications; AI chatbots; Website Upgrading\./.test(r.sys), r.sys.slice(r.sys.indexOf('The chat box shows'), r.sys.indexOf('The chat box shows') + 200));
+r = await send(chat(), 'Website development');
+ok('AI bots are told which choices the chat box shows, so a bare choice is read as the need', /The chat box shows the visitor these choices to tap when a chat opens: Website development; Website Upgrading; Application development; Chatbot solutions\./.test(r.sys), r.sys.slice(r.sys.indexOf('The chat box shows'), r.sys.indexOf('The chat box shows') + 200));
 r = await send(chat('acme'), 'hello there');
 ok('a bot with no services gets no such line', !r.sys.includes('The chat box shows'));
-brain = () => '[business] The chat box shows the visitor these choices to tap when a chat opens: Websites; Web applications; AI chatbots; Website Upgrading.';
+brain = () => '[business] The chat box shows the visitor these choices to tap when a chat opens: Website development; Website Upgrading; Application development; Chatbot solutions.';
 r = await send(chat(), 'what are my options?');
-ok('a reply that lists the choices is sent as it is', /Websites; Web applications; AI chatbots; Website Upgrading/.test(r.text), r.text);
+ok('a reply that lists the choices is sent as it is', /Website development; Website Upgrading; Application development; Chatbot solutions/.test(r.text), r.text);
 
 // ─── The server only continues chats it started ───────────────────────────────
 // The chat id is all that ties a message to its conversation, so the browser's word for it is not enough:

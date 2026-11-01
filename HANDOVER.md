@@ -278,10 +278,11 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
     prompt. The prompt written at sign-up (`starterPrompt` in `public/onboarding/main.js`) asks for name and email
     only, so a bot left on it does not ask for timeline or budget.
 - **Service choices:** when a chat opens, both chat boxes (the site's own in `src/main.js`, and `widget.js`) show
-  the bot's Services as buttons under a one-line greeting ("Hi! How can we help?"), then "Something else", which
-  puts the cursor in the text box.
+  the bot's Services as buttons under a one-line greeting ("Hi! How can we help?"), then a quieter button that puts
+  the cursor in the text box: "Other / not sure" on the Bytes site, "Something else" in the client widget.
   - The list comes from `/public/config` (`services`: 8 at most, 60 characters each). The Bytes bot falls back to
-    Websites, Web applications, AI chatbots, Website Upgrading (`HOUSE_SERVICES`) when none are saved. A bot with no services keeps the
+    Website development, Website Upgrading, Application development, Chatbot solutions (`HOUSE_SERVICES`) when none are
+    saved: the contact form's names and order, so chat and form leads record the same service. A bot with no services keeps the
     old greeting and shows no buttons, and so does the site chat when the settings can't be read.
   - A tap sends the service name as an ordinary first message, so it counts toward the 10 per chat and 30 per day.
     Script bots match it exactly (`matchService`) and go straight to name and email. AI bots are told which choices
@@ -297,7 +298,7 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
     one can undo a rule in the other, so check both.
 - **Keyboard on phones:** where the keyboard is on screen (`(pointer: coarse)`: phones and tablets), neither chat
   selects its text box when it opens, so the keyboard stays down and the greeting and choices have the screen.
-  - The text box is selected when the visitor taps it or "Something else", and again after the reply to a message
+  - The text box is selected when the visitor taps it or the last button, and again after the reply to a message
     they typed. Not after a tapped choice: the keyboard would come up over the reply. With a mouse it is selected on
     opening and after every reply, as before. Closing the chat lets go of the text box, so the keyboard goes too.
   - While the keyboard is up, the full-screen chat is sized to the part of the screen still in view (`fitToView`

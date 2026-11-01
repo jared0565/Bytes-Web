@@ -355,7 +355,7 @@ function initChatbot() {
   if (!btnOpen || !chatWindow) return;
 
   // A phone or tablet brings up its keyboard when the text box is selected, and the keyboard covers half the
-  // screen. There the text box is selected only when the visitor asks for it: by tapping it or "Something else",
+  // screen. There the text box is selected only when the visitor asks for it: by tapping it or "Other / not sure",
   // or by sending a message they typed. With a mouse it is selected as soon as the chat opens.
   const keyboardOnScreen = () => window.matchMedia('(pointer: coarse)').matches;
 
@@ -440,7 +440,8 @@ function initChatbot() {
       choices.appendChild(btn);
     };
     services.forEach((service) => addChoice(service, () => send(service)));
-    addChoice('Something else', () => chatInput.focus(), 'chat-choice-other');
+    // Named as the contact form's last option, so the chat's choices match the form's
+    addChoice('Other / not sure', () => chatInput.focus(), 'chat-choice-other');
     chatMessages.appendChild(choices);
   };
   // The list comes from the bot's settings. If it can't be read, the chat opens as before, with no buttons.
