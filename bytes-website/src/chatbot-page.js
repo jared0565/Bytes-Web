@@ -1,22 +1,37 @@
 // The AI chatbot page (/ai-chatbot/). Its content is plain HTML; this adds the behaviour it shares with the
-// homepage, the live chat, and the plan a visitor arrived for.
+// homepage, the chat built into the page, and the plan a visitor arrived for.
 import './style.css';
 import './home.css';
 import './chatbot.css';
 import PLAN_DATA from '../public/plans.json';
 import { initChatbot } from './chat.js';
-import { initReveal, initHeroConsole, initNavbarScroll, initMobileMenu, setFooterYear } from './ui.js';
+import { initReveal, initNavbarScroll, initMobileMenu, setFooterYear } from './ui.js';
 
 initReveal();
-initHeroConsole();
 initNavbarScroll();
 initMobileMenu();
 setFooterYear();
-initChatbot();
 
-// "Try it on this page" opens the chat
+// The chat in the opening section: the Bytes bot, in a conversation of its own (a chat begun on the homepage
+// doesn't carry on here). Its questions are about the chatbot, and each makes sense without the page around
+// it, because the bot isn't told which page it is on. The last one goes straight to sign-up.
+initChatbot({
+  sessionKey: 'bytesfx_chat_chatbot_page',
+  choices: [
+    { label: 'How does the chatbot work on my website?' },
+    { label: 'How much does the chatbot cost?' },
+    { label: 'Is the chatbot trial really free?' },
+    { label: 'Start my free trial', href: '/onboarding/' },
+  ],
+});
+
+// "Try it on this page": to the chat. The text box is selected where that brings up no keyboard.
 document.querySelectorAll('[data-open-chat]').forEach((btn) => {
-  btn.addEventListener('click', () => document.getElementById('btnOpenChat')?.click());
+  btn.addEventListener('click', () => {
+    const chat = document.getElementById('chatbot-window');
+    chat?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest' });
+    if (!matchMedia('(pointer: coarse)').matches) document.getElementById('chatInput')?.focus({ preventScroll: true });
+  });
 });
 
 // Arriving from a "Powered by BytesFX" badge, the dashboard or onboarding (?upgrade=<plan>): show that plan.

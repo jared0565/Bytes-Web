@@ -201,7 +201,7 @@ function renderChatbotTeaser() {
         <div class="hx-teaser-card reveal">
           <div class="hx-teaser-copy">
             <p class="hx-kicker">AI chatbot</p>
-            <h2>Your website's best salesperson, <em>awake 24/7</em></h2>
+            <h2>An AI chatbot that <em>captures leads</em> while you work</h2>
             <p>It answers visitors' questions, finds out what they need and sends you the lead. Start on the free plan or a ${PLAN_DATA.trial.days}-day AI trial with no card. Paid plans from ${PLAN_DATA.currency}${from} a month.</p>
           </div>
           <div class="hx-teaser-actions">

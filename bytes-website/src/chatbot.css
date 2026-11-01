@@ -1,14 +1,155 @@
-/* The AI chatbot page (/ai-chatbot/): only what the homepage's styles (home.css) don't already give it */
+/* The AI chatbot page (/ai-chatbot/). It keeps the homepage's colours, type and buttons (home.css) and has a
+   composition of its own: the chat itself opens the page, and the sections below show pieces of the real
+   screens instead of icon cards. Section heads are left-aligned and carry no label above them. */
 
 /* Arriving at #pricing or #faq (badge, chat links): the heading clears the fixed menu bar */
 .hx-section[id] { scroll-margin-top: 64px; }
+.cb-page .hx-section { padding-block: 5rem; }
 
-.cb-features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-4); }
+/* ── Opening ───────────────────────────────────────────────────────────── */
+.cb-hero {
+  position: relative; padding: calc(80px + 2.5rem) 0 4rem; border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, var(--ink-1), var(--ink-0) 75%);
+}
+.cb-hero-inner { display: grid; grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr); gap: var(--s-7); align-items: center; }
+.cb-title {
+  font: 700 clamp(2.4rem, 4.4vw, 3.9rem)/1.04 var(--font-display); letter-spacing: -0.035em;
+  margin: 0 0 var(--s-4); color: var(--text); text-wrap: balance;
+}
+.cb-lede { font-size: 1.12rem; line-height: 1.7; color: var(--text-dim); max-width: 32rem; margin: 0 0 var(--s-5); }
+.cb-cta-row { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-bottom: var(--s-5); }
+/* "Try it on this page" weighs as much as the trial button: amber, tinted rather than filled */
+.cb-btn-try { color: var(--amber); background: rgba(255, 181, 71, 0.1); border-color: rgba(255, 181, 71, 0.45); }
+.cb-btn-try:hover { transform: translateY(-2px); background: rgba(255, 181, 71, 0.16); border-color: var(--amber); }
+.cb-facts { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.55rem; color: var(--text-dim); font-size: 0.98rem; }
+.cb-facts li { display: flex; align-items: center; gap: 0.6rem; }
+.cb-facts svg { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--mint); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
-.hx-steps.cb-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+/* A website in outline, with the chat docked where it sits on yours */
+.cb-stage { position: relative; min-height: 620px; }
+.cb-site {
+  position: absolute; left: 0; top: 0; width: 76%; height: 470px; overflow: hidden;
+  border: 1px solid var(--line-strong); border-radius: 16px; background: var(--ink-1);
+}
+.cb-site-bar { display: flex; align-items: center; gap: 6px; padding: 0.7rem 0.9rem; border-bottom: 1px solid var(--line); }
+.cb-site-bar i { width: 9px; height: 9px; border-radius: 50%; background: rgba(157, 179, 174, 0.25); }
+.cb-site-bar span { margin-left: 0.6rem; font: 500 0.78rem var(--font-mono); color: var(--text-faint); }
+.cb-site-body { display: grid; gap: 0.7rem; padding: 1.4rem 1.5rem; }
+.cb-sk { display: block; width: 62%; height: 10px; border-radius: 6px; background: rgba(157, 179, 174, 0.12); }
+.cb-sk-nav { width: 40%; height: 8px; margin-bottom: 1.2rem; }
+.cb-sk-h { width: 70%; height: 22px; background: rgba(157, 179, 174, 0.18); }
+.cb-sk.cb-sk-short { width: 45%; }
+.cb-sk-btn { width: 120px; height: 30px; border-radius: 999px; margin-top: 0.4rem; background: rgba(255, 181, 71, 0.22); }
+.cb-sk-img { width: 55%; height: 120px; border-radius: 12px; margin-top: 0.8rem; background: rgba(157, 179, 174, 0.08); }
+
+/* The chat. Its pieces are restyled here, under .cb-chat, so the phone rules for the floating chat in the
+   root style.css (full screen, old colours) never reach it. */
+.cb-chat {
+  position: absolute; right: 0; top: 56px; width: min(372px, 64%); height: 520px;
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--ink-2); border: 1px solid var(--line-strong); border-radius: 18px;
+  box-shadow: 0 30px 60px -28px rgba(0, 8, 10, 0.85), 0 12px 24px -16px rgba(0, 8, 10, 0.6);
+  animation: cb-rise 0.8s var(--ease-out) 0.15s both;
+}
+@keyframes cb-rise { from { opacity: 0; transform: translateY(16px); } }
+.cb-chat-head { display: flex; align-items: center; gap: 0.75rem; padding: 0.9rem 1rem; border-bottom: 1px solid var(--line); background: var(--ink-3); }
+.cb-chat-avatar { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border-radius: 50%; font: 700 1rem var(--font-display); color: #1f1203; background: var(--amber); }
+.cb-chat-name { margin: 0; font: 600 0.98rem/1.2 var(--font-display); color: var(--text); }
+.cb-chat-status { margin: 0.15rem 0 0; display: flex; align-items: center; gap: 0.4rem; font-size: 0.8rem; color: var(--text-dim); }
+.cb-chat-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mint); }
+.cb-chat .cb-chat-messages {
+  flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 1rem;
+  display: flex; flex-direction: column; gap: 0.6rem;
+  scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent;
+}
+.cb-chat .chat-message { max-width: 86%; padding: 0.6rem 0.85rem; border-radius: 14px; font-size: 0.94rem; line-height: 1.5; box-shadow: none; }
+.cb-chat .bot-message { background: var(--ink-3); color: var(--text); border: 0; border-bottom-left-radius: 4px; }
+.cb-chat .user-message { background: var(--amber); color: #1f1203; border-bottom-right-radius: 4px; box-shadow: none; }
+.cb-chat .typing-indicator { width: fit-content; background: var(--ink-3); }
+.cb-chat .chat-choices { width: 92%; }
+.cb-chat .chat-choice { min-height: 42px; border-radius: 12px; border-color: rgba(255, 181, 71, 0.45); color: var(--text); font-size: 0.92rem; }
+.cb-chat .chat-choice:hover { border-color: var(--amber); background: rgba(255, 181, 71, 0.1); }
+/* The way to sign up, among the questions: filled, and a link */
+.cb-chat .chat-choice-go { display: flex; align-items: center; background: var(--amber); border-color: var(--amber); color: #1f1203; font-weight: 600; text-decoration: none; }
+.cb-chat .chat-choice-go:hover { background: #ffc365; border-color: #ffc365; color: #1f1203; }
+.cb-chat .chat-choice-go:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.cb-chat-input { padding: 0.75rem; border-top: 1px solid var(--line); background: var(--ink-2); }
+.cb-chat #chatForm { display: flex; gap: 0.5rem; align-items: center; }
+.cb-chat #chatInput {
+  flex: 1; min-width: 0; padding: 0.7rem 1rem; border-radius: 999px;
+  font: 0.95rem var(--font-body); color: var(--text); caret-color: var(--amber);
+  background: var(--ink-0); border: 1px solid var(--line-strong);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.cb-chat #chatInput::placeholder { color: var(--text-faint); }
+.cb-chat #chatInput:hover { border-color: rgba(157, 179, 174, 0.35); }
+.cb-chat #chatInput:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px rgba(255, 181, 71, 0.18); }
+.cb-chat #chatInput:disabled { opacity: 0.6; cursor: progress; }
+@media (pointer: coarse) { .cb-chat #chatInput { font-size: 16px; } } /* an iPhone zooms in on a smaller text box */
+.cb-chat-send {
+  width: 42px; height: 42px; flex: none; display: grid; place-items: center; cursor: pointer;
+  border: 0; border-radius: 50%; background: var(--amber); color: #1f1203;
+  transition: transform 0.3s var(--ease-spring), background-color 0.2s ease;
+}
+.cb-chat-send svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.cb-chat-send:hover { background: #ffc365; transform: translateY(-1px); }
+.cb-chat-send:active { transform: scale(0.94); }
+.cb-chat-send:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.cb-chat .chat-count { padding: 0 1rem; color: var(--text-dim); }
+.cb-chat-note { position: absolute; right: 0; top: 590px; width: min(372px, 64%); margin: 0; font-size: 0.85rem; line-height: 1.5; color: var(--text-faint); }
+
+/* ── Section heads: left-aligned, no label above ────────────────────────── */
+.cb-head { max-width: 40rem; margin: 0 0 var(--s-6); }
+.cb-head h2 { font: 700 clamp(1.9rem, 3.4vw, 2.75rem)/1.1 var(--font-display); letter-spacing: -0.03em; margin: 0 0 var(--s-2); color: var(--text); text-wrap: balance; }
+.cb-head p { margin: 0; color: var(--text-dim); font-size: 1.06rem; }
+
+/* ── What it does: four moments, each with a piece of the real screen ─────── */
+.cb-flow { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s-5); }
+.cb-flow-step { position: relative; min-width: 0; }
+.cb-flow-step:not(:last-child)::after { content: ''; position: absolute; top: 84px; right: calc(var(--s-5) * -1); width: var(--s-5); height: 1px; background: var(--line-strong); }
+/* No box around a piece: the pieces themselves are the screens' own surfaces */
+.cb-frag {
+  height: 168px; margin-bottom: var(--s-3); padding: 0.25rem 0; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: center; gap: 0.6rem;
+}
+.cb-flow h3 { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0 0 0.4rem; font: 600 1.15rem/1.3 var(--font-display); letter-spacing: -0.015em; color: var(--text); }
+.cb-flow-step > p { margin: 0; color: var(--text-dim); font-size: 0.95rem; line-height: 1.6; }
+.cb-b { margin: 0; max-width: 92%; padding: 0.5rem 0.75rem; border-radius: 12px; font-size: 0.84rem; line-height: 1.45; }
+.cb-b-bot { align-self: flex-start; background: var(--ink-3); color: var(--text); border-bottom-left-radius: 4px; }
+.cb-b-user { align-self: flex-end; background: var(--amber); color: #1f1203; border-bottom-right-radius: 4px; }
+.cb-pills { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.35rem; }
+.cb-pills span { padding: 0.3rem 0.6rem; border-radius: 999px; border: 1px solid rgba(255, 181, 71, 0.45); font-size: 0.78rem; color: var(--text); }
+.cb-mail, .cb-email { padding: 0.65rem 0.75rem; border-radius: 12px; background: var(--ink-2); border: 1px solid var(--line); }
+.cb-mail { display: flex; align-items: center; gap: 0.6rem; }
+.cb-mail svg { width: 20px; height: 20px; flex: none; fill: none; stroke: var(--mint); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.cb-mail strong, .cb-lead-row strong { display: block; font-size: 0.86rem; font-weight: 600; color: var(--text); }
+.cb-mail span, .cb-lead-row span:not(.cb-chip) { display: block; font-size: 0.78rem; color: var(--text-faint); }
+.cb-lead-row { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; padding: 0.55rem 0.7rem; border-radius: 10px; background: var(--ink-2); }
+.cb-lead-row-dim { background: transparent; border: 1px solid var(--line); }
+.cb-chip { flex: none; padding: 0.2rem 0.55rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; color: #062018; background: var(--mint); }
+.cb-chip-new { color: var(--amber); background: rgba(255, 181, 71, 0.12); }
+.cb-email-subject { display: block; margin-bottom: 0.3rem; font-size: 0.8rem; font-weight: 600; color: var(--text); }
+.cb-email p { margin: 0; font-size: 0.82rem; line-height: 1.5; color: var(--text-dim); }
+.cb-tag { padding: 0.15rem 0.55rem; border-radius: 999px; font: 600 0.75rem var(--font-body); color: var(--amber); background: rgba(255, 181, 71, 0.12); }
+
+/* ── How it works: the steps beside the heading; step 2 shows the install line ── */
+.cb-how { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: var(--s-7); align-items: start; }
+.cb-how .cb-head { position: sticky; top: 120px; margin: 0; }
+.cb-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s-5); }
+.cb-steps li { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: var(--s-4); padding-bottom: var(--s-5); border-bottom: 1px solid var(--line); }
+.cb-steps li:last-child { padding-bottom: 0; border-bottom: 0; }
+.cb-step-n { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; font: 700 1.1rem var(--font-display); color: #1f1203; background: var(--amber); }
+.cb-steps h3 { margin: 0.45rem 0 0.35rem; font: 600 1.25rem/1.3 var(--font-display); letter-spacing: -0.015em; color: var(--text); }
+.cb-steps p { margin: 0; color: var(--text-dim); }
+.cb-code { margin: var(--s-3) 0 0; padding: 0.9rem 1rem; overflow-x: auto; border-radius: 12px; background: var(--ink-0); border: 1px solid var(--line-strong); }
+.cb-code code { font: 500 0.85rem/1.6 var(--font-mono); color: #ffe2b0; white-space: pre; }
+
+/* ── Plans and questions ──────────────────────────────────────────────── */
+.hx-plan-trial { margin: -0.15rem 0 0; text-align: center; font-size: 0.85rem; color: var(--text-dim); }
+.cb-page .hx-plan-badge { font-size: 0.75rem; }
 
 /* Questions: one open at a time is the visitor's choice; each opens in place */
-.cb-faq { max-width: 50rem; margin: 0 auto; display: grid; gap: var(--s-2); }
+.cb-faq { max-width: 50rem; display: grid; gap: var(--s-2); }
 .cb-faq-item { border: 1px solid var(--line); border-radius: 18px; background: rgba(16, 36, 41, 0.5); transition: border-color 0.3s ease; }
 .cb-faq-item[open] { border-color: var(--line-strong); }
 .cb-faq-item summary {
@@ -31,17 +172,49 @@
 .cb-faq-item a:hover { color: var(--text); }
 .cb-faq-item a:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; border-radius: 4px; }
 
+.cb-cta { background: linear-gradient(160deg, rgba(255, 181, 71, 0.1), rgba(11, 26, 31, 0) 60%), var(--ink-1); }
+
 /* The page you are on, in the menu */
 .nav-item[aria-current="page"] { color: var(--amber); }
 
-@media (max-width: 1024px) {
-  .cb-features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+/* ── Smaller screens ──────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .cb-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: var(--s-6); }
+  .cb-flow-step:nth-child(2)::after { display: none; }
 }
+@media (max-width: 1024px) {
+  .cb-hero-inner { grid-template-columns: 1fr; gap: var(--s-6); }
+  .cb-stage { width: 100%; max-width: 640px; }
+  .cb-how { grid-template-columns: 1fr; gap: var(--s-5); }
+  .cb-how .cb-head { position: static; }
+}
+/* A phone: the heading, the words and the trial button, then the chat on its own (no outline website, and no
+   "Try it" button: the chat is right there), then the facts */
 @media (max-width: 640px) {
-  .cb-features, .hx-steps.cb-steps { grid-template-columns: 1fr; }
+  .cb-page .hx-section { padding-block: 3.5rem; }
+  .cb-hero { padding: calc(80px + 1.5rem) 0 3rem; }
+  .cb-hero-inner { gap: var(--s-4); }
+  .cb-hero-copy { display: contents; }
+  .cb-title { order: 1; margin: 0; }
+  .cb-lede { order: 2; margin: 0; }
+  .cb-cta-row { order: 3; margin: 0; }
+  .cb-cta-row .hx-btn { flex: 1 1 100%; }
+  .cb-btn-try { display: none; }
+  .cb-stage { order: 4; min-height: 0; }
+  .cb-facts { order: 5; }
+  .cb-site { display: none; }
+  .cb-chat { position: static; width: 100%; height: 31rem; } /* the greeting and all four choices, unscrolled */
+  .cb-chat-note { position: static; width: auto; margin-top: 0.6rem; }
+  .cb-flow { grid-template-columns: 1fr; }
+  .cb-flow-step::after { display: none; }
+  .cb-frag { height: auto; min-height: 140px; }
+  .cb-steps li { grid-template-columns: 36px minmax(0, 1fr); gap: var(--s-3); }
+  .cb-step-n { width: 36px; height: 36px; font-size: 1rem; }
+  .cb-steps h3 { margin-top: 0.25rem; }
   .cb-faq-item summary { padding: var(--s-3); }
   .cb-faq-item p { padding: 0 var(--s-3) var(--s-3); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .cb-faq-item, .cb-faq-item summary, .cb-faq-item summary::after { transition: none; }
+  .cb-chat { animation: none; }
+  .cb-faq-item, .cb-faq-item summary, .cb-faq-item summary::after, .cb-chat-send, .cb-chat #chatInput { transition: none; }
 }

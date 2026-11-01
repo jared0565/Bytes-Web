@@ -38,7 +38,9 @@ npm run build
   fallback when browser storage is blocked, and a visitor's own saved choice is honoured.
 - `scripts/check-chatbot-page.mjs` runs after `vite build` on the built AI chatbot page: every plan, price and tagline
   matches `plans.json`, the structured data parses and matches the plans and the questions shown, no placeholder is
-  left, the buying links work, and `sitemap.xml` and `robots.txt` are in place.
+  left, the buying links work, and `sitemap.xml` and `robots.txt` are in place. It also keeps the page its own: the
+  chat is in the opening and its facts match `plans.json`, no label sits above a heading, the install line is the
+  dashboard's, the homepage's chatbot heading differs, and faint text keeps 4.5:1 contrast.
 
 Run any of them on its own from `bytes-website`: `node scripts/check-consent.mjs`, `node scripts/test-consent.mjs`, or
 (after `npx vite build`) `node scripts/check-chatbot-page.mjs`.

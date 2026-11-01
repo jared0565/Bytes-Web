@@ -25,10 +25,11 @@ function planFeatures(data, p) {
   ].join('');
 }
 
-// Free starts the trial. A paid plan goes to the homepage's contact form with the plan filled in (the
-// page adds the client id when the visitor came from the dashboard), until checkout is online.
+// Free starts the free plan, which comes with the AI trial. A paid plan goes to the homepage's contact form
+// with the plan filled in (the page adds the client id when the visitor came from the dashboard), until
+// checkout is online.
 function planButton(data, p) {
-  if (p.price === 0) return '<a href="/onboarding/" class="hx-btn hx-btn-ghost hx-btn-full">Start free trial</a>';
+  if (p.price === 0) return `<a href="/onboarding/" class="hx-btn hx-btn-ghost hx-btn-full">Start free</a><p class="hx-plan-trial">Includes a ${data.trial.days}-day AI trial</p>`;
   return `<a href="/?plan=${p.id}#contact" class="hx-btn ${p.featured ? 'hx-btn-primary' : 'hx-btn-ghost'} hx-btn-full">Choose ${p.name}</a>`;
 }
 

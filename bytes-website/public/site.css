@@ -11,7 +11,7 @@
   --line-strong: rgba(155, 214, 205, 0.2);
   --text: #eaf2ef;
   --text-dim: #9db3ae;
-  --text-faint: #6b827d;
+  --text-faint: #869e98; /* as in src/home.css: 4.5:1 or more on every ink */
   --amber: #ffb547;
   --amber-deep: #f28c28;
   --coral: #ff6a4d;
