@@ -351,14 +351,18 @@ Each entry says where the code is. Start there before changing anything.
     passes `initChatbot` its own `sessionKey` (a chat begun on the homepage doesn't carry on there, and the
     reverse) and its own quick questions about the chatbot, ending in a "Start my free trial" link to
     `/onboarding/`. The bot isn't told which page a message came from, so each question stands on its own.
+    The questions go after the first message, so the same link is also in the page's HTML above the text box
+    (`#chatGo`, hidden), and `chat.js` shows it then, or at once for a conversation carried on in the same tab.
+    The homepage has no `#chatGo`, so its chat is unchanged.
   - Plain HTML, so search engines and AI tools read it without running a script. `vite.config.js` writes the plan
     cards (`src/plans-html.js`), the questions and the structured data (`src/chatbot-content.js`) and the `{{...}}`
     values (trial days, currency, the lowest paid price) into it from `plans.json` on every build.
     `scripts/check-chatbot-page.mjs` runs after `vite build` and fails the build when a plan, price or question
     differs, a placeholder is left, sitemap/robots are missing, the opening loses the chat or its facts drift from
-    `plans.json`, a label comes back above a heading, the install line differs from the dashboard's
-    (`config-embed` in `public/dashboard/main.js`), the homepage's chatbot heading repeats the page's, or the faint
-    text colour (`--text-faint` in `home.css`, shared with the homepage) drops under 4.5:1 on any surface.
+    `plans.json`, the chat loses its kept "Start my free trial" link, a label comes back above a heading, the
+    install line differs from the dashboard's (`config-embed` in `public/dashboard/main.js`), the homepage's chatbot
+    heading repeats the page's, or the faint text colour (`--text-faint` in `home.css`, shared with the homepage)
+    drops under 4.5:1 on any surface.
   - A paid plan's button goes to the homepage contact form as `/?plan=<id>#contact` (with `&client=<id>` when the
     visitor came from the dashboard), until checkout is online. Free says "Start free" and notes the AI trial it
     includes; it goes to `/onboarding/`.

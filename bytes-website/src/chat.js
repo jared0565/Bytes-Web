@@ -42,7 +42,10 @@ export function initChatbot({ sessionKey = 'bytesfx_chat_default', choices: page
   const chatMessages = document.getElementById('chat-messages');
   let choices = null;
   let started = false;
-  const hideChoices = () => { choices?.remove(); choices = null; };
+  // A page can keep its way to sign up in the chat once the choices go (#chatGo, above the text box)
+  const chatGo = document.getElementById('chatGo');
+  const showGo = () => { if (chatGo) chatGo.hidden = false; };
+  const hideChoices = () => { choices?.remove(); choices = null; showGo(); };
   const canOffer = () => !started && !chatSessionId && chatMessages && chatInput;
   const newChoices = (label) => {
     choices = document.createElement('div');
@@ -83,7 +86,10 @@ export function initChatbot({ sessionKey = 'bytesfx_chat_default', choices: page
     });
     chatMessages.appendChild(choices);
   };
-  if (pageChoices?.length) showPageChoices();
+  if (pageChoices?.length) {
+    showPageChoices();
+    if (!choices) showGo(); // a conversation carried on from earlier in this tab gets no choices
+  }
   // The list comes from the bot's settings. If it can't be read, the chat opens as before, with no buttons.
   else if (!chatSessionId) {
     fetch(`${CHAT_API_URL}/public/config?clientId=default`)

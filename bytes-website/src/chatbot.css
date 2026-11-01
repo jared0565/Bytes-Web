@@ -74,6 +74,9 @@
 .cb-chat .chat-choice-go:hover { background: #ffc365; border-color: #ffc365; color: #1f1203; }
 .cb-chat .chat-choice-go:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 .cb-chat-input { padding: 0.75rem; border-top: 1px solid var(--line); background: var(--ink-2); }
+/* The same link, kept above the text box once the questions go: slimmer, and only as wide as its words */
+.cb-chat-go { margin-bottom: 0.6rem; }
+.cb-chat .cb-chat-go .chat-choice-go { display: inline-flex; width: auto; min-height: 40px; padding: 0.4rem 1rem; font-size: 0.9rem; }
 .cb-chat #chatForm { display: flex; gap: 0.5rem; align-items: center; }
 .cb-chat #chatInput {
   flex: 1; min-width: 0; padding: 0.7rem 1rem; border-radius: 999px;
