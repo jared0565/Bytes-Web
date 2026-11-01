@@ -338,7 +338,21 @@ Each entry says where the code is. Start there before changing anything.
 
 - **Homepage sections and the site's chat box.** Markup is in `index.html`. `public/widget.js` is a separate embeddable
   widget for client websites. A change to one usually belongs in both.
-- **Pricing** is built from `plans.json`. `?upgrade=<plan>&client=<id>#pricing` highlights a plan and pre-fills the request.
+- **The AI chatbot page** (`/ai-chatbot/`, source `bytes-website/ai-chatbot/index.html`) sells the chatbot on its own: hero
+  with a demo chat, what it does, three steps, the plans, questions, and the same live site chat as the homepage.
+  - Plain HTML, so search engines and AI tools read it without running a script. `vite.config.js` writes the plan
+    cards (`src/plans-html.js`), the questions and the structured data (`src/chatbot-content.js`) and the `{{...}}`
+    values into it from `plans.json` on every build. `scripts/check-chatbot-page.mjs` runs after `vite build` and
+    fails the build when a plan, price or question differs, a placeholder is left, or sitemap/robots are missing.
+  - A paid plan's button goes to the homepage contact form as `/?plan=<id>#contact` (with `&client=<id>` when the
+    visitor came from the dashboard), until checkout is online. Free starts the trial at `/onboarding/`.
+  - Old links to the homepage pricing (`?upgrade=<plan>` or `#pricing`, including badge links saved on clients' bots)
+    are sent to `/ai-chatbot/` by `src/main.js`, keeping the plan, client and referral details. New badge links,
+    the dashboard's upgrade buttons, onboarding and the Bytes bot's pricing link point at the page directly.
+  - The homepage keeps a short chatbot section (`renderChatbotTeaser`) and its menu says "AI Chatbot" instead of
+    "Pricing". The site chat is `src/chat.js` and the shared page behaviour `src/ui.js`, loaded by both pages.
+  - `public/sitemap.xml` lists the public pages (add a new page there); `public/robots.txt` names it and keeps
+    crawlers out of `/dashboard/`.
 - **Contact form** posts to `POST /api/public/website-lead`.
 - **The services the site sells.** Four: websites, website upgrading, custom applications and AI chatbots. They are named
   in the homepage's services bento (`src/main.js`), in the contact form's service list, in the footer's Services list (the
@@ -670,12 +684,12 @@ Requires **Node 22.5 or newer** (the tests use `node:sqlite`). Run `npm install`
 
 | Check | Command (from the folder shown) | What it proves |
 |---|---|---|
-| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 17 suites (316 checks on 1 Nov 2026) |
+| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 17 suites (317 checks on 1 Nov 2026) |
 | One or a few crm-api suites | `node test/run.mjs flow plans` | Only the named suites |
-| chatbot-api tests | `chatbot-api`: `node test/run.mjs` | 3 suites: `chat` (whole requests to the chat endpoint), `gate` (website gate), `scripted` (142 checks on 1 Nov 2026) |
+| chatbot-api tests | `chatbot-api`: `node test/run.mjs` | 3 suites: `chat` (whole requests to the chat endpoint), `gate` (website gate), `scripted` (143 checks on 1 Nov 2026) |
 | Typecheck | `chatbot-api`: `npx tsc --noEmit -p .` | TypeScript types |
 | Bundle check | `bytes-website/crm-api-worker`: `npx wrangler deploy --dry-run --config wrangler.toml` | Nothing is deployed. It should list the DB, KV, R2 and LLM bindings. "No bindings found" means it checked the website worker instead |
-| Website build | `bytes-website`: `npm run build` | Builds the site and copies `public/` |
+| Website build | `bytes-website`: `npm run build` | Builds the homepage and the AI chatbot page, copies `public/`, and runs the consent and chatbot-page checks |
 
 The crm-api suites, with what they cover:
 

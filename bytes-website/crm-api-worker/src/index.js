@@ -444,6 +444,10 @@ app.onError((err, c) => {
 
 app.get('/api/health', (c) => c.json({ status: 'ok', service: 'crm-api' }));
 
+// Where a client's "Powered by BytesFX" badge leads: the AI chatbot page, on its plans. Links saved
+// on older bots point to the homepage, which forwards them here.
+const BADGE_URL = 'https://web.bytesfx.com/ai-chatbot/?upgrade=free#pricing';
+
 // Registration — provisions a new client with chatbot config + 7-day trial (no session required)
 app.post('/api/register', async (c) => {
     let body;
@@ -476,7 +480,7 @@ app.post('/api/register', async (c) => {
     const trialEndsAt = now + PLAN_DATA.trial.days * 24 * 60 * 60 * 1000;
 
     // Save chatbot config (mode = 'ai' during trial; badge mandatory with pricing link)
-    const badgeUrl = 'https://web.bytesfx.com/?upgrade=free#pricing';
+    const badgeUrl = BADGE_URL;
     // Only the onboarding fields are accepted (no mode, domains, model or branding from the caller)
     const initial = {};
     if (typeof settings.companyName === 'string') initial.companyName = settings.companyName.trim().slice(0, 80);
@@ -2523,7 +2527,7 @@ async function handleVerificationCron(env) {
                 if (normalizeMode(cfg.mode) !== 'scripted') {
                     cfg.mode = 'scripted'; // downgrade chatbot to the guided (scripted) bot
                     cfg.showBranding = true; // badge mandatory on free tier
-                    cfg.badgeUrl = 'https://web.bytesfx.com/?upgrade=free#pricing';
+                    cfg.badgeUrl = BADGE_URL;
                     await env.CLIENT_SETTINGS.put(`client:${row.client_id}`, JSON.stringify(cfg));
                     console.log(`[Trial] Expired → ${row.client_id} downgraded to free mode`);
                 }

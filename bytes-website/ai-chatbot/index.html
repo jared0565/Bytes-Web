@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="/favicon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- The page is plain HTML so search engines and AI tools read all of it. The plans, the questions and the
+       structured data are written in from plans.json by the build (vite.config.js), and so are the {{...}} values. -->
+  <title>AI Chatbot for Your Website, Captures Leads 24/7 | BytesFX</title>
+  <meta name="description" content="An AI chatbot that answers your visitors' questions, finds out what they need and sends you the lead, day and night. Free plan, no card to start.">
+  <link rel="canonical" href="https://web.bytesfx.com/ai-chatbot/">
+  <meta name="theme-color" content="#071216">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="BytesFX">
+  <meta property="og:url" content="https://web.bytesfx.com/ai-chatbot/">
+  <meta property="og:title" content="Your website's best salesperson">
+  <meta property="og:description" content="An AI chatbot that answers visitors' questions and captures leads 24/7. Start free, no card needed.">
+  <meta property="og:image" content="https://web.bytesfx.com/og-trial.jpg">
+  <meta property="og:image:secure_url" content="https://web.bytesfx.com/og-trial.jpg">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="BytesFX: Your website's best salesperson. Start your 7-day free trial at web.bytesfx.com.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Your website's best salesperson">
+  <meta name="twitter:description" content="An AI chatbot that answers visitors' questions and captures leads 24/7. Start free, no card needed.">
+  <meta name="twitter:image" content="https://web.bytesfx.com/og-trial.jpg">
+  <meta name="twitter:image:alt" content="BytesFX: Your website's best salesperson. Start your 7-day free trial at web.bytesfx.com.">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Consent Mode v2 defaults: must run before any analytics/ads tag. Adding one? Turn on ASK in consent.js first -->
+  <script src="/consent.js"></script>
+  <script src="/track.js" defer></script>
+  <script src="/share.js" defer></script>
+
+  <link rel="stylesheet" href="/style.css">
+
+  <!--@ld-->
+</head>
+
+<body>
+  <nav class="navbar glass-nav">
+    <div class="logo-container">
+      <a href="/" class="logo">Bytes<span class="highlight">FX</span></a>
+    </div>
+
+    <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle Navigation">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+    </button>
+
+    <ul class="nav-links" id="navLinks">
+      <li><a href="/#services" class="nav-item">Services</a></li>
+      <li><a href="/#process" class="nav-item">Process</a></li>
+      <li><a href="/ai-chatbot/" class="nav-item" aria-current="page">AI Chatbot</a></li>
+      <li><a href="/#contact" class="nav-item">Contact</a></li>
+      <li><button type="button" class="nav-item hx-nav-share" data-share aria-label="Share this page">Share</button></li>
+      <li><a href="/onboarding/" class="hx-btn hx-btn-primary hx-nav-cta">Start free trial</a></li>
+    </ul>
+  </nav>
+
+  <main id="app">
+    <!-- Hero: what it is, the trial, and the product working -->
+    <section id="home" class="hx-hero">
+      <div class="hx-hero-bg" aria-hidden="true">
+        <div class="hx-glow hx-glow-a"></div>
+        <div class="hx-glow hx-glow-b"></div>
+        <div class="hx-grid"></div>
+        <div class="hx-grain"></div>
+      </div>
+
+      <div class="hx-container hx-hero-inner">
+        <div class="hx-hero-copy">
+          <p class="hx-eyebrow reveal" style="--d:0">
+            <span class="hx-pulse" aria-hidden="true"></span>
+            AI chatbot for your website
+          </p>
+          <h1 class="hx-title reveal" style="--d:1">
+            Your website's best <em>salesperson</em>, awake <span class="hx-underline">24/7</span>.
+          </h1>
+          <p class="hx-lede reveal" style="--d:2">
+            An AI chatbot that answers your visitors' questions, finds out what they need and collects their name
+            and email. Every lead lands in your dashboard, ready for you to follow up.
+          </p>
+          <div class="hx-cta-row reveal" style="--d:3">
+            <a href="/onboarding/" class="hx-btn hx-btn-primary">
+              Start your free trial
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h11m-4-4 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </a>
+            <button type="button" class="hx-btn hx-btn-ghost" data-open-chat>Try it on this page</button>
+          </div>
+          <dl class="hx-stats reveal" style="--d:4">
+            <div><dt>Answers visitors</dt><dd>24/7</dd></div>
+            <div><dt>Free AI trial</dt><dd>{{trialDays}} days</dd></div>
+            <div><dt>No card to start</dt><dd>{{currency}}0</dd></div>
+          </dl>
+        </div>
+
+        <!-- The product at work: a visitor's question answered, then the lead in the dashboard -->
+        <div class="hx-console reveal" style="--d:2" aria-label="Example: a BytesFX chatbot answering a visitor and capturing the lead">
+          <div class="hx-console-bar">
+            <span class="hx-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span class="hx-console-title">yourbrand.com</span>
+            <span class="hx-live"><span class="hx-pulse" aria-hidden="true"></span>Live</span>
+          </div>
+          <ol class="hx-chat" id="hxChat">
+            <li class="hx-msg hx-bot" data-step="0">Hi! How can we help?</li>
+            <li class="hx-msg hx-user" data-step="1">Do you have evening appointments?</li>
+            <li class="hx-msg hx-bot" data-step="2">Yes, Monday to Thursday until 8pm. Shall I ask the team to book you in? What's your name and email?</li>
+            <li class="hx-msg hx-user" data-step="3">Sam Lee, sam@example.com</li>
+            <li class="hx-msg hx-bot" data-step="4">Thanks, Sam! The team will reply by email within 24 hours. When would suit you?</li>
+            <li class="hx-typing" data-step="5" aria-hidden="true"><i></i><i></i><i></i></li>
+          </ol>
+          <div class="hx-lead" data-step="6">
+            <div class="hx-lead-head">
+              <span class="hx-lead-tag">New lead</span>
+              <span class="hx-lead-time">just now</span>
+            </div>
+            <div class="hx-lead-name">Sam Lee</div>
+            <div class="hx-lead-meta">
+              <span>Evening appointment</span><span>From the chat</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- What it does -->
+    <section id="features" class="hx-section">
+      <div class="hx-container">
+        <header class="hx-head reveal">
+          <p class="hx-kicker">What it does</p>
+          <h2>From first question to <em>qualified lead</em></h2>
+          <p>It does the first part of the sale for you, on every page, at any hour.</p>
+        </header>
+        <div class="cb-features">
+          <div class="hx-benefit reveal" style="--d:0">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-12.2 7.5L3 21l1.9-5.7A8.5 8.5 0 1 1 21 11.5z"/></svg>
+            <h3>Answers in your words</h3>
+            <p>Describe your business once. The AI answers visitors' questions from it, at any time of day.</p>
+          </div>
+          <div class="hx-benefit reveal" style="--d:1">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="5" rx="2"/><rect x="3" y="12" width="18" height="5" rx="2"/><path d="M7 21h10"/></svg>
+            <h3>Asks what they need</h3>
+            <p>Your services show as buttons when a chat opens, so visitors tell you what they want in one tap.</p>
+          </div>
+          <div class="hx-benefit reveal" style="--d:2">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
+            <h3>Collects the contact</h3>
+            <p>It asks for a name and email at the right moment, then timeline and budget, and asks the visitor to confirm their email.</p>
+          </div>
+          <div class="hx-benefit reveal" style="--d:3">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+            <h3>Every lead in one place</h3>
+            <p>Leads, the chats behind them and your numbers sit in your dashboard, with an email alert for each new lead.</p>
+          </div>
+          <div class="hx-benefit reveal" style="--d:4">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M22 2 11 13"/><path d="m22 2-7 20-4-9-9-4 20-7z"/></svg>
+            <h3>Follows up for you</h3>
+            <p>On paid plans, AI email follow-ups, proposals and campaigns keep the conversation going after the chat.</p>
+          </div>
+          <div class="hx-benefit reveal" style="--d:5">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18"/><circle cx="12" cy="8" r="1.2"/></svg>
+            <h3>Looks like your brand</h3>
+            <p>Remove the BytesFX badge from Pro, and set the bot's name, colour and avatar on Business.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How it works: a real sequence, so the steps are numbered -->
+    <section id="how" class="hx-section">
+      <div class="hx-container">
+        <header class="hx-head reveal">
+          <p class="hx-kicker">How it works</p>
+          <h2>Live on your site <em>in three steps</em></h2>
+          <p>No developer needed, and no card for the trial.</p>
+        </header>
+        <ol class="hx-steps cb-steps">
+          <li class="reveal" style="--d:0"><span class="hx-step-n">01</span><h3>Start your free trial</h3><p>Enter your website and a few lines about your business. Your chatbot is set up straight away.</p></li>
+          <li class="reveal" style="--d:1"><span class="hx-step-n">02</span><h3>Paste one line of code</h3><p>Add the script to your site and the chat appears on your pages.</p></li>
+          <li class="reveal" style="--d:2"><span class="hx-step-n">03</span><h3>Watch the leads arrive</h3><p>New leads land in your dashboard and your inbox, with the chat that produced them.</p></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- Plans: written in from plans.json by the build -->
+    <section id="pricing" class="hx-section hx-pricing" aria-labelledby="pricingTitle">
+      <div class="hx-container">
+        <header class="hx-head reveal">
+          <p class="hx-kicker">Plans</p>
+          <h2 id="pricingTitle">Start free. <em>Upgrade when it pays.</em></h2>
+          <p>{{trialSummary}}</p>
+        </header>
+        <!--@plans-->
+      </div>
+    </section>
+
+    <!-- Questions: written in by the build, and the same list goes into the structured data -->
+    <section id="faq" class="hx-section">
+      <div class="hx-container">
+        <header class="hx-head reveal">
+          <p class="hx-kicker">Questions</p>
+          <h2>Before you <em>start</em></h2>
+        </header>
+        <div class="cb-faq">
+          <!--@faq-->
+        </div>
+      </div>
+    </section>
+
+    <section class="hx-section hx-cta-wrap">
+      <div class="hx-container">
+        <div class="hx-cta reveal">
+          <div class="hx-cta-glow" aria-hidden="true"></div>
+          <h2>Put your best salesperson <em>on every page</em></h2>
+          <p>Start the {{trialDays}}-day AI trial today. No card needed, and the Free plan stays free.</p>
+          <a href="/onboarding/" class="hx-btn hx-btn-primary">Start your free trial</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-content">
+      <div class="footer-brand">
+        <a href="/" class="logo">Bytes<span class="highlight">FX</span></a>
+        <p class="footer-description">Premium web and application experiences tailored to rapidly scale your business.</p>
+        <div data-social-links aria-label="BytesFX on social media"></div>
+      </div>
+
+      <div class="footer-links-group">
+        <h3>Services</h3>
+        <ul>
+          <li><a href="/#services">Website Development</a></li>
+          <li><a href="/#services">Website Upgrading</a></li>
+          <li><a href="/#services">App Development</a></li>
+          <li><a href="/ai-chatbot/">Chatbot Solutions</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-links-group">
+        <h3>Legal</h3>
+        <ul>
+          <li><a href="/privacy-policy.html">Privacy Policy</a></li>
+          <li><a href="/terms-of-service.html">Terms of Service</a></li>
+          <li><a href="/cookie-policy.html">Cookie Policy</a></li>
+          <li><a href="/cookie-policy.html" data-cookie-settings>Cookie Settings</a></li>
+        </ul>
+      </div>
+
+      <div class="footer-contact">
+        <h3>Location & Contact</h3>
+        <p class="footer-address">
+          Bytes Enterprises Ltd.<br>
+          London, UK
+        </p>
+        <a href="mailto:contact@bytesfx.com" class="contact-email">contact@bytesfx.com</a>
+        <a href="/dashboard/" class="footer-login">Log In &rarr;</a>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; <span id="currentYear"></span> Bytes Enterprises Ltd. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <!-- The site chat: the same Bytes bot as on the homepage -->
+  <div id="chatbot-widget" class="chatbot-widget">
+    <div id="chatbot-window" class="chatbot-window glass-panel hidden">
+      <div class="chatbot-header">
+        <div class="chatbot-title">
+          <span class="status-dot"></span>
+          <span>Bytes<span class="highlight">FX</span> Assistant</span>
+        </div>
+        <button id="btnCloseChat" class="btn-close-chat">&times;</button>
+      </div>
+      <div id="chat-messages" class="chatbot-messages">
+        <div class="chat-message bot-message">
+          <p>Hi there! I'm your BytesFX assistant. How can I help you grow your business today?</p>
+        </div>
+      </div>
+      <div class="chatbot-input-area">
+        <form id="chatForm">
+          <input type="text" id="chatInput" placeholder="Ask about our services..." autocomplete="off" aria-describedby="chatCount" required>
+          <button type="submit" id="btnSendChat" class="btn-send-chat">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </form>
+        <p id="chatCount" class="chat-count" hidden></p>
+      </div>
+    </div>
+    <button id="btnOpenChat" class="chatbot-launcher" aria-label="Chat with BytesFX">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+      </svg>
+    </button>
+  </div>
+
+  <script type="module" src="/src/chatbot-page.js"></script>
+</body>
+
+</html>

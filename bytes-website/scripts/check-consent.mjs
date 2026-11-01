@@ -34,7 +34,7 @@ const thirdParty = scriptSrc[1].split(/\s+/).filter(d => /^https?:\/\//i.test(d)
 if (thirdParty.length) fail(`the policy allows a third-party script (${thirdParty.join(', ')}) while the banner is off. Turn the banner on and bump VERSION.`);
 
 // 3. The pages: a script tag the policy would have to allow
-const pages = ['index.html', ...readdirSync(join(site, 'public')).filter(f => f.endsWith('.html')).map(f => join('public', f))];
+const pages = ['index.html', join('ai-chatbot', 'index.html'), ...readdirSync(join(site, 'public')).filter(f => f.endsWith('.html')).map(f => join('public', f))];
 for (const p of pages) {
     const file = join(site, p);
     if (!existsSync(file)) continue;

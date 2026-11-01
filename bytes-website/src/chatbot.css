@@ -1,0 +1,47 @@
+/* The AI chatbot page (/ai-chatbot/): only what the homepage's styles (home.css) don't already give it */
+
+/* Arriving at #pricing or #faq (badge, chat links): the heading clears the fixed menu bar */
+.hx-section[id] { scroll-margin-top: 64px; }
+
+.cb-features { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s-4); }
+
+.hx-steps.cb-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+/* Questions: one open at a time is the visitor's choice; each opens in place */
+.cb-faq { max-width: 50rem; margin: 0 auto; display: grid; gap: var(--s-2); }
+.cb-faq-item { border: 1px solid var(--line); border-radius: 18px; background: rgba(16, 36, 41, 0.5); transition: border-color 0.3s ease; }
+.cb-faq-item[open] { border-color: var(--line-strong); }
+.cb-faq-item summary {
+  display: flex; justify-content: space-between; align-items: center; gap: var(--s-3);
+  padding: var(--s-3) var(--s-4); cursor: pointer; list-style: none;
+  font: 600 1.05rem/1.4 var(--font-display); letter-spacing: -0.01em; color: var(--text);
+  border-radius: 18px; transition: color 0.2s ease;
+}
+.cb-faq-item summary::-webkit-details-marker { display: none; }
+.cb-faq-item summary::after {
+  content: '+'; flex: none; color: var(--amber); font: 400 1.5rem/1 var(--font-body);
+  transition: transform 0.35s var(--ease-spring);
+}
+.cb-faq-item[open] summary::after { transform: rotate(45deg); }
+.cb-faq-item summary:hover { color: var(--amber); }
+.cb-faq-item summary:active { color: var(--amber); }
+.cb-faq-item summary:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; }
+.cb-faq-item p { margin: 0; padding: 0 var(--s-4) var(--s-4); color: var(--text-dim); line-height: 1.7; max-width: 44rem; }
+.cb-faq-item a { color: var(--amber); text-underline-offset: 2px; }
+.cb-faq-item a:hover { color: var(--text); }
+.cb-faq-item a:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; border-radius: 4px; }
+
+/* The page you are on, in the menu */
+.nav-item[aria-current="page"] { color: var(--amber); }
+
+@media (max-width: 1024px) {
+  .cb-features { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .cb-features, .hx-steps.cb-steps { grid-template-columns: 1fr; }
+  .cb-faq-item summary { padding: var(--s-3); }
+  .cb-faq-item p { padding: 0 var(--s-3) var(--s-3); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cb-faq-item, .cb-faq-item summary, .cb-faq-item summary::after { transition: none; }
+}

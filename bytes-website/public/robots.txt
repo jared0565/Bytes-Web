@@ -1,0 +1,7 @@
+# Search engines and AI tools are welcome on the public pages. The dashboard is signed-in only.
+User-agent: *
+Allow: /
+Disallow: /dashboard/
+Disallow: /preview.html
+
+Sitemap: https://web.bytesfx.com/sitemap.xml

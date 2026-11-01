@@ -28,6 +28,7 @@ r = await req('POST', '/api/register-settings', { setupToken: reg.setupToken, se
 const cfg = JSON.parse(CS.mp.get('client:acme-1234'));
 ok('register-settings 200', r.status === 200);
 ok('whitelist', cfg.systemPrompt === 'New prompt' && cfg.mode === 'ai' && cfg.showBranding === true && cfg.allowedDomains.join() === 'acme.com' && cfg.badgeUrl.includes('bytesfx') && cfg.companyName === 'Acme', JSON.stringify(cfg));
+ok('a new bot\'s "Powered by BytesFX" badge opens the AI chatbot page on its plans', cfg.badgeUrl === 'https://web.bytesfx.com/ai-chatbot/?upgrade=free#pricing', cfg.badgeUrl);
 ok('auto-approve to D1', db.prepare("select auto_approve_campaigns a from crm_settings where client_id='acme-1234'").get().a === 1);
 
 // OAuth dashboard login

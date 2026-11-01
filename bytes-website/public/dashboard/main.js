@@ -1747,7 +1747,7 @@ fetch('/plans.json').then(r => (r.ok ? r.json() : null)).then(d => {
 }).catch(() => {});
 const planDomainsLine = () => ['starter', 'pro', 'business', 'enterprise'].map(id => `${PLAN_INSTALL_LIMITS[id].maxDomains === -1 ? 'unlimited' : PLAN_INSTALL_LIMITS[id].maxDomains} on ${id[0].toUpperCase()}${id.slice(1)}`).join(', ');
 // Upgrade links open the website's Pricing on that plan, with the client ID so the request is quick
-const upgradeUrl = (plan) => `https://web.bytesfx.com/?upgrade=${encodeURIComponent(plan || 'starter')}${installationData?.clientId ? `&client=${encodeURIComponent(installationData.clientId)}` : ''}#pricing`;
+const upgradeUrl = (plan) => `https://web.bytesfx.com/ai-chatbot/?upgrade=${encodeURIComponent(plan || 'starter')}${installationData?.clientId ? `&client=${encodeURIComponent(installationData.clientId)}` : ''}#pricing`;
 
 let installationData = { clientId: '', allowedDomains: [], maxInstalls: 1, maxDomains: 1, plan: 'free', inTrial: true };
 
