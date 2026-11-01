@@ -5,6 +5,8 @@ import { AuthProvider } from './auth.js';
 import PostalMime from 'postal-mime';
 // The one list of plans (prices, limits, features), shared with the website and dashboard
 import PLAN_DATA from '../../public/plans.json';
+// Proof and offers settings, and the framework copy built from them
+import { OFFER_FIELDS, cleanOffers } from './frameworks.js';
 
 // ─── Native Web Crypto JWT (no external library — Workers crypto.subtle) ─────
 async function signJWT(payload, secret, expiresIn = 28800) {
@@ -1834,7 +1836,7 @@ app.get('/api/config', requireAuth, async (c) => {
 });
 
 // Fields the chatbot settings forms may write (badgeUrl/allowedDomains are further limited for clients)
-const CONFIG_FIELDS = ['companyName', 'mode', 'services', 'systemPrompt', 'llmModel', 'llmEffort', 'showBranding', 'referralId', 'allowedDomains', 'badgeUrl', 'widgetName', 'widgetAccentColor', 'widgetAvatar', 'askQuestions', 'bookingUrl', 'alertEmail', 'draftModel', 'readModel'];
+const CONFIG_FIELDS = ['companyName', 'mode', 'services', 'systemPrompt', 'llmModel', 'llmEffort', 'showBranding', 'referralId', 'allowedDomains', 'badgeUrl', 'widgetName', 'widgetAccentColor', 'widgetAvatar', 'askQuestions', 'bookingUrl', 'alertEmail', 'draftModel', 'readModel', ...OFFER_FIELDS];
 
 app.post('/api/config', requireAuth, async (c) => {
     let body;
@@ -1929,7 +1931,7 @@ app.post('/api/test-lead', requireAuth, async (c) => {
 // CRM Settings
 // ─── Bytes website settings (admin only) ─────────────────────────────────────
 // The house chatbot on bytesfx.com: no plan limits, no badge rules, separate from every client.
-const SITE_FIELDS = ['companyName', 'mode', 'services', 'systemPrompt', 'llmModel', 'llmEffort', 'allowedDomains', 'socials', 'askQuestions', 'bookingUrl', 'alertEmail', 'draftModel', 'readModel'];
+const SITE_FIELDS = ['companyName', 'mode', 'services', 'systemPrompt', 'llmModel', 'llmEffort', 'allowedDomains', 'socials', 'askQuestions', 'bookingUrl', 'alertEmail', 'draftModel', 'readModel', ...OFFER_FIELDS];
 // Footer social links: each must be an https URL on that network's own domain (empty clears it)
 const SOCIAL_HOSTS = {
     linkedin: /(^|\.)linkedin\.com$/,
@@ -2842,7 +2844,7 @@ function cleanSalesSettings(src, out) {
             out[k] = src[k];
         }
     }
-    return null;
+    return cleanOffers(src, out);
 }
 
 function parseBrief(raw) { try { const b = JSON.parse(raw || 'null'); return b && typeof b === 'object' ? b : null; } catch (_) { return null; } }
