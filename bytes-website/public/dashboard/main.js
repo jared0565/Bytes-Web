@@ -3893,7 +3893,46 @@ function salesFieldsHtml(p) {
                 <select id="${p}-read-model"><option value="">${SALES_DEFAULT_LABEL}</option></select>
             </div>
         </div>
+        <div class="sales-offers">
+            <p class="sales-offers-head">Proof and offers</p>
+            <p class="sales-offers-note">Used word for word in closing emails and proposals. Leave a box empty and that part is skipped. Only add what is true.</p>
+            <div class="form-group">
+                <label for="${p}-proof">Work you can point to <span class="site-hint">One per line: a live site, a case study or a client's words. Add a link at the end if there is one.</span></label>
+                <textarea id="${p}-proof" rows="3" maxlength="1600"></textarea>
+            </div>
+            <div class="sales-grid">
+                <div class="form-group">
+                    <label for="${p}-how">How you work <span class="site-hint">Your steps, timeline, who does the work and how fast you reply.</span></label>
+                    <textarea id="${p}-how" rows="3" maxlength="600"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="${p}-commit">What you commit to <span class="site-hint">Only promises you'll keep, such as a fixed quote, staged payments or revisions included.</span></label>
+                    <textarea id="${p}-commit" rows="3" maxlength="400"></textarea>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="${p}-free">A free first step <span class="site-hint">Something useful before they buy, such as a free 15-minute review of their website.</span></label>
+                <input type="text" id="${p}-free" maxlength="200" autocomplete="off">
+            </div>
+            <div class="sales-grid sales-act">
+                <div class="form-group">
+                    <label for="${p}-act">A reason to act now <span class="site-hint">Only if it's real. Used until the end date, then skipped.</span></label>
+                    <input type="text" id="${p}-act" maxlength="200" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label for="${p}-act-until">Ends on</label>
+                    <input type="date" id="${p}-act-until">
+                </div>
+            </div>
+        </div>
         <p class="cb-hint sales-tracking" id="${p}-tracking"></p>`;
+}
+// "Work you can point to": one item per line; a link at the end of a line becomes its link
+function parseProofLines(text) {
+    return String(text || '').split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+        const m = l.match(/^(.*?)\s*(https:\/\/\S+)$/i);
+        return m ? { text: m[1].trim(), url: m[2] } : { text: l, url: '' };
+    });
 }
 document.querySelectorAll('[data-sales]').forEach(el => { el.innerHTML = salesFieldsHtml(el.dataset.sales); });
 
@@ -3905,6 +3944,12 @@ async function salesFill(p, d = {}) {
     q('ask').checked = d.askQuestions !== false;
     q('booking').value = d.bookingUrl || '';
     q('alert').value = d.alertEmail || '';
+    q('proof').value = (Array.isArray(d.proof) ? d.proof : []).map(it => [it.text, it.url].filter(Boolean).join(' ')).join('\n');
+    q('how').value = d.howWeWork || '';
+    q('commit').value = d.commitments || '';
+    q('free').value = d.freeStep || '';
+    q('act').value = d.actNow?.text || '';
+    q('act-until').value = d.actNow?.until || '';
     try { await ensureModelCatalog(); } catch (_) {}
     for (const [key, id] of [['draftModel', 'draft-model'], ['readModel', 'read-model']]) {
         const sel = q(id);
@@ -3921,7 +3966,13 @@ function salesCollect(p) {
     const booking = q('booking').value.trim(), alertTo = q('alert').value.trim();
     if (booking && !/^https:\/\/\S{4,}$/i.test(booking)) return { error: 'The booking link must start with https://', field: q('booking') };
     if (alertTo && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(alertTo)) return { error: 'The lead alerts email isn\'t a valid address.', field: q('alert') };
-    const values = { askQuestions: q('ask').checked, bookingUrl: booking, alertEmail: alertTo };
+    const proof = parseProofLines(q('proof').value);
+    if (proof.length > 5) return { error: 'Add up to 5 pieces of work, one per line.', field: q('proof') };
+    const act = q('act').value.trim(), actUntil = q('act-until').value;
+    if (act && !actUntil) return { error: 'Add an end date for the reason to act now.', field: q('act-until') };
+    const values = { askQuestions: q('ask').checked, bookingUrl: booking, alertEmail: alertTo,
+        proof, howWeWork: q('how').value.trim(), commitments: q('commit').value.trim(), freeStep: q('free').value.trim(),
+        actNow: act ? { text: act, until: actUntil } : null };
     // Only send models once the list loaded, so a failed load can't wipe saved choices
     if (userRole === 'admin' && q('draft-model').dataset.filled) values.draftModel = q('draft-model').value;
     if (userRole === 'admin' && q('read-model').dataset.filled) values.readModel = q('read-model').value;
@@ -4101,7 +4152,7 @@ async function ldLoadThread(l) {
     const notes = [];
     if (!d.replyTracking) notes.push('Reply tracking isn\'t set up, so the lead\'s replies go to your inbox and won\'t show here. Use "They replied" when they answer.');
     if (d.unsubscribed) notes.push('This lead unsubscribed: no more automatic emails.');
-    if (d.pending?.task) notes.push(`Next automatic step: ${({ reminder: 'a reminder', checkpoint: 'closing emails if there\'s still no reply', details_timeout: 'if they haven\'t answered, we draft the proposal from what we know (for your review)', proposal_nudge: 'one gentle nudge about the proposal if they\'re still quiet' })[d.pending.task.kind] || 'a follow-up'} on ${ldFmtWhen(d.pending.task.scheduled_for)}.`);
+    if (d.pending?.task) notes.push(`Next automatic step: ${({ reminder: 'a reminder', checkpoint: 'closing emails if there\'s still no reply', details_timeout: 'if they haven\'t answered, we draft the proposal from what we know (for your review)', proposal_nudge: 'a follow-up about the proposal if they\'re still quiet', proposal_nudge_2: 'a reminder of your offer, if one is saved and still running', proposal_nudge_3: 'a last email about the proposal' })[d.pending.task.kind] || 'a follow-up'} on ${ldFmtWhen(d.pending.task.scheduled_for)}.`);
     const seq = d.pending?.sequence || [];
     if (seq.length) notes.push(seq.some(s => s.status === 'draft') ? `${seq.length} closing email${seq.length === 1 ? '' : 's'} drafted and waiting for your approval (Campaign button).` : `${seq.length} closing email${seq.length === 1 ? '' : 's'} scheduled; the next goes out ${ldFmtWhen(Math.max(Date.now(), seq[0].scheduled_for))}.`);
     const files = d.files || [];
