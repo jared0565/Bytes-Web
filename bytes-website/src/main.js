@@ -2,10 +2,17 @@ import './style.css';
 import './home.css';
 // The one plan list (also served as /plans.json to onboarding and the dashboard, and bundled into the API)
 import PLAN_DATA from '../public/plans.json';
+import { initChatbot } from './chat.js';
+import { prefersReducedMotion, initReveal, initHeroConsole, initNavbarScroll, initMobileMenu, setFooterYear } from './ui.js';
+
+// Chatbot pricing lives on the AI chatbot page. Old links to it (badge links saved on clients' bots,
+// the dashboard, bookmarks: ?upgrade=<plan> or #pricing) are sent there, keeping the plan, client and
+// referral details in the address.
+const forwarding = new URLSearchParams(location.search).has('upgrade') || location.hash === '#pricing';
+if (forwarding) location.replace(`/ai-chatbot/${location.search}#pricing`);
 
 // Global state
 let lastHash = '#home';
-let chatHistory = [];
 
 // ============================================================================
 // ROUTING & NAVIGATION
@@ -45,19 +52,16 @@ function init() {
 
   // Initialize all interactions
   initInteractions();
+  initMobileMenu();
 
   // Initialize chatbot
   initChatbot();
 
-
   // Initialize modal
   initModal();
 
-  // Pricing: "Choose <plan>" fills in the contact form
-  initPricing();
-
-  // Check for upgrade params
-  checkUpgradeParams();
+  // "Choose <plan>" on the AI chatbot page fills in the contact form here
+  initPlanRequest();
 }
 
 // ============================================================================
@@ -65,17 +69,8 @@ function init() {
 // ============================================================================
 
 function initInteractions() {
-  // 1. Intersection Observer for elements fading in as you scroll
-  const revealElements = document.querySelectorAll('.reveal');
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        entry.target.classList.add('active');
-      }
-    });
-  }, { threshold: 0.1, rootMargin: "0px 0px -50px 0px" });
-
-  revealElements.forEach(el => observer.observe(el));
+  // 1. Elements fade in as they scroll into view
+  initReveal();
 
   // 2. Spotlight Hover Effects on Cards
   const cards = document.querySelectorAll('.bento-card, .service-card');
@@ -107,36 +102,6 @@ function initInteractions() {
   initStepsLine();
 }
 
-const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-// Plays the hero chat one step at a time, then lands the lead card; loops while on screen
-function initHeroConsole() {
-  const consoleEl = document.querySelector('.hx-console');
-  if (!consoleEl) return;
-  const steps = [...consoleEl.querySelectorAll('[data-step]')];
-  const last = Math.max(...steps.map(el => +el.dataset.step));
-  const show = (n) => steps.forEach(el => {
-    const k = +el.dataset.step;
-    // The typing dots only show while it is "their" step
-    el.classList.toggle('is-on', el.classList.contains('hx-typing') ? k === n : k <= n);
-  });
-
-  if (prefersReducedMotion()) { show(last); return; }
-
-  const delays = [700, 1300, 1100, 1300, 1100, 900, 4200]; // pause after each step
-  let step = -1, timer = null, visible = false;
-  const tick = () => {
-    step = step >= last ? -1 : step + 1;
-    show(step);
-    timer = setTimeout(tick, step === -1 ? 600 : delays[step] ?? 1000);
-  };
-  new IntersectionObserver(([entry]) => {
-    visible = entry.isIntersecting;
-    if (visible && !timer) tick();
-    if (!visible && timer) { clearTimeout(timer); timer = null; }
-  }, { threshold: 0.25 }).observe(consoleEl);
-}
-
 // Fills the line between the process steps as the section scrolls through the viewport
 function initStepsLine() {
   const steps = document.getElementById('hxSteps');
@@ -166,19 +131,6 @@ function initHeroBackground() {
     orb.className = `hero-orb orb-${i + 1}`;
     heroBg.appendChild(orb);
   }
-}
-
-function initNavbarScroll() {
-  const navbar = document.querySelector('.navbar');
-  if (!navbar) return;
-
-  window.addEventListener('scroll', () => {
-    if (window.scrollY > 50) {
-      navbar.classList.add('scrolled');
-    } else {
-      navbar.classList.remove('scrolled');
-    }
-  });
 }
 
 function initSmoothScroll() {
@@ -225,413 +177,40 @@ function initCounters() {
   counters.forEach(counter => observer.observe(counter));
 }
 
-// ?upgrade=<plan> (from the dashboard, onboarding and the chatbot badge) opens Pricing on that plan.
-// Badge clicks arrive as ?upgrade=free, so they land on the first paid plan.
-function checkUpgradeParams() {
-  const qs = new URLSearchParams(window.location.search);
-  let want = String(qs.get('upgrade') || '').toLowerCase();
-  if (!want && window.location.hash !== '#pricing') return;
-  if (want === 'free' || !PLAN_DATA.plans.some(p => p.id === want)) want = want ? 'starter' : '';
-  requestAnimationFrame(() => {
-    const card = want && document.querySelector(`[data-plan="${want}"]`);
-    if (card) card.classList.add('is-target');
-    (card || document.getElementById('pricing'))?.scrollIntoView({ behavior: 'smooth', block: card ? 'center' : 'start' });
-  });
+// "Choose <plan>" on the AI chatbot page arrives as ?plan=<id> (and &client=<id> from the dashboard):
+// fill in the contact form, so the request reaches us as an enquiry
+function initPlanRequest() {
+  const qs = new URLSearchParams(location.search);
+  const plan = PLAN_DATA.plans.find(p => p.id === qs.get('plan'));
+  if (!plan) return;
+  const client = qs.get('client');
+  const service = document.getElementById('leadService');
+  const msg = document.getElementById('leadMessage');
+  if (service) service.value = 'chatbot';
+  if (msg) msg.value = `I'd like the ${plan.name} plan${plan.price ? ` (${PLAN_DATA.currency}${plan.price}/month)` : ''}.${client && /^[\w-]{1,64}$/.test(client) ? ` My client ID is ${client}.` : ''}`;
+  requestAnimationFrame(() => document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' }));
+  setTimeout(() => document.getElementById('leadName')?.focus({ preventScroll: true }), 600);
 }
 
-// ── Pricing: every number comes from plans.json ─────────────────────────────
-const fmtNum = (n) => Number(n).toLocaleString('en-GB');
-function planPrice(p) {
-  if (p.price === null) return '<span class="hx-price-num">Custom</span>';
-  return `<span class="hx-price-num">${PLAN_DATA.currency}${p.price}</span><span class="hx-price-per">${p.price === 0 ? 'forever' : '/ month'}</span>`;
-}
-function planFeatures(p) {
-  const mode = PLAN_DATA.modes[p.mode];
-  const yes = (t) => `<li>${t}</li>`;
-  const no = (t) => `<li class="is-off"><span class="sr-only">Not included: </span>${t}</li>`;
-  return [
-    yes(`<strong>${mode.name} chatbot</strong>: ${mode.summary}`),
-    yes(`${fmtNum(mode.dailyMessages)} chatbot messages a day`),
-    yes(p.domains === -1 ? 'Unlimited websites' : `${p.domains} website${p.domains === 1 ? '' : 's'}`),
-    yes(p.leadsPerDay == null ? 'Unlimited leads in your dashboard' : `${p.leadsPerDay} leads a day, ${p.contacts} contacts`),
-    p.aiFollowUps ? yes('AI email follow-ups, proposals and campaigns') : no('AI email campaigns'),
-    p.removeBadge ? yes('Remove the “Powered by BytesFX” badge') : no('Remove the “Powered by BytesFX” badge'),
-    p.whiteLabel ? yes('Custom bot name, colour and avatar') : no('Custom bot name, colour and avatar'),
-    ...(p.mode === 'ai_plus' ? [yes('Premium AI models')] : []),
-  ].join('');
-}
-function renderPricing() {
-  const cards = PLAN_DATA.plans.filter(p => p.price !== null);
-  const ent = PLAN_DATA.plans.find(p => p.price === null);
-  const cta = (p) => p.price === 0
-    ? `<a href="/onboarding/" class="hx-btn hx-btn-ghost hx-btn-full">Start free trial</a>`
-    : `<button type="button" class="hx-btn ${p.featured ? 'hx-btn-primary' : 'hx-btn-ghost'} hx-btn-full" data-request-plan="${p.id}">Choose ${p.name}</button>`;
+// The chatbot's place on the homepage: a short pitch that sends people to its own page
+function renderChatbotTeaser() {
+  const from = Math.min(...PLAN_DATA.plans.filter(p => p.price > 0).map(p => p.price));
   return `
-    <section id="pricing" class="hx-section hx-pricing" aria-labelledby="pricingTitle">
+    <section id="chatbot" class="hx-section hx-teaser">
       <div class="hx-container">
-        <header class="hx-head reveal">
-          <p class="hx-kicker">Chatbot plans</p>
-          <h2 id="pricingTitle">Pick a plan. <em>Upgrade anytime.</em></h2>
-          <p>${PLAN_DATA.trial.summary}</p>
-        </header>
-        <div class="hx-plans">
-          ${cards.map((p, i) => `
-          <article class="hx-plan reveal${p.featured ? ' is-featured' : ''}" data-plan="${p.id}" style="--d:${i}">
-            ${p.featured ? '<p class="hx-plan-badge">Recommended</p>' : ''}
-            <h3>${p.name}</h3>
-            <p class="hx-price">${planPrice(p)}</p>
-            <p class="hx-plan-tag">${p.tagline}</p>
-            ${cta(p)}
-            <ul class="hx-plan-list">${planFeatures(p)}</ul>
-          </article>`).join('')}
-        </div>
-        ${ent ? `
-        <article class="hx-plan hx-plan-wide reveal" data-plan="${ent.id}">
-          <div>
-            <h3>${ent.name}</h3>
-            <p class="hx-plan-tag">${ent.tagline}</p>
+        <div class="hx-teaser-card reveal">
+          <div class="hx-teaser-copy">
+            <p class="hx-kicker">AI chatbot</p>
+            <h2>Your website's best salesperson, <em>awake 24/7</em></h2>
+            <p>It answers visitors' questions, finds out what they need and sends you the lead. Start on the free plan or a ${PLAN_DATA.trial.days}-day AI trial with no card. Paid plans from ${PLAN_DATA.currency}${from} a month.</p>
           </div>
-          <ul class="hx-plan-list hx-plan-list-inline">${planFeatures(ent)}</ul>
-          <button type="button" class="hx-btn hx-btn-ghost" data-request-plan="${ent.id}">Talk to us</button>
-        </article>` : ''}
-        <p class="hx-plan-note">Prices in US dollars. Plans are set up by our team: choose one and we'll reply within 24 hours to get you started.</p>
+          <div class="hx-teaser-actions">
+            <a href="/ai-chatbot/" class="hx-btn hx-btn-primary">See the AI chatbot</a>
+            <a href="/onboarding/" class="hx-btn hx-btn-ghost">Start free trial</a>
+          </div>
+        </div>
       </div>
     </section>`;
-}
-// "Choose <plan>": fill in the contact form, so the request reaches us as an enquiry
-function initPricing() {
-  document.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-request-plan]');
-    if (!btn) return;
-    const plan = PLAN_DATA.plans.find(p => p.id === btn.dataset.requestPlan);
-    const client = new URLSearchParams(location.search).get('client');
-    const service = document.getElementById('leadService');
-    const msg = document.getElementById('leadMessage');
-    if (service) service.value = 'chatbot';
-    if (msg) msg.value = `I'd like the ${plan.name} plan${plan.price ? ` (${PLAN_DATA.currency}${plan.price}/month)` : ''}.${client && /^[\w-]{1,64}$/.test(client) ? ` My client ID is ${client}.` : ''}`;
-    document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth' });
-    setTimeout(() => document.getElementById('leadName')?.focus({ preventScroll: true }), 600);
-  });
-}
-
-// ============================================================================
-// MOBILE MENU
-// ============================================================================
-
-document.addEventListener('DOMContentLoaded', () => {
-  const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-  const navLinks = document.getElementById('navLinks');
-
-  if (mobileMenuBtn && navLinks) {
-    mobileMenuBtn.addEventListener('click', () => {
-      navLinks.classList.toggle('active');
-    });
-    // A tap on a link scrolls the page without changing the address (initSmoothScroll), so no
-    // route change arrives to close the menu. Close it here, or it stays over the page.
-    navLinks.addEventListener('click', (e) => {
-      if (e.target.closest('a')) navLinks.classList.remove('active');
-    });
-  }
-
-  // Close menu when clicking outside
-  document.addEventListener('click', (e) => {
-    if (!mobileMenuBtn?.contains(e.target) && !navLinks?.contains(e.target)) {
-      navLinks?.classList.remove('active');
-    }
-  });
-});
-
-// ============================================================================
-// CHATBOT FUNCTIONALITY
-// ============================================================================
-
-function initChatbot() {
-  const btnOpen = document.getElementById('btnOpenChat');
-  const btnClose = document.getElementById('btnCloseChat');
-  const chatWindow = document.getElementById('chatbot-window');
-  const chatForm = document.getElementById('chatForm');
-  const chatInput = document.getElementById('chatInput');
-
-  if (!btnOpen || !chatWindow) return;
-
-  // A phone or tablet brings up its keyboard when the text box is selected, and the keyboard covers half the
-  // screen. There the text box is selected only when the visitor asks for it: by tapping it or "Other / not sure",
-  // or by sending a message they typed. With a mouse it is selected as soon as the chat opens.
-  const keyboardOnScreen = () => window.matchMedia('(pointer: coarse)').matches;
-
-  // On a phone the chat fills the screen, but the keyboard covers the lower part of it and the page is not made
-  // shorter for it. The chat is sized to the part still in view (the phone rule in style.css reads these two
-  // values), so the header stays at the top and the text box sits on the keyboard.
-  const view = window.visualViewport;
-  let viewHeight = 0;
-  const fitToView = () => {
-    if (!view) return;
-    // Closed, or zoomed by hand (which also changes the part in view): back to the whole screen
-    if (chatWindow.classList.contains('hidden') || Math.abs(view.scale - 1) > 0.01) {
-      chatWindow.style.removeProperty('--chat-top');
-      chatWindow.style.removeProperty('--chat-height');
-      viewHeight = 0;
-      return;
-    }
-    chatWindow.style.setProperty('--chat-top', `${view.offsetTop}px`);
-    chatWindow.style.setProperty('--chat-height', `${view.height}px`);
-    // The keyboard came up: keep what the visitor is answering in view, which is the question above the choices
-    // or the last message
-    const messages = document.getElementById('chat-messages');
-    if (messages && view.height < viewHeight) messages.scrollTop = messages.querySelector('.chat-choices') ? 0 : messages.scrollHeight;
-    viewHeight = view.height;
-  };
-  view?.addEventListener('resize', fitToView);
-  view?.addEventListener('scroll', fitToView);
-
-  // Open chatbot
-  btnOpen.addEventListener('click', () => {
-    chatWindow.classList.remove('hidden');
-    btnOpen.classList.add('hidden');
-    if (!keyboardOnScreen()) chatInput?.focus();
-    fitToView();
-  });
-
-  // Close chatbot. The text box is let go, so the keyboard goes with the chat.
-  btnClose?.addEventListener('click', () => {
-    chatWindow.classList.add('hidden');
-    btnOpen.classList.remove('hidden');
-    chatInput?.blur();
-    fitToView();
-  });
-
-  // One message has a character limit (plans.json "chat"; the server enforces it too).
-  // The count appears for the last fifth, so a pasted text that was cut short is not a surprise.
-  const chatCount = document.getElementById('chatCount');
-  const maxChars = PLAN_DATA.chat.messageChars;
-  const showCount = () => {
-    if (!chatInput || !chatCount) return;
-    const left = maxChars - chatInput.value.length;
-    chatCount.hidden = left > maxChars / 5;
-    chatCount.classList.toggle('at-limit', left <= 0);
-    chatCount.textContent = left > 0 ? `${left} character${left === 1 ? '' : 's'} left` : `Limit reached: ${maxChars} characters`;
-  };
-  if (chatInput) {
-    chatInput.maxLength = maxChars;
-    chatInput.addEventListener('input', showCount);
-  }
-
-  // The services, offered as buttons under the greeting when a chat opens. Only for a new chat: a tap sent in
-  // the middle of an earlier conversation would be read as the answer to a later question (a name, a timeline).
-  const chatMessages = document.getElementById('chat-messages');
-  let choices = null;
-  let started = false;
-  const hideChoices = () => { choices?.remove(); choices = null; };
-  const showChoices = (services) => {
-    if (started || chatSessionId || !chatMessages || !chatInput || !services.length) return;
-    const greeting = chatMessages.querySelector('.bot-message p');
-    // One line, so the question and the three default services fit the window without scrolling
-    if (greeting) greeting.textContent = 'Hi! How can we help?';
-    choices = document.createElement('div');
-    choices.className = 'chat-choices';
-    choices.setAttribute('role', 'group');
-    choices.setAttribute('aria-label', 'What you need');
-    const addChoice = (label, onTap, extra) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = extra ? `chat-choice ${extra}` : 'chat-choice';
-      btn.textContent = label; // text only: a service name can never become HTML
-      btn.addEventListener('click', onTap);
-      choices.appendChild(btn);
-    };
-    services.forEach((service) => addChoice(service, () => send(service)));
-    // Named as the contact form's last option, so the chat's choices match the form's
-    addChoice('Other / not sure', () => chatInput.focus(), 'chat-choice-other');
-    chatMessages.appendChild(choices);
-  };
-  // The list comes from the bot's settings. If it can't be read, the chat opens as before, with no buttons.
-  if (!chatSessionId) {
-    fetch(`${CHAT_API_URL}/public/config?clientId=default`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((cfg) => showChoices((Array.isArray(cfg?.services) ? cfg.services : []).filter((s) => typeof s === 'string' && s.trim()).slice(0, 8)))
-      .catch(() => { /* no buttons */ });
-  }
-
-  // One visitor message, typed or tapped. The choices go at once, so a second tap can't send again.
-  const send = async (message, typed = false) => {
-    if (!chatInput || chatInput.disabled) return;
-    started = true;
-    hideChoices();
-
-    // Add user message
-    addChatMessage(message, 'user');
-    chatInput.value = '';
-    showCount();
-
-    // Block new messages until this reply lands so history stays in order
-    chatInput.disabled = true;
-
-    // Show typing indicator
-    showTypingIndicator();
-
-    // Generate response
-    const response = await generateChatResponse(message);
-    removeTypingIndicator();
-    addChatMessage(response, 'bot');
-
-    chatInput.disabled = false;
-    // Back to the text box for the next message. Where the keyboard is on screen, only after a typed message:
-    // after a tapped choice it would come up over the reply.
-    if (typed || !keyboardOnScreen()) chatInput.focus();
-  };
-
-  // Handle form submission
-  chatForm?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const message = chatInput?.value?.trim();
-    if (message) send(message, true);
-  });
-}
-
-function addChatMessage(text, sender) {
-  const chatMessages = document.getElementById('chat-messages');
-  if (!chatMessages) return;
-
-  const messageDiv = document.createElement('div');
-  messageDiv.className = `chat-message ${sender === 'user' ? 'user-message' : 'bot-message'}`;
-
-  const p = document.createElement('p');
-  // Show the link, but keep the raw [LINKEDIN_BUTTON] token in history for the API.
-  // Built from text nodes and https links only, so a reply can never become HTML.
-  text.replace('[LINKEDIN_BUTTON]', LINKEDIN_URL).split(/(https:\/\/[^\s<>"']+[^\s<>"'.,;:!?)])/).forEach((part) => {
-    if (sender !== 'bot' || !/^https:\/\//.test(part)) { p.appendChild(document.createTextNode(part)); return; }
-    const a = document.createElement('a');
-    a.href = part;
-    a.className = 'chat-link';
-    a.textContent = part.replace(/^https:\/\//, '');
-    if (a.origin === location.origin && a.pathname === location.pathname && a.hash) {
-      // A place on this page (the contact form): close the chat and go there
-      a.addEventListener('click', (e) => {
-        e.preventDefault();
-        document.getElementById('btnCloseChat')?.click();
-        document.getElementById(a.hash.slice(1))?.scrollIntoView({ behavior: 'smooth' });
-      });
-    } else {
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-    }
-    p.appendChild(a);
-  });
-  messageDiv.appendChild(p);
-
-  chatMessages.appendChild(messageDiv);
-  chatMessages.scrollTop = chatMessages.scrollHeight;
-
-  // Store in history
-  chatHistory.push({ sender, text, timestamp: Date.now() });
-}
-
-function showTypingIndicator() {
-  const chatMessages = document.getElementById('chat-messages');
-  if (!chatMessages) return;
-
-  const typingDiv = document.createElement('div');
-  typingDiv.className = 'chat-message bot-message typing-indicator';
-  typingDiv.id = 'typingIndicator';
-  typingDiv.innerHTML = '<span></span><span></span><span></span>';
-
-  chatMessages.appendChild(typingDiv);
-  chatMessages.scrollTop = chatMessages.scrollHeight;
-}
-
-function removeTypingIndicator() {
-  document.getElementById('typingIndicator')?.remove();
-}
-
-const CHAT_API_URL = 'https://ai.bytesfx.com';
-const LINKEDIN_URL = 'https://www.linkedin.com/in/fbmacagba/';
-
-// The conversation is kept on the server; this tab only holds its opaque id
-let chatSessionId = null;
-try { chatSessionId = sessionStorage.getItem('bytesfx_chat_default'); } catch (_) { /* storage blocked */ }
-
-// Ask the AI backend, falling back to canned replies if it's unreachable
-async function generateChatResponse(userMessage) {
-  try {
-    const res = await fetch(CHAT_API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: userMessage, clientId: 'default', sessionId: chatSessionId })
-    });
-    const data = await res.json();
-    if (data.sessionId && data.sessionId !== chatSessionId) {
-      chatSessionId = data.sessionId;
-      try { sessionStorage.setItem('bytesfx_chat_default', chatSessionId); } catch (_) { /* storage blocked */ }
-    }
-    if (res.ok && data.response) {
-      return data.response;
-    }
-  } catch (err) {
-    console.error('Chat API error:', err);
-  }
-
-  return getFallbackResponse(userMessage);
-}
-
-// Sales-optimized chatbot responses
-function getFallbackResponse(userMessage) {
-  const message = userMessage.toLowerCase();
-
-  // Check for lead capture keywords
-  if (message.includes('contact') || message.includes('get started') || message.includes('hire') || message.includes('quote') || message.includes('price') || message.includes('cost')) {
-    return "I'd love to help you get started! Could you share your name and email so one of our specialists can reach out with a personalized quote?";
-  }
-
-  // Website upgrading (before the website branch, so "upgrade my website" lands here)
-  if (message.includes('upgrade') || message.includes('upgrading') || message.includes('redesign') || message.includes('refresh')) {
-    return "We upgrade the site you already have: a redesign that fixes what is slow, what is unclear and what is not converting, without losing what you have already earned. Want us to take a look at it?";
-  }
-
-  // Website development
-  if (message.includes('website') || message.includes('web design') || message.includes('web development')) {
-    return "We specialize in high-performance websites designed for maximum ROI. Our sites are optimized for conversions, fast-loading, and built to scale your business. Would you like to schedule a free consultation?";
-  }
-
-  // Application development
-  if (message.includes('app') || message.includes('application') || message.includes('software')) {
-    return "Our custom application development service delivers tailored solutions to streamline your business operations. From internal tools to customer-facing apps, we've got you covered. What's your specific use case?";
-  }
-
-  // Chatbot / AI
-  if (message.includes('chatbot') || message.includes('ai') || message.includes('automation')) {
-    return "We design and implement intelligent consultant chatbots that qualify leads, answer questions, and drive sales 24/7. Our AI solutions are built to maximize your conversion rates. Interested in seeing a demo?";
-  }
-
-  // Pricing
-  if (message.includes('price') || message.includes('pricing') || message.includes('cost') || message.includes('expensive')) {
-    return `Websites and apps are quoted once the team understands the project. Chatbot plans start free, and paid plans start at ${PLAN_DATA.currency}${Math.min(...PLAN_DATA.plans.filter(p => p.price > 0).map(p => p.price))} a month. Shall I pass your details to the team for a quote?`;
-  }
-
-  // Process / timeline
-  if (message.includes('time') || message.includes('how long') || message.includes('process') || message.includes('timeline')) {
-    return "Every project starts with a short conversation about what you need. The team then sends a written quote with the timeline, so you know both before anything starts. Would you like them to get in touch?";
-  }
-
-  // Portfolio / work
-  if (message.includes('portfolio') || message.includes('work') || message.includes('projects') || message.includes('example')) {
-    return "Tell me a little about what you have in mind, and the team will reply by email within 24 hours with how they would approach it. What's the best email for you?";
-  }
-
-  // Contact request
-  if (message.includes('yes') || message.includes('sure') || message.includes('okay') || message.includes('definitely')) {
-    return "Great! Please share your name and email, and our team will be in touch within 24 hours with a personalized proposal for your project.";
-  }
-
-  // Default responses - keep the conversation going
-  const defaultResponses = [
-    "That's a great question! To help you better, could you tell me more about your project or business goals?",
-    "I'd love to learn more about your specific needs. What problem are you trying to solve?",
-    "Absolutely! Let's find the perfect solution for you. What's your timeline and budget range?",
-    "Sounds interesting! Could you share a bit more about what you're looking to achieve?",
-    "We're here to help! What specific service interests you the most - website development, applications, or chatbots?"
-  ];
-
-  return defaultResponses[Math.floor(Math.random() * defaultResponses.length)];
 }
 
 // ============================================================================
@@ -698,7 +277,7 @@ function renderHomePage() {
             <li class="hx-msg hx-bot" data-step="1">We do. Online booking, reminders and payments built in. What's your name?</li>
             <li class="hx-msg hx-user" data-step="2">Priya, from Northside Physio.</li>
             <li class="hx-msg hx-bot" data-step="3">Thanks Priya. What monthly budget did you have in mind?</li>
-            <li class="hx-msg hx-user" data-step="4">Around £2,000.</li>
+            <li class="hx-msg hx-user" data-step="4">Around $2,000.</li>
             <li class="hx-typing" data-step="5" aria-hidden="true"><i></i><i></i><i></i></li>
           </ol>
           <div class="hx-lead" data-step="6">
@@ -708,7 +287,7 @@ function renderHomePage() {
             </div>
             <div class="hx-lead-name">Priya · Northside Physio</div>
             <div class="hx-lead-meta">
-              <span>Booking website</span><span>£2,000 / mo</span>
+              <span>Booking website</span><span>$2,000 / mo</span>
             </div>
             <div class="hx-score" aria-hidden="true"><span class="hx-score-fill"></span></div>
             <div class="hx-lead-foot"><span>Lead score</span><strong>92</strong></div>
@@ -747,7 +326,7 @@ function renderHomePage() {
               <span class="hx-bubble">Can you add online booking?</span>
               <span class="hx-bubble hx-bubble-bot">Yes, with reminders and payments. Want a quick estimate?</span>
             </div>
-            <a href="#contact" class="hx-link">Build your chatbot <span aria-hidden="true">→</span></a>
+            <a href="/ai-chatbot/" class="hx-link">See the AI chatbot <span aria-hidden="true">→</span></a>
           </article>
 
           <article class="hx-card bento-card reveal" style="--d:1">
@@ -860,7 +439,7 @@ function renderHomePage() {
       </div>
     </section>
 
-    ${renderPricing()}
+    ${renderChatbotTeaser()}
 
     <!-- CTA -->
     <section class="hx-section hx-cta-wrap">
@@ -1024,12 +603,12 @@ function escapeText(s) { return String(s).replace(/[&<>"']/g, ch => `&#${ch.char
 // INITIALIZE
 // ============================================================================
 
-// Run init when DOM is ready
-if (document.readyState === 'loading') {
+// Run init when DOM is ready (not while the page is being sent to the AI chatbot page)
+if (forwarding) {
+  // nothing to show here
+} else if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
 } else {
   init();
 }
-// Footer year (kept out of inline scripts so the Content-Security-Policy can forbid them)
-const yearEl = document.getElementById('currentYear');
-if (yearEl) yearEl.textContent = new Date().getFullYear();
+setFooterYear();

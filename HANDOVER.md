@@ -55,7 +55,7 @@ bytes-website/
     src/auth.js                OAuth providers (Google, Facebook, LinkedIn)
     migrations/                Early D1 schema (later tables are created lazily, see §5)
     data-fixes/                One-off SQL for the live database, run by hand (see §7, Brand name)
-    test/                      node test/run.mjs (17 suites, 316 checks on 1 Nov 2026)
+    test/                      node test/run.mjs (17 suites, 317 checks on 1 Nov 2026)
 research/                      Notes
 ```
 
@@ -235,7 +235,10 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
 **Website** (`bytes-website/src/main.js`):
 - Homepage sections and the site's own chat box (markup in `index.html`). `public/widget.js` is the separate
   embeddable widget for clients' sites: a change to one usually belongs in both.
-- Pricing built from plans.json. `?upgrade=<plan>&client=<id>#pricing` highlights a plan and pre-fills the request.
+- Chatbot pricing lives on the AI chatbot page, `/ai-chatbot/` (`bytes-website/ai-chatbot/index.html`), plain HTML whose
+  plans, questions and structured data the build writes in from plans.json (`vite.config.js`; checked by
+  `scripts/check-chatbot-page.mjs`). `?upgrade=<plan>&client=<id>` highlights a plan; the homepage forwards old
+  `?upgrade=`/`#pricing` links there. A paid plan's button fills the homepage contact form (`/?plan=<id>#contact`).
 - Contact form posts to `POST /api/public/website-lead`.
 - **Cookie banner** (`public/consent.js`, loaded by the homepage, the legal pages and onboarding): since 17 Oct 2026
   it does not open on a first visit (`ASK = false`), because no tag on the site sets cookies: the CSP in `_headers`
@@ -517,7 +520,7 @@ cd bytes-website/crm-api-worker && node test/run.mjs        # all 17 suites, or:
 cd chatbot-api && node test/run.mjs                         # website gate, prompts, scripted flow, chat endpoint
 cd chatbot-api && npx tsc --noEmit -p .                     # typecheck
 cd bytes-website/crm-api-worker && npx wrangler deploy --dry-run --config wrangler.toml   # bundle check, nothing is deployed
-cd bytes-website && npm run build                           # website + copies public/
+cd bytes-website && npm run build                           # homepage + AI chatbot page, public/, page checks
 ```
 
 The bundle check should list the DB, KV, R2 and LLM bindings. "No bindings found" means it checked the website worker

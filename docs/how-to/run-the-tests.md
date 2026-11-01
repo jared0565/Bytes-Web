@@ -6,7 +6,7 @@ them. Run `npm install` first in each folder. Node 22.5 or newer is required.
 
 Each block starts from the repo root.
 
-**crm-api** (17 suites, 316 checks on 1 Nov 2026):
+**crm-api** (17 suites, 317 checks on 1 Nov 2026):
 
 ```
 cd bytes-website/crm-api-worker
@@ -15,7 +15,7 @@ node test/run.mjs flow plans      # or only the suites you name
 npx wrangler deploy --dry-run --config wrangler.toml   # bundle check; deploys nothing
 ```
 
-**chatbot-api** (3 suites, `chat`, `gate` and `scripted`, 142 checks on 1 Nov 2026). Its runner always runs every suite:
+**chatbot-api** (3 suites, `chat`, `gate` and `scripted`, 143 checks on 1 Nov 2026). Its runner always runs every suite:
 
 ```
 cd chatbot-api
@@ -36,8 +36,12 @@ npm run build
   "no tag sets a cookie without asking" true.
 - `scripts/test-consent.mjs` checks the consent rules themselves: a planted cookie grants nothing, the cookie is the
   fallback when browser storage is blocked, and a visitor's own saved choice is honoured.
+- `scripts/check-chatbot-page.mjs` runs after `vite build` on the built AI chatbot page: every plan, price and tagline
+  matches `plans.json`, the structured data parses and matches the plans and the questions shown, no placeholder is
+  left, the buying links work, and `sitemap.xml` and `robots.txt` are in place.
 
-Run either on its own with `node scripts/check-consent.mjs` or `node scripts/test-consent.mjs` from `bytes-website`.
+Run any of them on its own from `bytes-website`: `node scripts/check-consent.mjs`, `node scripts/test-consent.mjs`, or
+(after `npx vite build`) `node scripts/check-chatbot-page.mjs`.
 
 ## Reading the results
 

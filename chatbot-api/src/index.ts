@@ -78,7 +78,7 @@ const HOUSE_FACTS = `NEXT STEP (give one)
 - They ask for a person: offer LinkedIn with [LINKEDIN_BUTTON], and still ask for their email so the team can reply.
 
 FACTS YOU CAN USE
-- Chatbot plans: ${PLAN_LIST}. Full details: https://web.bytesfx.com/#pricing
+- Chatbot plans: ${PLAN_LIST}. Full details: https://web.bytesfx.com/ai-chatbot/#pricing
 - Free trial: ${PLAN_DATA.trial.summary}
 - Plans are changed by the team on request, not paid for online.
 - Websites and apps are quoted after the team understands the project. There are no fixed prices or timelines.

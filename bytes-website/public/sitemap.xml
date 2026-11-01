@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The public pages search engines should know about. Add a page here when one is added to the site. -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://web.bytesfx.com/</loc></url>
+  <url><loc>https://web.bytesfx.com/ai-chatbot/</loc></url>
+  <url><loc>https://web.bytesfx.com/onboarding/</loc></url>
+  <url><loc>https://web.bytesfx.com/privacy-policy.html</loc></url>
+  <url><loc>https://web.bytesfx.com/terms-of-service.html</loc></url>
+  <url><loc>https://web.bytesfx.com/cookie-policy.html</loc></url>
+  <url><loc>https://web.bytesfx.com/data-deletion.html</loc></url>
+</urlset>
