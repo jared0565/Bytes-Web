@@ -128,3 +128,48 @@ const confirm = async (id, client, name = 'Priya Shah') => {
   const pure = has('ruleCampaignSteps') && has('campaignPS') ? fw.ruleCampaignSteps({ service: '', company: '', bookingUrl: 'https://cal.com/x' }, fw.offersOf({})) : [];
   ok('built-in campaign: no service and no company still read well', pure.length === 3 && pure[0].subject === 'Your enquiry' && pure[0].body.includes('Thanks for getting in touch.') && pure.every(s => s.body.endsWith('Best,\nThe team')) && pure[1].body.includes('Pick a time that suits you: https://cal.com/x') && JSON.stringify(fw.CAMPAIGN_DAYS) === '[1,3,6]', JSON.stringify(pure.map(s => s.subject)));
 }
+
+// ── 3. Proposals: why this works for you, and the saved blocks ──────────────
+const HOW = 'A call, a written proposal, then weekly updates. Replies within a day.';
+const COMMIT = '£500 deposit, the rest on launch';
+const PROPOSAL_TEXT = 'Hi Priya,\n\nWhat you need\nA clinic website with booking.\n\nWhy this works for you\nOnline booking fills your diary without phone calls.\n\nWhat we\'ll do\nDesign and build the site with online booking.\n\nTimeline\nStart [START DATE], live by March.\n\nInvestment\n[PRICE]\n\nNext step\nReply YES to go ahead, or tell us what to change.\n\nThe prop1 Co team';
+db.exec(`INSERT INTO crm_settings VALUES ('prop1','ai',0,'pro',0,0), ('prop0','ai',0,'pro',0,0)`);
+kv.set('client:prop1', JSON.stringify({ companyName: 'prop1 Co', howWeWork: HOW, commitments: COMMIT, proof: [PROOF, { text: 'Bakery shop', url: 'https://bakery.example' }, { text: 'Third piece', url: '' }] }));
+kv.set('client:prop0', JSON.stringify({ companyName: 'prop0 Co' }));
+for (const id of ['prop1', 'prop0']) kv.set(`mail:${id}`, JSON.stringify({ provider: 'resend', fromEmail: `hi@${id}.com`, apiKey: 're_x' }));
+addLead.run(20, 'prop1', 'Priya Shah', 'lead20@clinic.com', 'tok-20', now);
+addLead.run(21, 'prop0', 'Priya Shah', 'lead21@clinic.com', 'tok-21', now);
+const draft = async (id, client, reply) => {
+  const before = llmCalls.length, llmPrev = LLM.complete;
+  LLM.complete = async (a) => { llmCalls.push(a); return { text: /proposal/i.test(a.system) ? reply : '{}' }; };
+  const tok = await mod.signJWT({ role: 'client', clientId: client }, 'x');
+  const [st, j] = await call(tok, 'POST', `/api/leads/${id}/proposal`, { action: 'draft' });
+  LLM.complete = llmPrev;
+  return { st, p: j.proposal || {}, prompt: llmCalls.slice(before).find(a => /proposal/i.test(a.system))?.prompt || '' };
+};
+const BLOCKS = `How we work\n${HOW}\n\nWork you can see\n- Clinic site we built https://clinic.example\n- Bakery shop https://bakery.example\n\nWhat you can count on\n${COMMIT}`;
+{
+  const { st, p, prompt } = await draft(20, 'prop1', PROPOSAL_TEXT);
+  ok('proposal prompt asks for Why this works for you', prompt.includes("What you need, Why this works for you, What we'll do, Timeline, Investment, Next step") && prompt.includes('- Why this works for you: one to three sentences linking what we\'ll do to the goals they gave; if they gave none, to what they need.'), prompt.slice(0, 300));
+  ok('proposal prompt never holds the saved settings', prompt && !prompt.includes(HOW) && !prompt.includes('£500') && !prompt.includes('clinic.example'));
+  const at = (p.body || '').indexOf(BLOCKS), next = (p.body || '').indexOf('\nNext step');
+  ok('saved how we work, proof and commitments appear word for word before Next step', st === 200 && at > 0 && next > at && p.body.includes(`${BLOCKS}\n\nNext step`) && !p.body.includes('Third piece'), p.body);
+  ok('a proposal stays AI-written when the settings hold a link and a price', p.ai === true && p.body.includes('£500 deposit') && p.body.includes('https://clinic.example'), `ai=${p.ai}`);
+}
+{
+  const { p } = await draft(20, 'prop1', 'junk');
+  ok('the fallback proposal carries the same blocks', p.ai === false && p.body.includes(`${BLOCKS}\n\nNext step`) && p.body.includes('Why this works for you\n[WHY THIS FITS THEIR GOALS]'), p.body);
+  const tok = await mod.signJWT({ role: 'client', clientId: 'prop1' }, 'x');
+  const [st, j] = await call(tok, 'POST', '/api/leads/20/proposal', { action: 'send', body: (p.body || '').replace(/\[(?!WHY THIS FITS)[^\]\n]{2,40}\]/g, 'filled in') });
+  ok('the fallback proposal cannot be sent until Why this works for you is written', st === 400 && (j.error || '').includes('[WHY THIS FITS THEIR GOALS]'), `${st} ${j.error}`);
+}
+{
+  const { p } = await draft(21, 'prop0', PROPOSAL_TEXT.replace('prop1', 'prop0'));
+  ok('no blocks when nothing is saved', p.ai === true && !p.body.includes('How we work') && !p.body.includes('Work you can see') && !p.body.includes('What you can count on'), p.body);
+  ok('proposals have no em-dash', !/\u2014/.test(p.body) && !/\u2014/.test(BLOCKS));
+}
+{
+  const w = has('withExtras') ? fw.withExtras : () => null;
+  ok('withExtras appends when there is no Next step line', w('Hi Priya,\n\nBest,\nThe team', 'How we work\nX') === 'Hi Priya,\n\nBest,\nThe team\n\nHow we work\nX' && w('Hi\n\nNext step\nReply YES', '') === 'Hi\n\nNext step\nReply YES', String(w('Hi Priya,\n\nBest,\nThe team', 'How we work\nX')));
+  ok('proposalExtras gives nothing when nothing is saved', has('proposalExtras') && fw.proposalExtras(fw.offersOf({})) === '');
+}

@@ -77,3 +77,20 @@ export function ruleCampaignSteps({ service, company, bookingUrl }, offers) {
         { email_number: 3, subject: "How we'd handle it", body: `Hi {name},\n\nHere's how it works with us: you tell us what you need, we send you a written proposal with the price, and you decide with everything in front of you.\n\nAre you still looking for help${about}? A quick reply is all it takes.\n\nBest,\n${team}` + campaignPS(offers, 3) },
     ];
 }
+
+// ─── Proposals: the saved blocks, inserted before "Next step" ────────────────
+export function proposalExtras(offers) {
+    const o = offers || {};
+    const blocks = [];
+    if (o.howWeWork) blocks.push(`How we work\n${o.howWeWork}`);
+    if (o.proof?.length) blocks.push(`Work you can see\n${o.proof.slice(0, 2).map(p => `- ${proofLine(p)}`).join('\n')}`);
+    if (o.commitments) blocks.push(`What you can count on\n${o.commitments}`);
+    return blocks.join('\n\n');
+}
+
+// Puts the blocks just before the "Next step" heading, or at the end when there is none
+export function withExtras(body, extras) {
+    if (!extras) return body;
+    const m = /^[ \t*#_]*next steps?\b/im.exec(body);
+    return m ? `${body.slice(0, m.index)}${extras}\n\n${body.slice(m.index)}` : `${body}\n\n${extras}`;
+}
