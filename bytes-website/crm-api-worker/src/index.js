@@ -485,6 +485,9 @@ app.post('/api/register', async (c) => {
     const initial = {};
     if (typeof settings.companyName === 'string') initial.companyName = settings.companyName.trim().slice(0, 80);
     if (typeof settings.systemPrompt === 'string') initial.systemPrompt = settings.systemPrompt.trim().slice(0, 20000);
+    // Lead alerts go to the email the owner signed up with (they can change it in the dashboard). Without it they
+    // went to the sender address, which for a client with no sender of their own is BytesFX's.
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(safeEmail)) initial.alertEmail = safeEmail.slice(0, 200);
     await c.env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify({ ...initial, mode: 'ai', showBranding: true, badgeUrl, allowedDomains: [website] }));
 
     // Create crm_settings row with trial dates

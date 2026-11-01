@@ -31,3 +31,15 @@ ok('owner emailed once about the site that is not on the list', st === 200 && se
 ok('nothing was added to the website list', JSON.parse(kv.get('client:old-bot')).allowedDomains.join() === 'found.com', kv.get('client:old-bot'));
 const n = sent.length; [st, j] = await post('/api/webhooks/domain-unlisted', { clientId: 'old-bot', domain: 'other.com' });
 ok('no duplicate email', sent.length === n && j.duplicate);
+
+// A new client's lead alerts go to the email they signed up with, not to the sender address. A client with no
+// sender of their own sends through BytesFX's, so the old fallback mailed their alerts to BytesFX.
+kv.set('mail:agency_demo', JSON.stringify({ provider: 'resend', fromEmail: 'hello@bytesfx.com', apiKey: 're_x' }));
+ok('sign-up saves the sign-up email as the lead alerts email', JSON.parse(kv.get('client:shop-abc123')).alertEmail === 'o@shop.com', kv.get('client:shop-abc123'));
+sent.length = 0;
+[st, j] = await post('/api/webhooks/domain-unlisted', { clientId: 'shop-abc123', domain: 'elsewhere.com' });
+ok("a new client's alert goes to their own email, not BytesFX's sender", st === 200 && sent.length === 1 && sent[0].to[0] === 'o@shop.com', JSON.stringify(sent.map(m => m.to)));
+[st, j] = await post('/api/register', { clientId: 'case-abc123', ownerEmail: '  Owner@Case.COM ', settings: { companyName: 'Case', website: 'case.com' } }, '1.1.1.2');
+ok('the saved alerts email is trimmed and lower-cased', st === 200 && JSON.parse(kv.get('client:case-abc123')).alertEmail === 'owner@case.com', kv.get('client:case-abc123'));
+[st, j] = await post('/api/register', { clientId: 'bad-abc123', ownerEmail: 'not-an-email', settings: { companyName: 'Bad', website: 'bad.com' } }, '1.1.1.3');
+ok('an invalid sign-up email is not saved as the alerts email', st === 200 && !('alertEmail' in JSON.parse(kv.get('client:bad-abc123'))), kv.get('client:bad-abc123'));
