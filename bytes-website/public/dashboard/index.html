@@ -148,6 +148,12 @@
             <!-- Trial / Plan Banner -->
             <div id="trial-banner" style="display:none; padding: 0.6rem 1.25rem; font-size: 0.85rem; font-weight: 600; border-bottom: 1px solid rgba(255,255,255,0.08);"></div>
 
+            <!-- No email sender yet (clients only): shown on every page until the sender's settings are complete -->
+            <div id="mail-banner" class="mail-banner" role="status" hidden>
+                <p class="mail-banner-text"><strong>Emails aren't sending yet.</strong> Your leads get no confirmation email and you get no lead alerts until you connect your email sender.</p>
+                <button type="button" id="mail-banner-btn" class="mail-banner-btn">Connect email sender</button>
+            </div>
+
             <header class="content-header">
                 <div style="display: flex; align-items: center; gap: 1rem;">
                     <button id="mobile-menu-btn" style="background: none; border: none; color: white; cursor: pointer; display: none;">
@@ -746,7 +752,19 @@
                     <!-- ── 4. Email Sender ── -->
                     <div class="glass-panel cb-card" id="cb-email" style="padding:1.75rem;">
                         <h3 style="margin:0 0 0.2rem;">Email Sender</h3>
-                        <p style="color:var(--text-secondary);font-size:0.82rem;margin:0 0 1.5rem;">Configure the provider that sends verification emails and drip campaigns to your leads.</p>
+                        <p style="color:var(--text-secondary);font-size:0.82rem;margin:0 0 1rem;">Configure the provider that sends verification emails and drip campaigns to your leads.</p>
+
+                        <details class="cb-guides cb-mail-guide" id="cb-mail-guide">
+                            <summary>How to connect Resend</summary>
+                            <ol class="cb-steps">
+                                <li>Create an account at <a href="https://resend.com" target="_blank" rel="noopener noreferrer">resend.com</a>.</li>
+                                <li>Add your website's domain under <strong>Domains</strong>, then add the DNS records from its <strong>Records</strong> tab where your domain is managed. It often verifies within minutes, but can take up to 72 hours.</li>
+                                <li>Create an API key under <strong>API keys</strong>.</li>
+                                <li>Here, choose <strong>Resend</strong>, enter a From Email on that domain (for example hello@yourdomain.com), paste the key and press <strong>Save Mail Settings</strong>.</li>
+                                <li>Press <strong>Send Test Email</strong>. It goes to the email you sign in with. When it arrives from your own domain, your leads' emails and your lead alerts will send.</li>
+                            </ol>
+                            <p>Already use SendGrid or Mailgun? Choose it below and paste its API key instead.</p>
+                        </details>
 
                         <div class="form-group">
                             <label>Email Provider</label>
