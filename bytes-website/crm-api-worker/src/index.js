@@ -310,21 +310,31 @@ async function saveMailSettings(env, clientId, prev, next, by) {
 }
 // Plan and campaign settings (D1 crm_settings). Writes only the columns given; a new row gets campaign mode
 // 'ai', no auto-approve and the table's defaults for the rest, as the routes did before.
+// mode: 'upsert' (create or update), 'insert' (create only: sign-up claims the client ID with it, so a second
+// sign-up racing for the same ID is refused), 'update' (only an existing row). Returns false if nothing was written.
 const PLAN_COLUMNS = ['default_campaign_mode', 'auto_approve_campaigns', 'plan', 'trial_started_at', 'trial_ends_at'];
-async function savePlanRow(env, clientId, fields, by) {
+async function savePlanRow(env, clientId, fields, by, mode = 'upsert') {
     const cols = Object.keys(fields).filter(k => PLAN_COLUMNS.includes(k));
-    if (!cols.length) return;
+    if (!cols.length) return false;
     const read = async () => (await env.DB.prepare(`SELECT ${PLAN_COLUMNS.join(', ')} FROM crm_settings WHERE client_id = ?`).bind(clientId).first()) || {};
     let prev = null;
     try { prev = await read(); } catch (err) { console.error('[History] Not recorded:', `${clientId} plan and campaigns`, err); }
-    const ins = { default_campaign_mode: 'ai', auto_approve_campaigns: 0, ...Object.fromEntries(cols.map(k => [k, fields[k]])) };
-    const insCols = Object.keys(ins);
-    await env.DB.prepare(`INSERT INTO crm_settings (client_id, ${insCols.join(', ')}) VALUES (?${', ?'.repeat(insCols.length)})
-        ON CONFLICT(client_id) DO UPDATE SET ${cols.map(k => `${k} = excluded.${k}`).join(', ')}`).bind(clientId, ...insCols.map(k => ins[k])).run();
-    if (!prev) return;
+    let written;
+    if (mode === 'update') {
+        written = (await env.DB.prepare(`UPDATE crm_settings SET ${cols.map(k => `${k} = ?`).join(', ')} WHERE client_id = ?`)
+            .bind(...cols.map(k => fields[k]), clientId).run()).meta?.changes > 0;
+    } else {
+        const ins = { default_campaign_mode: 'ai', auto_approve_campaigns: 0, ...Object.fromEntries(cols.map(k => [k, fields[k]])) };
+        const insCols = Object.keys(ins);
+        const onConflict = mode === 'insert' ? 'DO NOTHING' : `DO UPDATE SET ${cols.map(k => `${k} = excluded.${k}`).join(', ')}`;
+        written = (await env.DB.prepare(`INSERT INTO crm_settings (client_id, ${insCols.join(', ')}) VALUES (?${', ?'.repeat(insCols.length)})
+            ON CONFLICT(client_id) ${onConflict}`).bind(clientId, ...insCols.map(k => ins[k])).run()).meta?.changes > 0;
+    }
+    if (!written || !prev) return written;
     let after;
-    try { after = await read(); } catch (err) { console.error('[History] Not recorded:', `${clientId} plan and campaigns`, err); return; }
+    try { after = await read(); } catch (err) { console.error('[History] Not recorded:', `${clientId} plan and campaigns`, err); return written; }
     await recordChanges(env, clientId, 'plan', prev, after, by);
+    return written;
 }
 // Deleting a client deletes its settings and its whole history, then keeps one row: the client ID, when,
 // which admin, and the word "deleted". If its history cannot be deleted, the delete fails, so it is tried again.
@@ -616,10 +626,13 @@ app.post('/api/register', async (c) => {
     // went to the sender address, which for a client with no sender of their own is BytesFX's.
     if (/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(safeEmail)) initial.alertEmail = safeEmail.slice(0, 200);
     const by = signUpBy(c, safeEmail);
+    // Create the crm_settings row with trial dates first, as a strict create: it claims the client ID, so a
+    // second sign-up racing for the same ID is refused here, before it can write settings, get a setup token
+    // or link its email to this client
+    if (!(await savePlanRow(c.env, clientId, { default_campaign_mode: 'ai', auto_approve_campaigns: 0, plan: 'free', trial_started_at: now, trial_ends_at: trialEndsAt }, by, 'insert'))) {
+        return c.json({ error: 'Client already registered' }, 409);
+    }
     await saveClientConfig(c.env, clientId, {}, { ...initial, mode: 'ai', showBranding: true, badgeUrl, allowedDomains: [website] }, by);
-
-    // Create crm_settings row with trial dates
-    await savePlanRow(c.env, clientId, { default_campaign_mode: 'ai', auto_approve_campaigns: 0, plan: 'free', trial_started_at: now, trial_ends_at: trialEndsAt }, by);
     // The ad tag the visitor arrived with, for Analytics → Visitors (never stops a sign-up)
     await saveSignupSource(c, clientId, body);
 
@@ -657,7 +670,7 @@ app.post('/api/register-settings', async (c) => {
     await saveClientConfig(c.env, clientId, existing, { ...existing, ...sanitized }, by);
     // Campaign auto-approve lives in crm_settings (that's what the campaign engine reads)
     if (typeof settings.autoApproveCampaigns === 'boolean') {
-        await savePlanRow(c.env, clientId, { auto_approve_campaigns: settings.autoApproveCampaigns ? 1 : 0 }, by);
+        await savePlanRow(c.env, clientId, { auto_approve_campaigns: settings.autoApproveCampaigns ? 1 : 0 }, by, 'update');
     }
 
     return c.json({ success: true });

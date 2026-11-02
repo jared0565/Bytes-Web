@@ -42,7 +42,9 @@ CREATE TABLE leads (id INTEGER PRIMARY KEY, client_id TEXT, name TEXT, email TEX
 CREATE TABLE email_sequences (id INTEGER PRIMARY KEY, lead_id INTEGER, client_id TEXT, email_number INTEGER, subject TEXT, body TEXT, status TEXT, scheduled_for INTEGER);
 CREATE TABLE chat_logs (id INTEGER PRIMARY KEY, client_id TEXT, user_message TEXT, bot_response TEXT, timestamp INTEGER, session_id TEXT);`);
 let failHistory = false;
-const prep = (sql) => { let a = []; const o = { bind: (...x) => { a = x; return o; }, all: async () => ({ results: db.prepare(sql).all(...a) }), first: async () => db.prepare(sql).get(...a) ?? null, run: async () => { if (failHistory && /INSERT INTO settings_history/i.test(sql)) throw new Error('history store down'); const r = db.prepare(sql).run(...a); return { meta: { changes: Number(r.changes), last_row_id: Number(r.lastInsertRowid) } }; } }; return o; };
+// Stands in for a second sign-up racing the first: the existence check misses the row the other request just wrote
+let hideRowOnce = null;
+const prep = (sql) => { let a = []; const o = { bind: (...x) => { a = x; return o; }, all: async () => ({ results: db.prepare(sql).all(...a) }), first: async () => { if (hideRowOnce && a[0] === hideRowOnce && /^SELECT client_id FROM crm_settings WHERE client_id = \?$/.test(sql.trim())) { hideRowOnce = null; return null; } return db.prepare(sql).get(...a) ?? null; }, run: async () => { if (failHistory && /INSERT INTO settings_history/i.test(sql)) throw new Error('history store down'); const r = db.prepare(sql).run(...a); return { meta: { changes: Number(r.changes), last_row_id: Number(r.lastInsertRowid) } }; } }; return o; };
 const kv = new Map([
     ['client:acme', JSON.stringify({ companyName: 'Acme', alertEmail: 'o@acme.com', mode: 'ai', allowedDomains: ['acme.com'] })],
     ['client:other', JSON.stringify({ companyName: 'Other', mode: 'ai', allowedDomains: ['other.com'] })],
@@ -126,6 +128,19 @@ ok('sign-up changes are recorded as sign-up, with the email given but not yet co
 row = hist('newco-1234').filter(r => r.field === 'systemPrompt').pop();
 ok('a bot instructions change at sign-up keeps the old and new text', st === 200 && !!row && val(row.old_value) === 'Be nice' && val(row.new_value) === 'Be very nice' && row.actor === 'sign-up (unconfirmed email)', JSON.stringify(row));
 ok('the campaign choice at sign-up is recorded', hist('newco-1234').some(r => r.field === 'auto_approve_campaigns' && val(r.new_value) === 1));
+
+// Sign-up stays a strict create. A second sign-up racing for a client ID already taken must not get a setup
+// token or link its email to that client (that would hand over someone else's account).
+db.exec(`INSERT INTO crm_settings (client_id, default_campaign_mode, auto_approve_campaigns, plan, trial_started_at, trial_ends_at) VALUES ('race-1234','ai',0,'business',0,0)`);
+hideRowOnce = 'race-1234';
+[st, j] = await call(null, 'POST', '/api/register', { clientId: 'race-1234', ownerEmail: 'intruder@evil.com', settings: { companyName: 'Evil', website: 'evil.com' } });
+ok('a racing sign-up for a taken client ID is refused', st === 409 && !j.setupToken, `${st} ${JSON.stringify(j)}`);
+ok('  and its email is not linked to that client', !kv.has('email_client:intruder@evil.com'), kv.get('email_client:intruder@evil.com'));
+ok('  and the client\'s plan and chatbot settings are untouched', db.prepare("SELECT plan FROM crm_settings WHERE client_id = 'race-1234'").get().plan === 'business' && !kv.has('client:race-1234'), kv.get('client:race-1234'));
+// The after-sign-up save only updates the plan row: it never creates one for a client that has none
+kv.set('setup:tok-ghost', JSON.stringify({ clientId: 'ghost-1', email: '' }));
+[st] = await call(null, 'POST', '/api/register-settings', { setupToken: 'tok-ghost', settings: { autoApproveCampaigns: true } });
+ok('the after-sign-up save creates no plan row for a client that has none', !db.prepare("SELECT 1 FROM crm_settings WHERE client_id = 'ghost-1'").get(), st);
 
 // ── Automatic changes ────────────────────────────────────────────────────────
 if (typeof I.handleVerificationCron === 'function') await I.handleVerificationCron(env);

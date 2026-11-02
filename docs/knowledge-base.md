@@ -803,7 +803,7 @@ Requires **Node 22.5 or newer** (the tests use `node:sqlite`). Run `npm install`
 
 | Check | Command (from the folder shown) | What it proves |
 |---|---|---|
-| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 21 suites (426 checks on 2 Nov 2026) |
+| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 21 suites (430 checks on 2 Nov 2026) |
 | One or a few crm-api suites | `node test/run.mjs flow plans` | Only the named suites |
 | chatbot-api tests | `chatbot-api`: `node test/run.mjs` | 3 suites: `chat` (whole requests to the chat endpoint), `gate` (website gate), `scripted` (143 checks on 1 Nov 2026) |
 | Typecheck | `chatbot-api`: `npx tsc --noEmit -p .` | TypeScript types |
@@ -834,7 +834,7 @@ The crm-api suites, with what they cover:
 | `signup` | Where sign-ups come from: the ad tag saved at sign-up, and the "Sign-ups by source" counts |
 | `signin` | The ad tag kept through a Google, Facebook or LinkedIn sign-in |
 | `errors` | The error handler's log line (names the method and route, never the query string; the caller gets only the generic reply), crm-api's errors-only logging, and Workers Issues on for crm-api and chatbot-api |
-| `history` | Settings change history: what changed (secrets never kept), who and what made each change, sign-up and automatic changes, a failed recording not failing the save, the admin read endpoint, client delete, the 2-year cleanup, and a guard that every settings write goes through the save functions |
+| `history` | Settings change history: what changed (secrets never kept), who and what made each change, sign-up and automatic changes, sign-up staying a strict create (a second sign-up racing for a taken client ID is refused), a failed recording not failing the save, the admin read endpoint, client delete, the 2-year cleanup, and a guard that every settings write goes through the save functions |
 
 The suites run the worker in Node with `node:sqlite`, with mocked KV, R2, mail and LLM. They run against a scratch copy in
 `test/.build`, which is git-ignored. The runner treats every `.mjs` file in `test/` (other than `run.mjs`) as a suite, so
