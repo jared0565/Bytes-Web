@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { secureHeaders } from 'hono/secure-headers';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
+import { routePath } from 'hono/route';
 import { AuthProvider } from './auth.js';
 import PostalMime from 'postal-mime';
 // The one list of plans (prices, limits, features), shared with the website and dashboard
@@ -223,6 +224,130 @@ async function getPlanStatus(env, clientId) {
     return { plan: s.plan || 'free', inTrial, trialDaysLeft, trialEndsAt: s.trial_ends_at || 0 };
 }
 
+// ── Settings writes: start ───────────────────────────────────────────────────
+// Every change to a client's chatbot settings, email sender, or plan and campaign settings goes through
+// the save functions below, and each change is recorded in settings_history: when, who, what made the
+// change, and the old and new value. Keys, passwords, secrets and tokens are recorded only as changed.
+// Kept for 2 years (privacy policy, section 5). test/history.mjs fails if anything else writes these settings.
+// Not recorded: changes made outside the app (Cloudflare dashboard, wrangler, the database console, data-fixes/).
+const HISTORY_STORES = { chatbot: 'chatbot settings', mail: 'email sender', plan: 'plan and campaigns' };
+const SECRET_FIELD_RE = /key|secret|pass|token/i;
+const automatic = (source) => ({ actor: 'automatic', email: '', source });
+// Who made a change: the signed-in account, by its email at the time, or the admin access key (no account)
+async function changedBy(c) {
+    const user = c.get('user') || {};
+    const source = `${c.req.method} ${routePath(c)}`;
+    if (user.role === 'admin' && !user.userId) return { actor: 'admin (access key)', email: '', source };
+    let email = '';
+    if (user.userId) {
+        try { email = (await c.env.DB.prepare('SELECT email FROM users WHERE id = ?').bind(user.userId).first())?.email || ''; } catch (_) { /* recorded without it */ }
+    }
+    return { actor: user.role === 'client' ? 'owner' : String(user.role || 'unknown'), email, source };
+}
+// During sign-up nobody is signed in yet: the email is the one typed on the form, not yet confirmed
+const signUpBy = (c, email) => ({ actor: 'sign-up (unconfirmed email)', email: String(email || '').slice(0, 200), source: `${c.req.method} ${routePath(c)}` });
+
+let historyReady = false;
+async function ensureHistory(env) {
+    if (historyReady) return;
+    await env.DB.prepare(`CREATE TABLE IF NOT EXISTS settings_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, client_id TEXT NOT NULL, ts INTEGER NOT NULL,
+        actor TEXT NOT NULL, actor_email TEXT, source TEXT, store TEXT NOT NULL, field TEXT NOT NULL,
+        old_value TEXT, new_value TEXT, masked INTEGER DEFAULT 0)`).run();
+    await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_settings_history_client ON settings_history (client_id, id)').run();
+    await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_settings_history_ts ON settings_history (ts)').run();
+    historyReady = true;
+}
+
+// What changed between two stored records: one entry per setting, settings inside a group (socials.linkedin)
+// one by one. An empty value and a missing one count as the same. Secrets are listed with no value.
+const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const emptyValue = (v) => v === undefined || v === null || v === '';
+const stableJson = (v) => Array.isArray(v) ? `[${v.map(stableJson).join(',')}]`
+    : isPlainObject(v) ? `{${Object.keys(v).sort().map(k => `${JSON.stringify(k)}:${stableJson(v[k])}`).join(',')}}`
+    : JSON.stringify(v ?? null);
+function settingsDiff(prev, next, prefix = '') {
+    const a = isPlainObject(prev) ? prev : {}, b = isPlainObject(next) ? next : {};
+    const out = [];
+    for (const k of [...new Set([...Object.keys(a), ...Object.keys(b)])].sort()) {
+        const field = prefix + k, x = a[k], y = b[k];
+        if ((isPlainObject(x) || isPlainObject(y)) && (isPlainObject(x) || emptyValue(x)) && (isPlainObject(y) || emptyValue(y))) {
+            out.push(...settingsDiff(x, y, `${field}.`));
+            continue;
+        }
+        if ((emptyValue(x) && emptyValue(y)) || stableJson(x) === stableJson(y)) continue;
+        out.push(SECRET_FIELD_RE.test(k) ? { field, old: null, new: null, masked: true } : { field, old: emptyValue(x) ? null : x, new: emptyValue(y) ? null : y, masked: false });
+    }
+    return out;
+}
+
+// Records the changes between prev and next. A failure here never fails the save: it is logged as an error,
+// which reaches Workers Issues and the email alert.
+async function recordChanges(env, clientId, store, prev, next, by) {
+    try {
+        const changes = settingsDiff(prev, next);
+        if (!changes.length) return;
+        await ensureHistory(env);
+        const ts = Date.now(), enc = (v) => v === null ? null : JSON.stringify(v);
+        await env.DB.batch(changes.map(ch => env.DB.prepare(
+            'INSERT INTO settings_history (client_id, ts, actor, actor_email, source, store, field, old_value, new_value, masked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        ).bind(clientId, ts, by.actor, by.email || '', by.source || '', HISTORY_STORES[store], ch.field, enc(ch.old), enc(ch.new), ch.masked ? 1 : 0)));
+    } catch (err) {
+        historyReady = false;
+        console.error('[History] Not recorded:', `${clientId} ${HISTORY_STORES[store]}`, err);
+    }
+}
+
+// Chatbot settings (KV client:<id>). prev is the stored record before the change ({} when there was none).
+async function saveClientConfig(env, clientId, prev, next, by) {
+    await env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify(next));
+    await recordChanges(env, clientId, 'chatbot', prev, next, by);
+}
+// Email sender (KV mail:<id>)
+async function saveMailSettings(env, clientId, prev, next, by) {
+    await env.OAUTH_TOKENS.put(`mail:${clientId}`, JSON.stringify(next));
+    await recordChanges(env, clientId, 'mail', prev, next, by);
+}
+// Plan and campaign settings (D1 crm_settings). Writes only the columns given; a new row gets campaign mode
+// 'ai', no auto-approve and the table's defaults for the rest, as the routes did before.
+const PLAN_COLUMNS = ['default_campaign_mode', 'auto_approve_campaigns', 'plan', 'trial_started_at', 'trial_ends_at'];
+async function savePlanRow(env, clientId, fields, by) {
+    const cols = Object.keys(fields).filter(k => PLAN_COLUMNS.includes(k));
+    if (!cols.length) return;
+    const read = async () => (await env.DB.prepare(`SELECT ${PLAN_COLUMNS.join(', ')} FROM crm_settings WHERE client_id = ?`).bind(clientId).first()) || {};
+    let prev = null;
+    try { prev = await read(); } catch (err) { console.error('[History] Not recorded:', `${clientId} plan and campaigns`, err); }
+    const ins = { default_campaign_mode: 'ai', auto_approve_campaigns: 0, ...Object.fromEntries(cols.map(k => [k, fields[k]])) };
+    const insCols = Object.keys(ins);
+    await env.DB.prepare(`INSERT INTO crm_settings (client_id, ${insCols.join(', ')}) VALUES (?${', ?'.repeat(insCols.length)})
+        ON CONFLICT(client_id) DO UPDATE SET ${cols.map(k => `${k} = excluded.${k}`).join(', ')}`).bind(clientId, ...insCols.map(k => ins[k])).run();
+    if (!prev) return;
+    let after;
+    try { after = await read(); } catch (err) { console.error('[History] Not recorded:', `${clientId} plan and campaigns`, err); return; }
+    await recordChanges(env, clientId, 'plan', prev, after, by);
+}
+// Deleting a client deletes its settings and its whole history, then keeps one row: the client ID, when,
+// which admin, and the word "deleted". If its history cannot be deleted, the delete fails, so it is tried again.
+async function deleteClientSettings(env, clientId, by) {
+    const removed = (await env.DB.prepare('DELETE FROM crm_settings WHERE client_id = ?').bind(clientId).run()).meta?.changes || 0;
+    await env.CLIENT_SETTINGS.delete(`client:${clientId}`);
+    await env.OAUTH_TOKENS.delete(`mail:${clientId}`);
+    await ensureHistory(env);
+    await env.DB.prepare('DELETE FROM settings_history WHERE client_id = ?').bind(clientId).run();
+    try {
+        await env.DB.prepare('INSERT INTO settings_history (client_id, ts, actor, actor_email, source, store, field, old_value, new_value, masked) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, 0)')
+            .bind(clientId, Date.now(), by.actor, by.email || '', by.source || '', 'client', 'client', JSON.stringify('deleted')).run();
+    } catch (err) { console.error('[History] Client deletion not recorded:', clientId, err); }
+    return removed;
+}
+// Hourly: history older than 2 years is removed
+async function pruneSettingsHistory(env) {
+    await ensureHistory(env);
+    const cutoff = new Date(); cutoff.setUTCFullYear(cutoff.getUTCFullYear() - 2);
+    await env.DB.prepare('DELETE FROM settings_history WHERE ts < ?').bind(cutoff.getTime()).run();
+}
+// ── Settings writes: end ─────────────────────────────────────────────────────
+
 // ─── Bot modes, tied to plans ────────────────────────────────────────────────
 // scripted: Free · ai: Starter, Pro and trials · ai_plus: Business, Enterprise (higher limits, premium models).
 // Only admins choose a mode (Manage Clients); clients see what their plan includes.
@@ -264,8 +389,9 @@ function trimDomains(list, ps) {
     if (!Array.isArray(list) || limit === null || limit === -1 || list.length <= limit) return null;
     return list.slice(0, limit);
 }
-// Writes the plan-capped mode back to the bot's config (bestForPlan: switch to the plan's top mode)
-async function syncBotMode(env, clientId, bestForPlan = false) {
+// Writes the plan-capped mode back to the bot's config (bestForPlan: switch to the plan's top mode).
+// by: who the change is recorded under (the admin whose plan change caused it, or a job).
+async function syncBotMode(env, clientId, bestForPlan = false, by = automatic('plan check')) {
     const raw = await env.CLIENT_SETTINGS.get(`client:${clientId}`);
     if (!raw) return null;
     const cfg = JSON.parse(raw);
@@ -285,7 +411,7 @@ async function syncBotMode(env, clientId, bestForPlan = false) {
         console.log(`[Plan] ${clientId}: website list cut from ${cfg.allowedDomains.length} to ${keptDomains.length} (${ps.plan} allows ${domainLimit(ps)})`);
         cfg.allowedDomains = keptDomains;
     }
-    if (JSON.stringify(cfg) !== before) await env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify(cfg));
+    if (JSON.stringify(cfg) !== before) await saveClientConfig(env, clientId, JSON.parse(before), cfg, by);
     return mode;
 }
 // Services a scripted bot offers visitors (one per line in settings)
@@ -304,8 +430,8 @@ async function migrateBotModes(env) {
             const id = k.name.slice('client:'.length);
             if (id === HOUSE_CLIENT_ID) {
                 const cfg = JSON.parse(await env.CLIENT_SETTINGS.get(k.name) || '{}');
-                if (cfg.mode !== normalizeMode(cfg.mode)) { cfg.mode = normalizeMode(cfg.mode); await env.CLIENT_SETTINGS.put(k.name, JSON.stringify(cfg)); n++; }
-            } else if (await syncBotMode(env, id)) n++;
+                if (cfg.mode !== normalizeMode(cfg.mode)) { await saveClientConfig(env, id, cfg, { ...cfg, mode: normalizeMode(cfg.mode) }, automatic('mode rename')); n++; }
+            } else if (await syncBotMode(env, id, false, automatic('mode rename'))) n++;
         }
         cursor = page.list_complete ? null : page.cursor;
     } while (cursor);
@@ -330,8 +456,7 @@ async function enforcePlanLimits(env) {
             checked++;
             if (!kept) continue;
             console.log(`[Plan] ${id}: website list cut from ${cfg.allowedDomains.length} to ${kept.length} (${ps.plan} allows ${domainLimit(ps)})`);
-            cfg.allowedDomains = kept;
-            await env.CLIENT_SETTINGS.put(k.name, JSON.stringify(cfg));
+            await saveClientConfig(env, id, cfg, { ...cfg, allowedDomains: kept }, automatic('hourly plan check'));
             cut++;
         }
         cursor = page.list_complete ? null : page.cursor;
@@ -490,18 +615,18 @@ app.post('/api/register', async (c) => {
     // Lead alerts go to the email the owner signed up with (they can change it in the dashboard). Without it they
     // went to the sender address, which for a client with no sender of their own is BytesFX's.
     if (/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(safeEmail)) initial.alertEmail = safeEmail.slice(0, 200);
-    await c.env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify({ ...initial, mode: 'ai', showBranding: true, badgeUrl, allowedDomains: [website] }));
+    const by = signUpBy(c, safeEmail);
+    await saveClientConfig(c.env, clientId, {}, { ...initial, mode: 'ai', showBranding: true, badgeUrl, allowedDomains: [website] }, by);
 
     // Create crm_settings row with trial dates
-    await c.env.DB.prepare(
-        'INSERT INTO crm_settings (client_id, default_campaign_mode, auto_approve_campaigns, plan, trial_started_at, trial_ends_at) VALUES (?, ?, ?, ?, ?, ?)'
-    ).bind(clientId, 'ai', 0, 'free', now, trialEndsAt).run();
+    await savePlanRow(c.env, clientId, { default_campaign_mode: 'ai', auto_approve_campaigns: 0, plan: 'free', trial_started_at: now, trial_ends_at: trialEndsAt }, by);
     // The ad tag the visitor arrived with, for Analytics → Visitors (never stops a sign-up)
     await saveSignupSource(c, clientId, body);
 
     // Issue a short-lived setup token for post-onboarding settings (no auth required)
     const setupToken = crypto.randomUUID();
-    await c.env.OAUTH_TOKENS.put(`setup:${setupToken}`, JSON.stringify({ clientId }), { expirationTtl: 86400 }); // 24h
+    // The email rides along so the settings history can say whose sign-up the follow-up save was
+    await c.env.OAUTH_TOKENS.put(`setup:${setupToken}`, JSON.stringify({ clientId, email: safeEmail }), { expirationTtl: 86400 }); // 24h
 
     // Store email→clientId mapping for returning-user detection
     // Store email→clientId mapping: returning-user detection and client dashboard login
@@ -521,18 +646,18 @@ app.post('/api/register-settings', async (c) => {
 
     const raw = await c.env.OAUTH_TOKENS.get(`setup:${setupToken}`);
     if (!raw) return c.json({ error: 'Setup session expired.' }, 401);
-    const { clientId } = JSON.parse(raw);
+    const { clientId, email } = JSON.parse(raw);
+    const by = signUpBy(c, email);
 
     const kvData = await c.env.CLIENT_SETTINGS.get(`client:${clientId}`);
     const existing = kvData ? JSON.parse(kvData) : {};
     // Only the onboarding fields — never mode, domains or badge settings. Badge stays on during the trial.
     const sanitized = { showBranding: true };
     if (typeof settings.systemPrompt === 'string') sanitized.systemPrompt = settings.systemPrompt.trim().slice(0, 20000);
-    await c.env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify({ ...existing, ...sanitized }));
+    await saveClientConfig(c.env, clientId, existing, { ...existing, ...sanitized }, by);
     // Campaign auto-approve lives in crm_settings (that's what the campaign engine reads)
     if (typeof settings.autoApproveCampaigns === 'boolean') {
-        await c.env.DB.prepare('UPDATE crm_settings SET auto_approve_campaigns = ? WHERE client_id = ?')
-            .bind(settings.autoApproveCampaigns ? 1 : 0, clientId).run();
+        await savePlanRow(c.env, clientId, { auto_approve_campaigns: settings.autoApproveCampaigns ? 1 : 0 }, by);
     }
 
     return c.json({ success: true });
@@ -598,7 +723,7 @@ app.post('/api/installations', requireAuth, async (c) => {
 
     const kvRaw = await c.env.CLIENT_SETTINGS.get(`client:${clientId}`);
     const config = kvRaw ? JSON.parse(kvRaw) : {};
-    await c.env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify({ ...config, allowedDomains: clean }));
+    await saveClientConfig(c.env, clientId, config, { ...config, allowedDomains: clean }, await changedBy(c));
     return c.json({ success: true, allowedDomains: clean });
 });
 
@@ -654,16 +779,17 @@ app.delete('/api/admin/clients/:id', requireAuth, async (c) => {
         await ensureSales(c.env);
         await ensurePageViews(c.env);
         while (await deleteLeadFiles(c.env, 'client_id = ?', [clientId])) { /* R2 files, in batches */ }
-        const tables = ['lead_messages', 'lead_files', 'email_sequences', 'leads', 'chat_logs', 'automations', 'email_templates', 'roles', 'crm_settings'];
+        const tables = ['lead_messages', 'lead_files', 'email_sequences', 'leads', 'chat_logs', 'automations', 'email_templates', 'roles'];
         const counts = {};
         for (const t of tables) {
             try { counts[t] = (await c.env.DB.prepare(`DELETE FROM ${t} WHERE client_id = ?`).bind(clientId).run()).meta?.changes || 0; }
             catch (e) { counts[t] = 0; } // table not created on this database
         }
         await c.env.DB.prepare('DELETE FROM page_views WHERE site = ?').bind(clientId).run().catch(() => {});
-        // KV: chatbot config, email sender, and owner sign-in links that point to this client
-        await c.env.CLIENT_SETTINGS.delete(`client:${clientId}`);
-        await c.env.OAUTH_TOKENS.delete(`mail:${clientId}`);
+        // Plan and campaign settings, chatbot config and email sender, with their change history
+        // (one row is kept: deleted, when, by which admin)
+        counts.crm_settings = await deleteClientSettings(c.env, clientId, await changedBy(c));
+        // KV: owner sign-in links that point to this client
         let owners = 0, cursor;
         do {
             const page = await c.env.OAUTH_TOKENS.list({ prefix: 'email_client:', cursor, limit: 1000 });
@@ -748,17 +874,39 @@ app.post('/api/admin/clients/:id/plan', requireAuth, async (c) => {
         let started = row?.trial_started_at || 0, ends = row?.trial_ends_at || 0;
         if (days !== null) { ends = Math.max(ends, now) + days * DAY_MS; if (!started) started = now; }
         if (body.endTrial) ends = Math.min(ends || now, now - 1);
-        await c.env.DB.prepare(`INSERT INTO crm_settings (client_id, default_campaign_mode, auto_approve_campaigns, plan, trial_started_at, trial_ends_at)
-            VALUES (?, 'ai', 0, ?, ?, ?)
-            ON CONFLICT(client_id) DO UPDATE SET plan = excluded.plan, trial_started_at = excluded.trial_started_at, trial_ends_at = excluded.trial_ends_at`)
-            .bind(clientId, plan, started, ends).run();
+        const by = await changedBy(c);
+        await savePlanRow(c.env, clientId, { plan, trial_started_at: started, trial_ends_at: ends }, by);
         const status = await getPlanStatus(c.env, clientId);
-        // The bot moves to what the new plan includes (upgrade unlocks AI; downgrade caps it)
-        const mode = await syncBotMode(c.env, clientId, body.plan !== undefined || !!body.endTrial || days !== null);
+        // The bot moves to what the new plan includes (upgrade unlocks AI; downgrade caps it). Those changes are
+        // recorded under the same admin.
+        const mode = await syncBotMode(c.env, clientId, body.plan !== undefined || !!body.endTrial || days !== null, by);
         return c.json({ success: true, clientId, ...status, mode, modesAllowed: modesForPlan(status) });
     } catch (err) {
         console.error('[Admin plan] Error:', err);
         return c.json({ error: 'Failed to update plan' }, 500);
+    }
+});
+
+// GET /api/admin/clients/:id/history?limit=&before= — a client's settings change history, newest first.
+// limit: 1-500 (100 by default); before: an entry id, for the next page.
+app.get('/api/admin/clients/:id/history', requireAuth, async (c) => {
+    if ((c.get('user') || {}).role !== 'admin') return c.json({ error: 'Admins only' }, 403);
+    const clientId = c.req.param('id');
+    const limit = Math.min(Math.max(parseInt(c.req.query('limit') || '100', 10) || 100, 1), 500);
+    const before = parseInt(c.req.query('before') || '0', 10) || 0;
+    const dec = (v) => { if (v == null) return null; try { return JSON.parse(v); } catch (_) { return v; } };
+    try {
+        await ensureHistory(c.env);
+        const { results } = await c.env.DB.prepare(`SELECT * FROM settings_history WHERE client_id = ?${before ? ' AND id < ?' : ''} ORDER BY id DESC LIMIT ?`)
+            .bind(...(before ? [clientId, before, limit] : [clientId, limit])).all();
+        return c.json({
+            clientId,
+            history: (results || []).map(r => ({ id: r.id, at: r.ts, actor: r.actor, actorEmail: r.actor_email || '', source: r.source || '', store: r.store, field: r.field, old: dec(r.old_value), new: dec(r.new_value), masked: !!r.masked })),
+        });
+    } catch (err) {
+        historyReady = false;
+        console.error('[History] Read error:', err);
+        return c.json({ error: 'Failed to load the history' }, 500);
     }
 });
 
@@ -2004,7 +2152,7 @@ app.post('/api/config', requireAuth, async (c) => {
         delete merged.widgetAccentColor;
         delete merged.widgetAvatar;
     }
-    await c.env.CLIENT_SETTINGS.put(`client:${clientId}`, JSON.stringify(merged));
+    await saveClientConfig(c.env, clientId, prev, merged, await changedBy(c));
     return c.json({ success: true });
 });
 
@@ -2138,7 +2286,7 @@ app.post('/api/site-settings', requireAuth, async (c) => {
     if (salesErr) return c.json({ error: salesErr }, 400);
     // Merge so fields this form doesn't manage survive
     const prev = JSON.parse(await c.env.CLIENT_SETTINGS.get(`client:${HOUSE_CLIENT_ID}`) || '{}');
-    await c.env.CLIENT_SETTINGS.put(`client:${HOUSE_CLIENT_ID}`, JSON.stringify({ ...prev, ...update }));
+    await saveClientConfig(c.env, HOUSE_CLIENT_ID, prev, { ...prev, ...update }, await changedBy(c));
     return c.json({ success: true, ...update });
 });
 
@@ -2234,13 +2382,7 @@ app.post('/api/crm-settings', requireAuth, async (c) => {
     const mode = validModes.includes(default_campaign_mode) ? default_campaign_mode : 'ai';
 
     try {
-        await c.env.DB.prepare(`
-            INSERT INTO crm_settings (client_id, default_campaign_mode, auto_approve_campaigns)
-            VALUES (?, ?, ?)
-            ON CONFLICT(client_id) DO UPDATE SET
-                default_campaign_mode = excluded.default_campaign_mode,
-                auto_approve_campaigns = excluded.auto_approve_campaigns
-        `).bind(clientId, mode, auto_approve_campaigns ? 1 : 0).run();
+        await savePlanRow(c.env, clientId, { default_campaign_mode: mode, auto_approve_campaigns: auto_approve_campaigns ? 1 : 0 }, await changedBy(c));
         return c.json({ success: true });
     } catch (err) {
         console.error('[CRM Settings] Save error:', err);
@@ -2625,10 +2767,8 @@ async function handleVerificationCron(env) {
             if (raw) {
                 const cfg = JSON.parse(raw);
                 if (normalizeMode(cfg.mode) !== 'scripted') {
-                    cfg.mode = 'scripted'; // downgrade chatbot to the guided (scripted) bot
-                    cfg.showBranding = true; // badge mandatory on free tier
-                    cfg.badgeUrl = BADGE_URL;
-                    await env.CLIENT_SETTINGS.put(`client:${row.client_id}`, JSON.stringify(cfg));
+                    // Downgrade to the guided (scripted) bot; the badge is mandatory on the free tier
+                    await saveClientConfig(env, row.client_id, cfg, { ...cfg, mode: 'scripted', showBranding: true, badgeUrl: BADGE_URL }, automatic('trial expiry'));
                     console.log(`[Trial] Expired → ${row.client_id} downgraded to free mode`);
                 }
             }
@@ -2861,7 +3001,7 @@ app.post('/api/mail-settings', requireAuth, async (c) => {
         smtpPass:     (smtpPass && smtpPass !== '••••••••') ? smtpPass : (prev.smtpPass ?? ''),
     };
 
-    await c.env.OAUTH_TOKENS.put(`mail:${t.clientId}`, JSON.stringify(settings));
+    await saveMailSettings(c.env, t.clientId, prev, settings, await changedBy(c));
     return c.json({ success: true });
 });
 
@@ -3617,6 +3757,7 @@ export default {
             ctx.waitUntil(migrateBotModes(env).catch(e => console.error('[Migrate modes]', e)));
             ctx.waitUntil(enforcePlanLimits(env).catch(e => console.error('[Plan limits]', e)));
             ctx.waitUntil(ensurePageViews(env).then(() => env.DB.prepare('DELETE FROM page_views WHERE ts < ?').bind(Date.now() - 400 * DAY_MS).run()).catch(e => console.error('[Pageview retention]', e)));
+            ctx.waitUntil(pruneSettingsHistory(env).catch(e => console.error('[History retention]', e)));
         }
     }
 };
