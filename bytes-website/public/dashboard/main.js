@@ -400,6 +400,7 @@ function showDashboard() {
 
     // Load plan/trial status and render banner
     loadPlanStatus();
+    loadMailBanner();
     loadUserProfile();
 
     // Navigate to a requested view (?view= param or saved from pre-OAuth redirect)
@@ -448,6 +449,27 @@ function showKickedBanner(message) {
     localStorage.removeItem('bytes_session_jwt');
     document.body.prepend(banner);
 }
+
+// A client with no email sender sends nothing: no confirmation email to their leads, no lead alerts to them, no
+// follow-ups. So every page says so until the sender's settings are complete. Complete is not proven working: the
+// Send Test Email button proves that, and the steps on the Email Sender card end with it. Admins never see this.
+async function loadMailBanner() {
+    const el = document.getElementById('mail-banner');
+    if (!el) return;
+    if (userRole === 'admin') { el.hidden = true; return; }
+    let d = null;
+    try { const res = await apiFetch(`${API_BASE}/api/chatbot/status`); if (res.ok) d = await res.json(); } catch (_) {}
+    // A failed check shows nothing rather than a warning that may be wrong
+    el.hidden = !d || !!d.mailReady;
+}
+
+document.getElementById('mail-banner-btn')?.addEventListener('click', async () => {
+    switchView('chatbot');
+    // Scroll once the page has drawn its status and settings, or what loads above the card pushes it away again.
+    // The section menu's own link scrolls there and highlights "Email sender".
+    await chatbotViewLoad?.catch(() => {});
+    document.querySelector('.cb-nav a[href="#cb-email"]')?.click();
+});
 
 async function loadPlanStatus() {
     // Agency admins aren't on a client plan: no trial banner, no Free-plan locks
@@ -598,6 +620,7 @@ if (closeSidebarBtn && dashboardSidebar) {
     });
 }
 
+let chatbotViewLoad = null; // the Chatbot page's last load, for the email banner's button to wait on
 function switchView(viewName) {
     navItems.forEach(nav => nav.classList.toggle('active', nav.getAttribute('data-view') === viewName));
     views.forEach(view => view.classList.toggle('hidden', view.id !== `${viewName}-view`));
@@ -606,7 +629,7 @@ function switchView(viewName) {
     viewTitle.innerText = titles[viewName] || (viewName.charAt(0).toUpperCase() + viewName.slice(1));
     if (viewName === 'leads') loadLeads();
     if (viewName === 'logs') loadLogs();
-    if (viewName === 'chatbot') loadChatbotView();
+    if (viewName === 'chatbot') chatbotViewLoad = loadChatbotView();
     if (viewName === 'analytics') loadAnalytics();
     if (viewName === 'site-settings') loadSiteSettings();
     if (viewName === 'clients') loadClients();
@@ -1772,11 +1795,11 @@ async function loadChatbotView() {
         if (res.ok) installationData = await res.json();
     } catch { /* use cached */ }
     renderChatbotView();
-    loadChatbotStatus();
+    const status = loadChatbotStatus();
     cbAdminNote();
 
     const cid = installationData.clientId;
-    if (!cid) return;
+    if (!cid) return status;
 
     // Fetch chatbot config, CRM settings, and mail settings in parallel
     const [configResult, crmResult, mailResult] = await Promise.allSettled([
@@ -1796,6 +1819,7 @@ async function loadChatbotView() {
     if (mailResult.status === 'fulfilled' && mailResult.value.ok) {
         populateMailSettings(await mailResult.value.json());
     }
+    await status;
 }
 
 // ─── AI model picker (catalog + prices come from the chatbot service) ─────────
@@ -2296,6 +2320,9 @@ document.getElementById('settings-save-mail-btn').addEventListener('click', asyn
         if (res.ok) {
             statusEl.textContent = '✓ Saved!'; statusEl.style.color = 'var(--success)';
             setTimeout(() => { if (statusEl.textContent.startsWith('✓')) statusEl.textContent = ''; }, 3000);
+            // The banner and the status tile follow the new settings straight away
+            loadMailBanner();
+            loadChatbotStatus();
         } else {
             const err = await res.json().catch(() => ({}));
             statusEl.textContent = err.error || 'Save failed.'; statusEl.style.color = 'var(--error)';
@@ -3440,6 +3467,9 @@ async function loadChatbotStatus() {
     let d = null;
     try { const res = await apiFetch(`${API_BASE}/api/chatbot/status`); if (res.ok) d = await res.json(); } catch (_) {}
     if (!d) { el.innerHTML = ''; return; }
+    // The Resend steps open while no sender is set up, and fold away once it is
+    const guide = document.getElementById('cb-mail-guide');
+    if (guide) guide.open = !d.mailReady;
     const fresh = d.lastChatAt && Date.now() - d.lastChatAt < 7 * 86400000;
     const ai = cbMode(d.mode) !== 'scripted';
     const item = (state, title, text, href) => `<a class="cb-stat cb-${state}" href="${href}"><span class="cb-stat-dot" aria-hidden="true"></span><span class="cb-stat-text"><strong>${title}</strong><span>${text}</span></span></a>`;

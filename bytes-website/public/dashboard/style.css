@@ -1902,3 +1902,29 @@ body.light-mode .ld-col-budget.active { color: #2a78d6; }
 .cb-mode-info { margin: 0.2rem 0 0.25rem; padding: 0.6rem 0.8rem; border-radius: 10px; border: 1px solid var(--glass-border); background: rgba(255, 255, 255, 0.03); font-size: 0.88rem; }
 body.light-mode .cb-mode-info { background: rgba(15, 23, 42, 0.03); }
 .sales-grid[hidden] { display: none; }
+
+/* No email sender yet (clients only): one row under the plan banner, on every page. The same red as the
+   Chatbot page's "Emails not sending" tile. */
+.mail-banner { --mb-bad: #ef7a7a; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; padding: 0.7rem 1.25rem; border-bottom: 1px solid color-mix(in srgb, var(--mb-bad) 35%, transparent); background: color-mix(in srgb, var(--mb-bad) 9%, transparent); }
+body.light-mode .mail-banner { --mb-bad: #b02e2e; }
+.mail-banner[hidden] { display: none; }
+.mail-banner-text { position: relative; flex: 1 1 12rem; min-width: 0; margin: 0; padding-left: calc(10px + 0.75rem); font-size: 0.85rem; line-height: 1.5; color: var(--text-primary); }
+/* The status dot, level with the first line however many lines the text wraps to */
+.mail-banner-text::before { content: ''; position: absolute; left: 0; top: calc(0.75em - 5px); width: 10px; height: 10px; border-radius: 50%; background: var(--mb-bad); }
+.mail-banner-text strong { color: var(--mb-bad); font-weight: 600; }
+.mail-banner-btn { flex: none; font: inherit; font-size: 0.8rem; font-weight: 600; padding: 0.45rem 1rem; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--mb-bad) 60%, transparent); background: transparent; color: var(--text-primary); cursor: pointer; transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.mail-banner-btn:hover { background: color-mix(in srgb, var(--mb-bad) 16%, transparent); }
+.mail-banner-btn:active { transform: scale(0.97); }
+.mail-banner-btn:focus-visible { outline: 2px solid var(--mb-bad); outline-offset: 2px; }
+@media (max-width: 640px) { .mail-banner { padding: 0.7rem 1rem; } .mail-banner-btn { margin-left: calc(10px + 0.75rem); } }
+@media (prefers-reduced-motion: reduce) { .mail-banner-btn { transition: none; } }
+
+/* The Resend steps on the Email Sender card (open while no sender is set up) */
+.cb-mail-guide { margin: 0 0 1.25rem; }
+.cb-steps { margin: 0.75rem 0 0; padding-left: 1.25rem; color: var(--text-secondary); line-height: 1.6; }
+.cb-steps li + li { margin-top: 0.35rem; }
+.cb-steps strong { color: var(--text-primary); font-weight: 600; }
+.cb-mail-guide a { color: var(--cb-1); text-underline-offset: 2px; }
+.cb-mail-guide a:hover { text-decoration-thickness: 2px; }
+.cb-mail-guide a:active { opacity: 0.75; }
+.cb-mail-guide a:focus-visible { outline: 2px solid var(--cb-1); outline-offset: 2px; border-radius: 2px; }

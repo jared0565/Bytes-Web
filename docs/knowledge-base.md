@@ -724,6 +724,12 @@ the login setup page and authenticator apps. The old name was replaced on 11 Oct
   and **Delete client**, which needs a typed confirmation and removes the D1 rows, R2 files and KV keys.
 - **Client Chatbot page:** install code and websites, behaviour (read-only), services, campaigns and sales follow-up
   (with Proof and offers), and the email sender.
+- **No email sender yet** (since 2 Nov 2026). There is no shared agency sender, so a client without their own sends
+  nothing: no confirmation email to leads, no lead alerts, no follow-ups. A red banner on every dashboard page says so,
+  for clients only, until `/api/chatbot/status` reports `mailReady` (`loadMailBanner` in `public/dashboard/main.js`). Its
+  button opens the Email Sender card, where numbered Resend steps are open while no sender is set up. `mailReady` means
+  the fields are filled in, not that sending works; Send Test Email proves that, and the steps end with it. Sign-up's
+  "Your bot is ready" screen and its follow-up emails choice say the sender is connected in the dashboard.
 
 ### Scheduled jobs (crm-api crons)
 

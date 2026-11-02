@@ -168,3 +168,6 @@ input[aria-invalid="true"] { border-color: rgba(248, 113, 113, 0.6) !important; 
 .ob-platforms summary:hover { color: var(--amber); }
 .ob-platforms summary:focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; border-radius: 6px; }
 .ob-platforms ul { margin: 0.8rem 0 0; padding-left: 1.1rem; display: grid; gap: 0.5rem; font-size: 0.85rem; line-height: 1.6; color: var(--text-dim); }
+/* "Your bot is ready": the one setup step left, done in the dashboard */
+.ob-next-note { margin: 1.25rem 0 0; padding: 0.85rem 1.2rem; border-radius: 16px; border: 1px solid var(--line-strong); background: var(--ink-0); font-size: 0.88rem; line-height: 1.6; color: var(--text-dim); text-align: left; }
+.ob-next-note strong { color: var(--amber); font-weight: 600; }
