@@ -199,10 +199,10 @@ the website worker still have full logging on (`"observability": { "enabled": tr
 
 **Workers Issues (since 2 Nov 2026)** is on for crm-api and chatbot-api (`[observability.issues]` in `wrangler.toml`,
 `"issues"` in chatbot-api's `wrangler.jsonc`). It groups crashes, 5xx replies, failed runs and error logs into issues,
-kept 7 days, and does not need the per-request line. Cloudflare's Issues automations page lists no email destination
-(only coding agents, webhooks, chat and incident tools), so an email alert needs another route, such as an Observability
-Monitor in the Cloudflare dashboard, built on Issues. The `errors` suite fails if either
-worker loses Issues or crm-api loses its errors-only setting.
+kept 7 days, and does not need the per-request line. The email alert is a built-in Cloudflare notification on Issues
+(section 8). The `errors` suite fails if either worker loses Issues or crm-api loses its errors-only setting. The
+website worker serves files without running Worker code, so Issues does not watch it; only an outside uptime check
+would notice the site going down.
 
 **chatbot-api**:
 
@@ -747,6 +747,10 @@ Done already. Repeat only if the account changes.
   `reply@reply.bytesfx.com` → Worker `crm-api`. Settings → status bar shows "Reply tracking on".
 - **R2** bucket `bytes-lead-files`.
 - **Resend** key set for the website sender.
+- **Error alert** (created 2 Nov 2026): the Cloudflare notification "BytesFX: Worker error (crm-api, chatbot-api)",
+  type Real-Time Issue (Workers Observability), emails the owner when Issues detects a new or returning issue on a
+  Worker that has Issues on. Find it under Observability → Alerts → Platform Notifications. Cloudflare's test send for
+  it failed with an internal error, so its first proof is a real issue showing an email in the alert history.
 - The setup guide (deploy steps, keys, Resend, Email Routing) is in the artifact
   `https://claude.ai/artifact/DobRk3xrWQUcF73NJ5jkCo` (private to the owner's claude.ai account; ask the owner for a
   copy).
