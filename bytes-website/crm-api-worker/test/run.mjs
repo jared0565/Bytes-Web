@@ -19,7 +19,7 @@ writeFileSync(idx, readFileSync(idx, 'utf8').replace("from '../../public/plans.j
     + '\nexport { signJWT, app as __app, generateOAuthState };\n'
     // `typeof` on a name the build does not have is safe, so a suite can ask for a helper
     // that only exists in a later commit and report a FAIL rather than crash the module
-    + '\nexport const __internals = { enforcePlanLimits: typeof enforcePlanLimits !== "undefined" ? enforcePlanLimits : null };\n');
+    + `\nexport const __internals = { ${['enforcePlanLimits', 'settingsDiff', 'handleVerificationCron'].map(n => `${n}: typeof ${n} !== "undefined" ? ${n} : null`).join(', ')} };\n`);
 writeFileSync(join(build, 'package.json'), '{"type":"module"}');
 
 const all = readdirSync(here).filter(f => f.endsWith('.mjs') && f !== 'run.mjs').map(f => f.slice(0, -4));

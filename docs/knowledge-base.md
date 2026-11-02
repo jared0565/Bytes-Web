@@ -88,7 +88,7 @@ bytes-website/                     The website and its static assets
     src/auth.js                    OAuth providers (Google, Facebook, LinkedIn)
     migrations/                    0001 to 0003; some tables and columns are created in code instead (section 5)
     data-fixes/                    One-off SQL for the live database, run by hand
-    test/                          node test/run.mjs: 20 suites
+    test/                          node test/run.mjs: 21 suites
     wrangler.toml                  Config for crm-api (use --config wrangler.toml with Wrangler)
 
 research/                          Notes and analysis; not used by the build
@@ -238,6 +238,7 @@ never committed. Neither worker has one today.
 - `page_views`: cookieless visit records, with country, device, browser, source and campaign
 - `lead_messages`: the email thread, plus scheduled tasks stored as `direction='task'`
 - `lead_files`: lead attachments
+- `settings_history`: every change to a client's settings (see "Settings change history" below)
 
 **Schema made by migrations.** `bytes-website/crm-api-worker/migrations/` holds three files:
 
@@ -260,9 +261,39 @@ never committed. Neither worker has one today.
 - chatbot-api `ensureSchema()`: the `leads.session_id` column, and the `chat_logs` columns `session_id`, `flag` (the AI's
   label for the message) and `visitor` (the scrambled visitor ID), plus indexes. It creates no tables. crm-api's
   `/api/logs` leaves `visitor` out of what it returns.
+- crm-api `ensureHistory()`: the `settings_history` table and its indexes, on the first settings change or history read.
 
 So the migrations alone do not give the live schema. A fresh database matches production only after both workers have
 run.
+
+**Settings change history (since 2 Nov 2026).** crm-api records every change to a client's settings in
+`settings_history`, one row per changed setting:
+
+- **What:** the chatbot settings (`client:<id>`, the Bytes website's own bot included), the email sender (`mail:<id>`)
+  and the plan and campaign settings (`crm_settings`: campaign mode, auto-approve, plan, trial dates). Each row holds
+  when, the client, which settings (`store`), the setting (`field`; one inside a group reads `socials.linkedin`), and
+  the old and new value as JSON. Bot instructions are kept in full.
+- **Secrets are never kept.** A setting whose name holds key, secret, pass or token (the email sender's API key and SMTP
+  password) is recorded with `masked = 1` and no values: only that it changed.
+- **Who:** `owner` or `admin` with the email of their account at the time; `admin (access key)` for the key login
+  (no account); `sign-up (unconfirmed email)` with the email typed at sign-up; `automatic` for jobs (`trial expiry`,
+  `hourly plan check`, `mode rename`). When a person's change causes others (an admin's plan change cuts the website
+  list), those are recorded under that person. `source` says what made the change: the route (`POST /api/config`) or
+  the job.
+- **How:** every write goes through `saveClientConfig`, `saveMailSettings`, `savePlanRow` and `deleteClientSettings`,
+  between the `Settings writes: start` and `end` markers in `src/index.js`. The `history` suite fails if anything else
+  in crm-api (or chatbot-api) writes these settings. Where a sign-up came from (`signup_source`) is Analytics, not a
+  setting, and is not recorded.
+- **A failed recording never fails the save.** It is logged as `[History] Not recorded`, which reaches Workers Issues
+  and the email alert.
+- **Kept 2 years.** The hourly job (minute 7) removes older rows. Deleting a client deletes its history and keeps one
+  row: the client ID, when, which admin, and `deleted`. If its history cannot be deleted, the delete fails, so the admin
+  tries again. The privacy policy (section 5) says this.
+- **Reading it:** `GET /api/admin/clients/<id>/history` (admins only), newest first. `limit` is 1 to 500 (100 by
+  default); `before=<id>` gives the next page. There is no dashboard view yet.
+- **Not recorded:** changes made outside the app (the Cloudflare dashboard, `wrangler`, the database console,
+  `data-fixes/`), and two-step sign-in or sign-in method changes. History starts on 2 Nov 2026. KV can return a value up
+  to about a minute old, so two saves seconds apart can show a slightly stale old value.
 
 **KV keys:**
 
@@ -772,7 +803,7 @@ Requires **Node 22.5 or newer** (the tests use `node:sqlite`). Run `npm install`
 
 | Check | Command (from the folder shown) | What it proves |
 |---|---|---|
-| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 20 suites (373 checks on 2 Nov 2026) |
+| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 21 suites (430 checks on 2 Nov 2026) |
 | One or a few crm-api suites | `node test/run.mjs flow plans` | Only the named suites |
 | chatbot-api tests | `chatbot-api`: `node test/run.mjs` | 3 suites: `chat` (whole requests to the chat endpoint), `gate` (website gate), `scripted` (143 checks on 1 Nov 2026) |
 | Typecheck | `chatbot-api`: `npx tsc --noEmit -p .` | TypeScript types |
@@ -803,6 +834,7 @@ The crm-api suites, with what they cover:
 | `signup` | Where sign-ups come from: the ad tag saved at sign-up, and the "Sign-ups by source" counts |
 | `signin` | The ad tag kept through a Google, Facebook or LinkedIn sign-in |
 | `errors` | The error handler's log line (names the method and route, never the query string; the caller gets only the generic reply), crm-api's errors-only logging, and Workers Issues on for crm-api and chatbot-api |
+| `history` | Settings change history: what changed (secrets never kept), who and what made each change, sign-up and automatic changes, sign-up staying a strict create (a second sign-up racing for a taken client ID is refused), a failed recording not failing the save, the admin read endpoint, client delete, the 2-year cleanup, and a guard that every settings write goes through the save functions |
 
 The suites run the worker in Node with `node:sqlite`, with mocked KV, R2, mail and LLM. They run against a scratch copy in
 `test/.build`, which is git-ignored. The runner treats every `.mjs` file in `test/` (other than `run.mjs`) as a suite, so
