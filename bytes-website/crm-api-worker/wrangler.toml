@@ -57,6 +57,11 @@ redact_query_string = true
 [observability.logs]
 invocation_logs = false
 
+# Workers Issues groups crashes, 5xx replies and error logs into issues (kept 7 days). It does not need the
+# per-request line. An email alert can be built on it with an Observability Monitor in the Cloudflare dashboard.
+[observability.issues]
+enabled = true
+
 # Cron trigger — runs the verification email follow-up worker every minute
 [triggers]
 crons = ["* * * * *"]

@@ -8,7 +8,9 @@
 	"main": "src/index.ts",
 	"compatibility_date": "2026-03-01",
 	"observability": {
-		"enabled": true
+		"enabled": true,
+		// Workers Issues: groups crashes, 5xx replies and error logs (kept 7 days); an email alert can be built on it
+		"issues": { "enabled": true }
 	},
 	"compatibility_flags": [
 		"nodejs_compat"

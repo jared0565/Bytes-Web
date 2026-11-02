@@ -23,3 +23,14 @@ ok('the caller gets the generic 500 reply, not the error', res.status === 500 &&
 ok('the error line names the method and route', line.includes('POST /api/register-settings'), line.slice(0, 160));
 ok('the error line never carries the query string', line !== '' && !line.includes('secret-probe') && !line.includes('probe%40x.com') && !line.includes('?'), line.slice(0, 160));
 ok('the error itself is still logged, with its stack', line.includes('kv down') && line.includes('at '), line.slice(0, 160));
+
+// The configs behind it. The per-request line records request headers (sign-in cookies, most likely the IP), and
+// the privacy policy says IPs are kept for an hour at most, so crm-api stays errors-only. Issues detects crashes,
+// 5xx replies and error logs without that line, and the email alert is built on it.
+const { readFileSync } = await import('node:fs');
+const crmToml = readFileSync(new URL('../../wrangler.toml', import.meta.url), 'utf8');
+const chatJsonc = readFileSync(new URL('../../../../chatbot-api/wrangler.jsonc', import.meta.url), 'utf8');
+ok('crm-api keeps logs errors-only (no per-request line)', /\[observability\.logs\][^\[]*invocation_logs\s*=\s*false/.test(crmToml));
+ok('crm-api removes query strings from logged URLs', /\[observability\][^\[]*redact_query_string\s*=\s*true/.test(crmToml));
+ok('crm-api has Workers Issues on', /\[observability\.issues\][^\[]*enabled\s*=\s*true/.test(crmToml));
+ok('chatbot-api has Workers Issues on', /"issues"\s*:\s*\{\s*"enabled"\s*:\s*true/.test(chatJsonc));

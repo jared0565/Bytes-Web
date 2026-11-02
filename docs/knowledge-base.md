@@ -197,6 +197,13 @@ Cloudflare logs. Read the logs in the Cloudflare dashboard, on the crm-api Worke
 while debugging something specific, set `invocation_logs = true`, deploy, and set it back afterwards. chatbot-api and
 the website worker still have full logging on (`"observability": { "enabled": true }` in their `wrangler.jsonc`).
 
+**Workers Issues (since 2 Nov 2026)** is on for crm-api and chatbot-api (`[observability.issues]` in `wrangler.toml`,
+`"issues"` in chatbot-api's `wrangler.jsonc`). It groups crashes, 5xx replies, failed runs and error logs into issues,
+kept 7 days, and does not need the per-request line. Cloudflare's Issues automations page lists no email destination
+(only coding agents, webhooks, chat and incident tools), so an email alert needs another route, such as an Observability
+Monitor in the Cloudflare dashboard, built on Issues. The `errors` suite fails if either
+worker loses Issues or crm-api loses its errors-only setting.
+
 **chatbot-api**:
 
 | Secret | Purpose |
@@ -753,7 +760,7 @@ Requires **Node 22.5 or newer** (the tests use `node:sqlite`). Run `npm install`
 
 | Check | Command (from the folder shown) | What it proves |
 |---|---|---|
-| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 20 suites (369 checks on 1 Nov 2026) |
+| crm-api tests | `bytes-website/crm-api-worker`: `node test/run.mjs` | All 20 suites (373 checks on 2 Nov 2026) |
 | One or a few crm-api suites | `node test/run.mjs flow plans` | Only the named suites |
 | chatbot-api tests | `chatbot-api`: `node test/run.mjs` | 3 suites: `chat` (whole requests to the chat endpoint), `gate` (website gate), `scripted` (143 checks on 1 Nov 2026) |
 | Typecheck | `chatbot-api`: `npx tsc --noEmit -p .` | TypeScript types |
@@ -783,7 +790,7 @@ The crm-api suites, with what they cover:
 | `local-origin` | The session cookie is not honoured from a local port |
 | `signup` | Where sign-ups come from: the ad tag saved at sign-up, and the "Sign-ups by source" counts |
 | `signin` | The ad tag kept through a Google, Facebook or LinkedIn sign-in |
-| `errors` | The error handler's log line: it names the method and route, never the query string, and the caller gets only the generic reply |
+| `errors` | The error handler's log line (names the method and route, never the query string; the caller gets only the generic reply), crm-api's errors-only logging, and Workers Issues on for crm-api and chatbot-api |
 
 The suites run the worker in Node with `node:sqlite`, with mocked KV, R2, mail and LLM. They run against a scratch copy in
 `test/.build`, which is git-ignored. The runner treats every `.mjs` file in `test/` (other than `run.mjs`) as a suite, so
