@@ -199,8 +199,9 @@ the website worker still have full logging on (`"observability": { "enabled": tr
 
 **Workers Issues (since 2 Nov 2026)** is on for crm-api and chatbot-api (`[observability.issues]` in `wrangler.toml`,
 `"issues"` in chatbot-api's `wrangler.jsonc`). It groups crashes, 5xx replies, failed runs and error logs into issues,
-kept 7 days, and does not need the per-request line. Cloudflare's Issues automations cannot send email, so an email
-alert has to be an Observability Monitor in the Cloudflare dashboard, built on Issues. The `errors` suite fails if either
+kept 7 days, and does not need the per-request line. Cloudflare's Issues automations page lists no email destination
+(only coding agents, webhooks, chat and incident tools), so an email alert needs another route, such as an Observability
+Monitor in the Cloudflare dashboard, built on Issues. The `errors` suite fails if either
 worker loses Issues or crm-api loses its errors-only setting.
 
 **chatbot-api**:
