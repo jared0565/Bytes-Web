@@ -9,6 +9,12 @@
 	"compatibility_date": "2026-03-01",
 	"observability": {
 		"enabled": true,
+		// Errors only: the per-request line records the request headers, and those carry the visitor's IP address
+		// (`cf-connecting-ip`, `x-real-ip`), kept 3 days on the Free plan and 7 on Paid. The country is what is
+		// useful, and Cloudflare cannot keep one header and drop another, so the per-request line is off and the
+		// worker logs the country itself, once per chat (src/index.ts). The privacy policy says the visitor's IP
+		// address is kept for an hour at most (bytes-website/public/privacy-policy.html, section 5).
+		"logs": { "invocation_logs": false },
 		// Workers Issues: groups crashes, 5xx replies and error logs (kept 7 days); the email alert is a Cloudflare
 		// notification on it (docs/knowledge-base.md, section 8)
 		"issues": { "enabled": true }

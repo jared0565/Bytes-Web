@@ -194,19 +194,28 @@ for an hour at most. Whether Cloudflare masks any of them is not documented. A c
 logs `[CRM-API ERROR] <method> <path>` and the error (`app.onError`); the path never includes the query string, where
 sign-in nonces, unsubscribe tokens and emails travel. `redact_query_string = true` also strips query strings from any URL
 Cloudflare logs. Read the logs in the Cloudflare dashboard, on the crm-api Worker. To see every request
-while debugging something specific, set `invocation_logs = true`, deploy, and set it back afterwards. chatbot-api and
-the website worker still have full logging on (`"observability": { "enabled": true }` in their `wrangler.jsonc`).
+while debugging something specific, set `invocation_logs = true`, deploy, and set it back afterwards.
+
+**chatbot-api is errors-only too (since 3 Nov 2026).** It had full logging on, and its per-request lines carried the
+visitor's IP address (`cf-connecting-ip`, `x-real-ip`), kept 3 days on the Free plan and 7 on Paid. chatbot-api is the
+worker behind the chat widget, so those were visitor IPs. Cloudflare cannot keep one request header and drop another,
+so the per-request line is off and **the worker logs the country itself**: one `{ kind: 'chat', country, clientId }`
+line per chat, on the chat's first message, with the country from `request.cf.country` (an ISO 3166-1 alpha 2 code,
+`T1` for a visitor over Tor, absent when Cloudflare cannot tell). The chat text, the visitor's address and the request
+headers never go into that line. The website worker runs no Worker code, so it produces no logs at all: measured on
+3 Nov 2026, it had no invocation entries, while the same query on chatbot-api returned them.
 
 **Measured 3 Nov 2026, one real log entry from each worker.** crm-api's entries carry the method, the URL and the path
-and nothing else: no headers, no IP address. chatbot-api's entries do carry them — `cf-connecting-ip`, `x-real-ip`,
-`cf-ipcountry`, `cf-ray` and `user-agent` were all present in a real entry — and Cloudflare keeps those logs for 3
-days on the Free plan, 7 on Paid. chatbot-api is the worker behind the chat widget, so those are visitor IP
-addresses. Reconciling that with the privacy policy's "an hour at most" is the owner's call.
+and nothing else: no headers, no IP address. chatbot-api's did carry them — `cf-connecting-ip`, `x-real-ip`,
+`cf-ipcountry`, `cf-ray` and `user-agent` were all present in a real entry — which is why chatbot-api is now
+errors-only as well. A `console.log` entry carries no request context of its own (measured: the info-level entries had
+none), so the country has to be logged by the worker itself.
 
 **Workers Issues (since 2 Nov 2026)** is on for crm-api and chatbot-api (`[observability.issues]` in `wrangler.toml`,
 `"issues"` in chatbot-api's `wrangler.jsonc`). It groups crashes, 5xx replies, failed runs and error logs into issues,
 kept 7 days, and does not need the per-request line. The email alert is a built-in Cloudflare notification on Issues
-(section 8). The `errors` suite fails if either worker loses Issues or crm-api loses its errors-only setting. The
+(section 8). The `errors` suite fails if either worker loses Issues, or either worker loses its errors-only setting,
+or the country line ever grows an IP address or a header. The
 website worker serves files without running Worker code, so Issues does not watch it; only an outside uptime check
 would notice the site going down.
 
