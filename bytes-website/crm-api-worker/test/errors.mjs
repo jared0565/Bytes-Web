@@ -34,3 +34,12 @@ ok('crm-api keeps logs errors-only (no per-request line)', /\[observability\.log
 ok('crm-api removes query strings from logged URLs', /\[observability\][^\[]*redact_query_string\s*=\s*true/.test(crmToml));
 ok('crm-api has Workers Issues on', /\[observability\.issues\][^\[]*enabled\s*=\s*true/.test(crmToml));
 ok('chatbot-api has Workers Issues on', /"issues"\s*:\s*\{\s*"enabled"\s*:\s*true/.test(chatJsonc));
+
+// chatbot-api is the worker behind the chat widget, so its per-request lines carried the visitor's IP address
+// (`cf-connecting-ip`, `x-real-ip`), kept 3 days on the Free plan and 7 on Paid. It is errors-only as well, and the
+// country is logged by the worker instead: the country code and the chatbot, and nothing about the request.
+ok('chatbot-api keeps logs errors-only (no per-request line)', /"logs"\s*:\s*\{[^}]*"invocation_logs"\s*:\s*false/.test(chatJsonc));
+const chatSrc = readFileSync(new URL('../../../../chatbot-api/src/index.ts', import.meta.url), 'utf8');
+const countryLog = (chatSrc.match(/console\.log\(\{[^}]*country[^}]*\}\)/) || [''])[0];
+ok('chatbot-api logs the country of a chat', countryLog !== '' && /clientId/.test(countryLog), countryLog.slice(0, 120));
+ok('the country line carries no IP address and no headers', countryLog !== '' && !/\bip\b|header/i.test(countryLog), countryLog.slice(0, 120));

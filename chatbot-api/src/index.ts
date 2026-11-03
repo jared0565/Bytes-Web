@@ -610,6 +610,11 @@ export default {
 		// Only a chat this server started is continued. An id with no messages saved under it for this chatbot
 		// (made up, another chatbot's, or idle too long) has nothing to continue, so the chat gets a new one.
 		if (claimed && !sessionCount) sessionId = crypto.randomUUID();
+		// Where the visitor is, as a country code, and nothing else. The per-request log line is off (the request
+		// headers carry the visitor's IP address), and a console.log entry carries no request context of its own, so
+		// the country is logged here instead: one line per chat, on its first message. The chat text, the visitor's
+		// address and the request headers never go into it.
+		if (!sessionCount) console.log({ kind: 'chat', country: request.cf?.country || null, clientId });
 		const emailRegex = /[a-zA-Z0-9._%+\-]{1,64}@[a-zA-Z0-9.\-]{1,190}\.[a-zA-Z]{2,24}/;
 		const said = [...history.filter(h => h.role === 'user').map(h => h.parts[0].text), message];
 		const email = chatEmail(said, emailRegex);
