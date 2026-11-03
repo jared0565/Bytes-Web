@@ -1,6 +1,6 @@
 # BytesFX — Project Handover
 
-Last updated: 27 Oct 2026. Everything below is merged into `main` and deployed.
+Last updated: 3 Nov 2026. Everything below is merged into `main` and deployed.
 Read this file and `CLAUDE.md` before changing anything.
 
 ---
@@ -441,7 +441,11 @@ visitor's network, on purpose, so a phone that changes network keeps its chat.
   - The Bytes site can store its own instead: a row in `email_templates` named "Standard Web Design Sequence" under
     client `default` or `agency_demo`. It is optional. A template under any other client is never used for Bytes.
   - The live database had no such row on 2026-10-11 (counted, not read), so Bytes leads get the built-in emails.
-    `migrations/0001_init.sql` seeds one under `agency_demo`; why it is gone from the live database is not known.
+    It was never there, and the reason is now known: the deploy workflow (`.github/workflows/deploy-worker.yml`)
+    is the only one and has no D1 migration step, so `migrations/0001_init.sql` — which does seed a
+    `Standard Web Design Sequence` template under `agency_demo` — is a local-only file and never reached
+    production. `email_templates` was still empty when the database was reset on 2 Nov 2026, and that
+    reset kept the table.
 
 - **Framework campaigns** (1 Nov 2026, `crm-api-worker/src/frameworks.js`; details in the knowledge base, section 7):
   - **Proof and offers** in the sales settings, saved by any role: work you can point to, how you work, what you commit
@@ -573,12 +577,19 @@ gitignored).
 ## 11. Open items and ideas (not built)
 
 1. **Payments:** a Stripe checkout so Pricing and upgrades are self-serve. Plans are admin-set today.
-2. **Delete the 7 test clients** in Manage Clients using the Delete client button:
-   - test-client-99
-   - smoke-test-xyz
-   - test_client_03
-   - fb-mac-114dc095, fb-mac-c3a09ec7, fb-mac-23d780b3
-   - agency_demo
+2. **Test clients: nothing left to delete.** (Rewritten 3 Nov 2026; the old list of 7 was stale.)
+   - `fb-mac-114dc095`, `fb-mac-23d780b3`: **deleted 2 Nov 2026** with the Delete client button, which
+     removed their D1 rows, R2 files and KV keys. The `users` table was untouched (4 admin accounts
+     before and after the reset).
+   - `test-client-99`, `smoke-test-xyz`, `test_client_03`, `fb-mac-c3a09ec7`: already gone before that.
+     None of the four appears anywhere in the 2 Nov 2026 database backup, and Manage Clients listed
+     only 3 clients just before the reset.
+   - `agency_demo`: **kept on purpose.** It is the admin's demo client and the row the app seeds, so
+     the old list was wrong to name it as a delete target.
+   - Manage Clients now lists **`agency_demo` only**. It is the union of the `crm_settings` rows, the
+     `client:` keys in KV, and every `client_id` in `leads` or `chat_logs`, minus the house client
+     `default` (`crm-api-worker/src/index.js`). The house bot has its own Settings page and is not a
+     Manage Clients entry.
 3. **Lead source reporting:** record chatbot vs web form on each lead, and show a funnel per channel (visitors → leads
    → verified → replied → won). This was proposed, not built.
 4. **House bot prompt:** checked on 27 Oct 2026. `client:default` in KV has no `systemPrompt` of its own, so the Bytes
