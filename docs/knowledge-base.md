@@ -197,6 +197,12 @@ Cloudflare logs. Read the logs in the Cloudflare dashboard, on the crm-api Worke
 while debugging something specific, set `invocation_logs = true`, deploy, and set it back afterwards. chatbot-api and
 the website worker still have full logging on (`"observability": { "enabled": true }` in their `wrangler.jsonc`).
 
+**Measured 3 Nov 2026, one real log entry from each worker.** crm-api's entries carry the method, the URL and the path
+and nothing else: no headers, no IP address. chatbot-api's entries do carry them — `cf-connecting-ip`, `x-real-ip`,
+`cf-ipcountry`, `cf-ray` and `user-agent` were all present in a real entry — and Cloudflare keeps those logs for 3
+days on the Free plan, 7 on Paid. chatbot-api is the worker behind the chat widget, so those are visitor IP
+addresses. Reconciling that with the privacy policy's "an hour at most" is the owner's call.
+
 **Workers Issues (since 2 Nov 2026)** is on for crm-api and chatbot-api (`[observability.issues]` in `wrangler.toml`,
 `"issues"` in chatbot-api's `wrangler.jsonc`). It groups crashes, 5xx replies, failed runs and error logs into issues,
 kept 7 days, and does not need the per-request line. The email alert is a built-in Cloudflare notification on Issues
@@ -788,12 +794,26 @@ Done already. Repeat only if the account changes.
 - **Resend** key set for the website sender.
 - **Error alert** (created 2 Nov 2026): the Cloudflare notification "BytesFX: Worker error (crm-api, chatbot-api)",
   type Real-Time Issue (Workers Observability), emails the owner when Issues detects a new or returning issue on a
-  Worker that has Issues on. Find it under Observability → Alerts → Platform Notifications. Cloudflare's test send for
-  it failed with an internal error, so its first proof is a real issue showing an email in the alert history.
+  Worker that has Issues on. Find it under Observability → Alerts → Platform Notifications. It is enabled, it has
+  **no filter** (so any issue on crm-api or chatbot-api counts), it emails fbmacagba@gmail.com, the email destination
+  is eligible and ready, and nothing silences it.
+  - **Checked 3 Nov 2026.** The test send now succeeds (it failed with an internal error on 2 Nov), and a manual
+    notification about a real issue is recorded on that issue as `status: succeeded`. Two emails were requested on
+    3 Nov 2026 at 17:11Z: the policy test send, and a notification about the active chatbot-api issue below.
+  - The alert-history feed shows **0 entries** — and still 0 after a successful test send. So an empty history is not
+    evidence that no email was sent; the owner's inbox is the only proof.
+  - The issues it watches for are real and current: **crm-api has had no issue at all**, while **chatbot-api has 5
+    active issues with 444 occurrences**, all of the type "Potential vulnerability scan" — outside scanners probing
+    the worker (for example `GET /.git/config`), not our code failing. They first appeared on 2 Nov 2026, between
+    02:58Z and 13:01Z, after the alert was armed, and the newest occurrence was 3 Nov 2026 at 16:52Z. Those are the
+    occurrences an alert should have fired on.
 - The setup guide (deploy steps, keys, Resend, Email Routing) is in the artifact
   `https://claude.ai/artifact/DobRk3xrWQUcF73NJ5jkCo` (private to the owner's claude.ai account; ask the owner for a
   copy).
-- Production data was reset on 10 Oct 2026. The test leads and chat logs were deleted.
+- Production data was reset on 10 Oct 2026, and again on 2 Nov 2026. The second reset deleted the two test clients
+  (fb-mac-114dc095 and fb-mac-23d780b3) with the Delete client button and emptied the leads, lead messages, email
+  sequences, chat logs, page views and settings history. The 4 admin accounts, the plans, automations, roles and email
+  templates were kept, and agency_demo is the only client left.
 
 ---
 
