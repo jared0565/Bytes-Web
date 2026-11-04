@@ -5,7 +5,7 @@ import './home.css';
 import './chatbot.css';
 import PLAN_DATA from '../public/plans.json';
 import { initChatbot } from './chat.js';
-import { initReveal, initNavbarScroll, initMobileMenu, setFooterYear } from './ui.js';
+import { prefersReducedMotion, initReveal, initNavbarScroll, initMobileMenu, setFooterYear } from './ui.js';
 
 initReveal();
 initNavbarScroll();
@@ -17,6 +17,7 @@ setFooterYear();
 // it, because the bot isn't told which page it is on. The last one goes straight to sign-up.
 initChatbot({
   sessionKey: 'bytesfx_chat_chatbot_page',
+  unavailableMessage: "The demo couldn't connect just now. Please try again, or use the free trial link above to set up your own chatbot.",
   choices: [
     { label: 'How does the chatbot work on my website?' },
     { label: 'How much does the chatbot cost?' },
@@ -29,7 +30,7 @@ initChatbot({
 document.querySelectorAll('[data-open-chat]').forEach((btn) => {
   btn.addEventListener('click', () => {
     const chat = document.getElementById('chatbot-window');
-    chat?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest' });
+    chat?.scrollIntoView({ behavior: prefersReducedMotion() ? 'instant' : 'smooth', block: 'nearest' });
     if (!matchMedia('(pointer: coarse)').matches) document.getElementById('chatInput')?.focus({ preventScroll: true });
   });
 });
@@ -50,6 +51,6 @@ if (want) {
   requestAnimationFrame(() => {
     const card = document.querySelector(`[data-plan="${want}"]`);
     card?.classList.add('is-target');
-    card?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card?.scrollIntoView({ behavior: prefersReducedMotion() ? 'instant' : 'smooth', block: 'center' });
   });
 }

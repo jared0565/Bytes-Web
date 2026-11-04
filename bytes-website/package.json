@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/check-consent.mjs && node scripts/test-consent.mjs && vite build && node scripts/check-chatbot-page.mjs",
+    "build": "node scripts/check-consent.mjs && node scripts/test-consent.mjs && node --test scripts/test-navigation.mjs && vite build && node scripts/check-chatbot-page.mjs",
     "preview": "vite preview"
   },
   "devDependencies": {

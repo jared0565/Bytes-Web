@@ -30,13 +30,14 @@ function planFeatures(data, p) {
 // checkout is online.
 function planButton(data, p) {
   if (p.price === 0) return `<a href="/onboarding/" class="hx-btn hx-btn-ghost hx-btn-full">Start free</a><p class="hx-plan-trial">Includes a ${data.trial.days}-day AI trial</p>`;
-  return `<a href="/?plan=${p.id}#contact" class="hx-btn ${p.featured ? 'hx-btn-primary' : 'hx-btn-ghost'} hx-btn-full">Choose ${p.name}</a>`;
+  return `<a href="/?plan=${p.id}#contact" class="hx-btn ${p.featured ? 'hx-btn-primary' : 'hx-btn-ghost'} hx-btn-full">Ask about ${p.name}</a>`;
 }
 
 export function planCards(data) {
   const cards = data.plans.filter(p => p.price !== null);
   const ent = data.plans.find(p => p.price === null);
   return `
+        <p class="hx-plan-note cb-plan-guidance">Prices in US dollars. Start the trial straight away. For a paid plan, send an enquiry and the team will reply within 24 hours to help you set it up.</p>
         <div class="hx-plans">
           ${cards.map((p, i) => `
           <article class="hx-plan reveal${p.featured ? ' is-featured' : ''}" data-plan="${p.id}" style="--d:${i}">
@@ -57,5 +58,5 @@ export function planCards(data) {
           <ul class="hx-plan-list hx-plan-list-inline">${planFeatures(data, ent)}</ul>
           <a href="/?plan=${ent.id}#contact" class="hx-btn hx-btn-ghost">Talk to us</a>
         </article>` : ''}
-        <p class="hx-plan-note">Prices in US dollars. Choose a plan and the team will reply within 24 hours to set it up.</p>`;
+        `;
 }
