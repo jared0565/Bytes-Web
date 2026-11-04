@@ -61,22 +61,41 @@ export function initMobileMenu() {
   const mobileMenuBtn = document.getElementById('mobileMenuBtn');
   const navLinks = document.getElementById('navLinks');
 
-  if (mobileMenuBtn && navLinks) {
-    mobileMenuBtn.addEventListener('click', () => {
-      navLinks.classList.toggle('active');
-    });
-    // A tap on a link scrolls the page without changing the address (initSmoothScroll), so no
-    // route change arrives to close the menu. Close it here, or it stays over the page.
-    navLinks.addEventListener('click', (e) => {
-      if (e.target.closest('a')) navLinks.classList.remove('active');
-    });
-  }
+  if (!mobileMenuBtn || !navLinks) return;
 
-  // Close menu when clicking outside
-  document.addEventListener('click', (e) => {
-    if (!mobileMenuBtn?.contains(e.target) && !navLinks?.contains(e.target)) {
-      navLinks?.classList.remove('active');
+  // Match the shared CSS breakpoint. Desktop links must never be made inert.
+  const mobile = window.matchMedia('(max-width: 768px)');
+  const setOpen = (open) => {
+    const expanded = mobile.matches && open;
+    navLinks.classList.toggle('active', expanded);
+    navLinks.inert = mobile.matches && !expanded;
+    mobileMenuBtn.setAttribute('aria-expanded', String(expanded));
+    mobileMenuBtn.setAttribute('aria-label', expanded ? 'Close navigation' : 'Open navigation');
+  };
+  mobileMenuBtn.setAttribute('aria-controls', navLinks.id);
+  setOpen(false);
+
+  mobileMenuBtn.addEventListener('click', () => setOpen(!navLinks.classList.contains('active')));
+  navLinks.addEventListener('click', (e) => {
+    if (e.target.closest('a')) setOpen(false);
+  });
+  const closeOutside = (e) => {
+    if (!mobileMenuBtn.contains(e.target) && !navLinks.contains(e.target)) setOpen(false);
+  };
+  document.addEventListener('click', closeOutside);
+  document.addEventListener('focusin', closeOutside);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && navLinks.classList.contains('active')) {
+      e.preventDefault();
+      setOpen(false);
+      mobileMenuBtn.focus();
     }
+  });
+  window.addEventListener('hashchange', () => setOpen(false));
+  mobile.addEventListener('change', () => {
+    const focusWasInside = mobile.matches && navLinks.contains(document.activeElement);
+    setOpen(false);
+    if (focusWasInside) mobileMenuBtn.focus();
   });
 }
 

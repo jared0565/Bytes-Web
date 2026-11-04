@@ -30,7 +30,7 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
   <!-- Consent Mode v2 defaults: must run before any analytics/ads tag. Adding one? Turn on ASK in consent.js first -->
   <script src="/consent.js"></script>
@@ -43,13 +43,14 @@
 </head>
 
 <body class="cb-page">
-  <nav class="navbar glass-nav">
+  <a class="cb-skip-link" href="#app">Skip to content</a>
+  <nav class="navbar glass-nav" aria-label="Main navigation">
     <div class="logo-container">
       <a href="/" class="logo">Bytes<span class="highlight">FX</span></a>
     </div>
 
-    <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Toggle Navigation">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <button type="button" class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Open navigation" aria-expanded="false" aria-controls="navLinks">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <line x1="3" y1="12" x2="21" y2="12"></line>
         <line x1="3" y1="6" x2="21" y2="6"></line>
         <line x1="3" y1="18" x2="21" y2="18"></line>
@@ -57,16 +58,15 @@
     </button>
 
     <ul class="nav-links" id="navLinks">
-      <li><a href="/#services" class="nav-item">Services</a></li>
-      <li><a href="/#process" class="nav-item">Process</a></li>
-      <li><a href="/ai-chatbot/" class="nav-item" aria-current="page">AI Chatbot</a></li>
-      <li><a href="/#contact" class="nav-item">Contact</a></li>
-      <li><button type="button" class="nav-item hx-nav-share" data-share aria-label="Share this page">Share</button></li>
+      <li><a href="#how" class="nav-item">How it works</a></li>
+      <li><a href="#pricing" class="nav-item">Pricing</a></li>
+      <li><a href="#faq" class="nav-item">FAQs</a></li>
+      <li><a href="/dashboard/" class="nav-item">Log in</a></li>
       <li><a href="/onboarding/" class="hx-btn hx-btn-primary hx-nav-cta">Start free trial</a></li>
     </ul>
   </nav>
 
-  <main id="app">
+  <main id="app" tabindex="-1">
     <!-- Opening: what it is, and the chatbot itself to try. On a wide screen the chat sits on a website drawn in
          outline, where it would sit on yours; on a phone it follows the buttons. -->
     <section id="home" class="cb-hero" aria-labelledby="cbTitle">
@@ -74,8 +74,8 @@
         <div class="cb-hero-copy">
           <h1 id="cbTitle" class="cb-title">Your website's best salesperson, awake 24/7.</h1>
           <p class="cb-lede">
-            An AI chatbot that answers your visitors' questions, finds out what they need and collects their name
-            and email. Every lead lands in your dashboard, ready for you to follow up.
+            Answer visitors' questions, find out what they need and collect their name and email.
+            Your AI chatbot puts every lead in your dashboard, ready for you to follow up.
           </p>
           <div class="cb-cta-row">
             <a href="/onboarding/" class="hx-btn hx-btn-primary">
@@ -84,9 +84,9 @@
             </a>
             <button type="button" class="hx-btn cb-btn-try" data-open-chat>Try it on this page</button>
           </div>
+          <p class="cb-trial-note">{{trialDays}}-day AI trial. No card needed.</p>
           <ul class="cb-facts">
             <li><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8.5 3 3 7-7"/></svg>Installs with one line of code</li>
-            <li><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8.5 3 3 7-7"/></svg>{{trialDays}}-day AI trial, no card</li>
             <li><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8.5 3 3 7-7"/></svg>Plans from {{currency}}{{fromPrice}} a month</li>
           </ul>
         </div>
@@ -116,7 +116,7 @@
             </div>
             <div id="chat-messages" class="cb-chat-messages" aria-live="polite">
               <div class="chat-message bot-message">
-                <p>Hi! I'm the BytesFX chatbot, on the same system yours would run. Ask me what your customers would ask.</p>
+                <p>Hi! I'm the BytesFX chatbot. Ask me about our chatbot, how to set it up or what it costs.</p>
               </div>
             </div>
             <div class="cb-chat-input">
@@ -143,7 +143,7 @@
     <section id="features" class="hx-section" aria-labelledby="flowTitle">
       <div class="hx-container">
         <header class="cb-head">
-          <h2 id="flowTitle">From first question to a lead you can call</h2>
+          <h2 id="flowTitle">From first question to a lead you can follow up</h2>
           <p>It does the first part of the sale for you, on every page, at any hour. Shown here for an example dental clinic.</p>
         </header>
         <ol class="cb-flow">
@@ -199,7 +199,7 @@
       <div class="hx-container cb-how">
         <header class="cb-head">
           <h2 id="howTitle">Live on your site in three steps</h2>
-          <p>No developer needed, and no card for the trial.</p>
+          <p>You'll need access to add a line of code to your website. No card needed for the trial.</p>
         </header>
         <ol class="cb-steps">
           <li>
@@ -235,6 +235,7 @@
         <header class="cb-head">
           <h2 id="pricingTitle">Start free. Upgrade when it pays.</h2>
           <p>{{trialSummary}}</p>
+          <a href="/onboarding/" class="hx-btn hx-btn-primary cb-pricing-cta">Start your free trial</a>
         </header>
         <!--@plans-->
       </div>

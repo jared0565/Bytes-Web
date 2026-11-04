@@ -9,7 +9,7 @@ const chatHistory = [];
 //   sessionKey  its own conversation, so a chat begun on the homepage doesn't carry on in it (and the reverse)
 //   choices     its own quick questions, shown when a chat opens in place of the bot's services:
 //               { label } sends the label as the visitor's message; { label, href } is a link
-export function initChatbot({ sessionKey = 'bytesfx_chat_default', choices: pageChoices = null } = {}) {
+export function initChatbot({ sessionKey = 'bytesfx_chat_default', choices: pageChoices = null, unavailableMessage = null } = {}) {
   const btnOpen = document.getElementById('btnOpenChat');
   const btnClose = document.getElementById('btnCloseChat');
   const chatWindow = document.getElementById('chatbot-window');
@@ -116,7 +116,7 @@ export function initChatbot({ sessionKey = 'bytesfx_chat_default', choices: page
     showTypingIndicator();
 
     // Generate response
-    const response = await generateChatResponse(message);
+    const response = await generateChatResponse(message, unavailableMessage);
     removeTypingIndicator();
     addChatMessage(response, 'bot');
 
@@ -246,8 +246,8 @@ const LINKEDIN_URL = 'https://www.linkedin.com/in/fbmacagba/';
 let storageKey = 'bytesfx_chat_default';
 let chatSessionId = null;
 
-// Ask the AI backend, falling back to canned replies if it's unreachable
-async function generateChatResponse(userMessage) {
+// A product demo can give an explicit recovery message instead of the homepage's canned replies.
+async function generateChatResponse(userMessage, unavailableMessage) {
   try {
     const res = await fetch(CHAT_API_URL, {
       method: 'POST',
@@ -266,7 +266,7 @@ async function generateChatResponse(userMessage) {
     console.error('Chat API error:', err);
   }
 
-  return getFallbackResponse(userMessage);
+  return unavailableMessage || getFallbackResponse(userMessage);
 }
 
 // Sales-optimized chatbot responses
