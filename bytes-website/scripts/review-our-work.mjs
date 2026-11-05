@@ -12,7 +12,10 @@ async (page) => {
     return route.fulfill({status: 200, contentType: 'application/json', body: '{}'});
   });
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  const routes = ['/', '/ai-chatbot/', '/projects/', '/projects/bytesfx/', '/projects/pivot-parlor/', '/projects/active-paw/', '/projects/bytesai-learning/', '/projects/cafe-bookings/', '/projects/file-converter/', '/privacy-policy.html', '/terms-of-service.html', '/cookie-policy.html', '/data-deletion.html'];
+  await page.goto(origin + '/projects/', {waitUntil:'networkidle'});
+  const caseRoutes = await page.locator('[data-project] .showcase-preview').evaluateAll(links => links.map(link => link.getAttribute('href')));
+  check('catalogue case routes are present and unique', caseRoutes.length === 6 && new Set(caseRoutes).size === caseRoutes.length);
+  const routes = ['/', '/ai-chatbot/', '/projects/', ...caseRoutes, '/privacy-policy.html', '/terms-of-service.html', '/cookie-policy.html', '/data-deletion.html'];
   for (const width of [1440, 1024, 800, 769, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 });
     for (const route of routes) {
