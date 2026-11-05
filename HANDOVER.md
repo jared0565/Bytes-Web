@@ -1,7 +1,41 @@
 # BytesFX — Project Handover
 
-Last updated: 3 Nov 2026. Everything below is merged into `main` and deployed.
-Read this file and `CLAUDE.md` before changing anything.
+Last updated: 5 Nov 2026. Read the current restart checkpoint first, together with `AGENTS.md`, `CLAUDE.md`,
+`GRAPHITE.md` and `ARAMID.md`. The older system reference below is historical, not the current feature status.
+
+## Restart checkpoint: project showcase planning
+
+- **Current branch:** `docs/project-showcase-plan`. Verified planning commit `1df5a507982be2d7fdf93d5a59f85bbd40232a1f`
+  is committed and pushed to the matching origin branch. Resolve the latest restart-document commit with `git log -1`.
+- **Application baseline:** `52ad87af2f1745b2b7f2003813c6cabafde775d8`. No application source was changed by this planning work.
+- **Completed:** PS00. The design, 11-task implementation list, live status and README recovery links are versioned.
+  Four planning documents and 19 internal links were checked. The staged secret scan and normal commit/push gates passed;
+  root JavaScript/npm gates are not selected for this repo's subdirectory layout, and no new application-test pass is claimed.
+- **Start here:** [current status](docs/superpowers/plans/project-showcase-status.md), then the
+  [task list](docs/superpowers/plans/2026-11-05-project-showcase.md) and
+  [design](docs/superpowers/specs/2026-11-05-project-showcase-design.md).
+- **First unfinished task:** PS01, verify the actual BytesFX product screens, pipeline stage names and plan availability,
+  then establish the build baseline in an isolated implementation checkout. Follow the task's Graphite-first procedure.
+- **Authorization:** the user asked for design, a resumable task list and this restart handover. Application implementation
+  has not started; do not infer permission to merge/deploy from the earlier, separately completed Pivot-Parlor release.
+  A later instruction to implement the plan can authorize the next phase. Preserve any authorization then granted.
+- **Owner correction:** Bytes-Web itself connects chat, captured leads and sales pipelines. Lead the page with its own
+  chat -> verified lead -> pipeline -> reviewed proposal/follow-up -> Won/Lost workflow, using clearly labelled sample data.
+  The separate BytesCRM is optional supporting work, not a capability missing from Bytes-Web and not a blocker.
+- **External examples:** initially Pivot Parlor, Active Paw/PawScout as one project, and BytesAI Learning. Cafe and File
+  Converter support the broader portfolio. Known domains, evidence limits and pending CRM claim verification are in the status/design.
+- **Runtime:** no owned preview server or browser is running; showcase implementation visual passes used: 0 of 2.
+- **Preserve:** existing owner untracked agent configuration, browser artifacts and output files. Do not clean/reset the
+  checkout or use `git add .`/`git add -A`. Inspect branch, HEAD, status and owned diffs before proceeding.
+- **Safety:** local website previews can call production APIs. Install mocks/abort rules before interaction; no real chats,
+  leads, emails, bookings, payments, supplier imports or settings writes are authorized for verification.
+- **Recovery:** read `aramid handover show`; a NOT VERIFIED handover requires the owner. The signed local handover supplements
+  the versioned task/status files. Verify artifacts and exit codes before trusting a completed checkbox.
+
+## Earlier system reference
+
+The reference below was last updated on 3 Nov 2026 and described work merged into `main` at that time. Use the current
+checkpoint above for the project-showcase task; do not treat the older snapshot as a pending implementation instruction.
 
 ---
 
