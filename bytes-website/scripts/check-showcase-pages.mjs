@@ -22,8 +22,12 @@ export function auditShowcase({read=defaultRead,exists=defaultExists}={}) {
   check(/<meta name="description" content="[^"]+"/.test(html),route+': missing description');
   check(html.includes('href="https://web.bytesfx.com'+route+'"'),route+': canonical missing');
   check(html.includes('href="/onboarding/"'),route+': trial action missing');
+  const nav=html.match(/<ul class="nav-links"[\s\S]*?<\/ul>/)?.[0]||'';
+  check(/href="\/projects\/" class="nav-item nav-work"/.test(nav),route+': Our Work navigation missing');
+  if(route.startsWith('/projects/'))check(/nav-work" aria-current="(?:page|location)"/.test(nav),route+': current section missing');
   check(!html.includes('<!--@')&&!/\{\{\w+\}\}/.test(html),route+': unfilled marker');
   check(!/<iframe\b/i.test(html),route+': iframe forbidden');
+  check(!/href="https?:\/\/(?:www\.)?github\.com\//i.test(html),route+': public repository link present');
   for(const draft of projects.filter(p=>p.publishState==='draft'))check(!html.toLowerCase().includes(draft.id),route+': draft leaked');
   for(const m of html.matchAll(/(?:href|src)="(\/[^"]*)"/g)){
    const u=new URL(m[1],'https://web.bytesfx.com');
@@ -41,7 +45,20 @@ export function auditShowcase({read=defaultRead,exists=defaultExists}={}) {
  check(JSON.stringify(featured)===JSON.stringify(featuredProjects(projects).map(p=>p.id)),'featured count/order mismatch');
  check(cb.indexOf('id="product-workflow"')<cb.indexOf('id="projects"')&&cb.indexOf('id="projects"')<cb.indexOf('id="how"'),'product/project/setup sequence incorrect');
  for(const term of ['Inbox','Priority','Opportunity','Campaigns','Closed','Won','Lost','synthetic sample data','review'])check(cb.includes(term),'missing product proof '+term);
- for(const p of publicProjects)check(read(p.caseStudyPath.slice(1)+'index.html').includes(kindLabels[p.kind]),p.id+': kind label missing');
+ for(const p of publicProjects){
+  const html=read(p.caseStudyPath.slice(1)+'index.html');
+  check(html.includes(kindLabels[p.kind]),p.id+': kind label missing');
+  check(html.includes('Built by BytesFX')&&html.includes('complete delivery'),p.id+': ownership missing');
+  check(p.deliveryScope.every(scope=>html.includes(scope)),p.id+': delivery scope missing');
+  check(html.includes('aria-label="Project workflow"'),p.id+': system workflow missing');
+  const laneCount=(html.match(/class="showcase-flow-lane"/g)||[]).length;
+  check(laneCount===p.workflow.lanes.length,p.id+': workflow lane count differs');
+  check((html.match(/class="showcase-scope-section"/g)||[]).length===p.sections.length,p.id+': system explanation missing');
+ }
+ const home=read('index.html'),index=read('projects/index.html');
+ check(home.includes('class="nav-item nav-work"')&&home.includes('id="homeProjects"')&&home.includes('Explore Our Work'),'homepage discovery missing');
+ check(index.includes('What we’ve built')&&index.includes('Built by BytesFX'),'showcase positioning missing');
+ check(index.indexOf('data-project="bytesfx"')<index.indexOf('data-project="pivot-parlor"'),'BytesFX flagship must lead');
  const map=read('sitemap.xml');
  for(const route of routes.slice(1))check(map.includes('<loc>https://web.bytesfx.com'+route+'</loc>'),'sitemap route missing '+route);
  for(const draft of projects.filter(p=>p.publishState==='draft')){
@@ -60,7 +77,7 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  if(process.argv.includes('--self-test')){
   const mutants=[
    s=>s.replace('data-project="pivot-parlor"','data-project="bytescrm"'),
-   s=>s.replace('src="/projects/pivot-parlor.png"','src="/projects/missing.png"'),
+   s=>s.replace('src="/projects/pivot-platform.png"','src="/projects/missing.png"'),
    s=>s.replace('width="1440"','width="0"'),
    s=>s.replace('<!--@ld-->','')+'<iframe src="https://example.com"></iframe>',
    s=>s.replace('href="/onboarding/"','href="/missing-trial/"')
@@ -71,5 +88,5 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   }
  }
  if(failures.length){failures.forEach(f=>console.error('[showcase] '+f));process.exitCode=1;}
- else console.log('[showcase] seven built pages, published routes, image metadata, trial paths and draft boundary verified'+(process.argv.includes('--self-test')?'; five negative mutations detected':''));
+ else console.log('[showcase] '+(publicProjects.length+2)+' built pages, navigation, ownership, published routes, image metadata, trial paths and draft boundary verified'+(process.argv.includes('--self-test')?'; five negative mutations detected':''));
 }

@@ -16,7 +16,7 @@ async(page)=>{
   return route.fulfill({status:200,contentType:'application/json',body:'{}'});
  });
  await page.emulateMedia({reducedMotion:'reduce'});
- const routes=['/ai-chatbot/','/projects/','/projects/pivot-parlor/','/projects/active-paw/','/projects/bytesai-learning/','/projects/cafe-bookings/','/projects/file-converter/'];
+ const routes=['/ai-chatbot/','/projects/','/projects/bytesfx/','/projects/pivot-parlor/','/projects/active-paw/','/projects/bytesai-learning/','/projects/cafe-bookings/','/projects/file-converter/'];
  for(const width of [1440,768,390,320]){
   await page.setViewportSize({width,height:1000});
   for(const route of routes){
@@ -62,8 +62,8 @@ async(page)=>{
  check('embedded chat still handles a mocked reply',await page.locator('#chatInput').isEnabled());
  check('five plans retained',await page.locator('[data-plan]').count()===5);
  for(const p of ['starter','pro','business','enterprise'])check(p+' enquiry preserved',await page.locator('a[href="/?plan='+p+'#contact"]').count()>0);
- const destinations=await page.locator('.showcase-actions a').evaluateAll(a=>a.map(x=>x.getAttribute('href')));
- check('all selected project actions present',destinations.length===6);
+ const destinations=await page.locator('.showcase-selected-grid .showcase-all').evaluateAll(a=>a.map(x=>x.getAttribute('href')));
+ check('all selected project actions present',destinations.length===3);
  for(const href of destinations.filter(x=>x.startsWith('/projects/'))){
   const r=await page.request.get(local+href);check('action '+href+' loads',r.ok()&&(await r.text()).includes('<h1>'));
  }
