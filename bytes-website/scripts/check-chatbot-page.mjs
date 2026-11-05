@@ -56,7 +56,8 @@ const offers = app?.offers || [];
 check(offers.length === priced.length && priced.every(p => offers.some(o => o.name === p.name && Number(o.price) === p.price && o.priceCurrency === 'USD')),
     `the structured data's offers ${JSON.stringify(offers.map(o => [o.name, o.price]))} do not match plans.json`);
 const faq = nodes.find(n => n['@type'] === 'FAQPage');
-const shownQs = [...html.matchAll(/<summary[^>]*>([\s\S]*?)<\/summary>/g)].map(m => text(m[1]));
+const faqMarkup = html.match(/<div class="cb-faq">([\s\S]*?)<\/div>/)?.[1] || '';
+const shownQs = [...faqMarkup.matchAll(/<summary[^>]*>([\s\S]*?)<\/summary>/g)].map(m => text(m[1]));
 const dataQs = (faq?.mainEntity || []).map(q => q.name);
 check(shownQs.length >= 4 && JSON.stringify(shownQs) === JSON.stringify(dataQs), `the FAQ structured data ${JSON.stringify(dataQs)} does not match the questions shown ${JSON.stringify(shownQs)}`);
 check(!JSON.stringify(nodes).includes('Rating'), 'ratings in the structured data: add them only once there are real reviews');

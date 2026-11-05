@@ -1,3 +1,5 @@
+@import './showcase.css';
+
 /* The AI chatbot page (/ai-chatbot/). It keeps the homepage's colours, type and buttons (home.css) and has a
    composition of its own: the chat itself opens the page, and the sections below show pieces of the real
    screens instead of icon cards. Section heads are left-aligned and carry no label above them. */
