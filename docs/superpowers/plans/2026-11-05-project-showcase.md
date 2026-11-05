@@ -107,11 +107,11 @@ The new implementation paths above are planned, not claims that those files alre
 
 **Depends on:** PS01 and the assets needed by each published project from PS02.
 
-- [ ] Define records in `src/showcase-content.js` with `id`, `title`, `kind`, `summary`, `capabilities`, `repositoryUrls`, `liveUrl`, `liveActionLabel`, `image` (`src`, `alt`, `width`, `height`), `caseStudyPath`, `featuredOrder`, `publishState` and evidence references. Use only `draft`/`published` publication states and `owned-product`/`live-store`/`demonstration` kinds.
-- [ ] Keep BytesFX's own proof separate from external project ranking. Put the separate BytesCRM record in `draft`; no public route/action is generated for it while readiness is unresolved.
-- [ ] Add focused `node:test` cases in `scripts/test-showcase-content.mjs` for draft exclusion, correct featured order, unsafe protocol rejection, escaping text/attribute characters, missing required asset metadata and accurate project-kind labels. Confirm a meaningful failing result before implementing the renderer.
-- [ ] Implement `src/showcase-html.js` so all published text is escaped, case paths are fixed local paths and external URLs use an approved HTTPS host. Pending/invalid records must not leak into HTML, sitemap entries or visible buttons.
-- [ ] Run `node --test bytes-website/scripts/test-showcase-content.mjs` from the checkout root. Record the final exit code and commit the catalogue, renderer, tests and progress update.
+- [x] Define records in `src/showcase-content.js` with `id`, `title`, `kind`, `summary`, `capabilities`, `repositoryUrls`, `liveUrl`, `liveActionLabel`, `image` (`src`, `alt`, `width`, `height`), `caseStudyPath`, `featuredOrder`, `publishState` and evidence references. Use only `draft`/`published` publication states and `owned-product`/`live-store`/`demonstration` kinds.
+- [x] Keep BytesFX's own proof separate from external project ranking. Put the separate BytesCRM record in `draft`; no public route/action is generated for it while readiness is unresolved.
+- [x] Add focused `node:test` cases in `scripts/test-showcase-content.mjs` for draft exclusion, correct featured order, unsafe protocol rejection, escaping text/attribute characters, missing required asset metadata and accurate project-kind labels. Confirm a meaningful failing result before implementing the renderer.
+- [x] Implement `src/showcase-html.js` so all published text is escaped, case paths are fixed local paths and external URLs use an approved HTTPS host. Pending/invalid records must not leak into HTML, sitemap entries or visible buttons.
+- [x] Run `node --test bytes-website/scripts/test-showcase-content.mjs` from the checkout root. Record the final exit code and commit the catalogue, renderer, tests and progress update.
 
 **Done when:** the contract tests pass and the three featured records match the agreed order and evidence. Do not add reviews, ratings, client logos or performance numbers without support.
 

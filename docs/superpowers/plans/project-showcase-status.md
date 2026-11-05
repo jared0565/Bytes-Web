@@ -82,3 +82,7 @@ Owner authorization: yes to begin implementation, 5 November 2026. Worktree: C:/
 ## PS02 complete
 
 Nine inspected PNG assets and synthetic fixtures captured. Stable drawer captures replaced the rejected transition images. Capture script blocks all writes; 19 attempts aborted, zero forwarded. Public preview hydration errors disclosed in assets.md. Next PS03: catalogue/renderer. Seven contract tests confirmed red before implementation. Visual passes remain 0/2.
+
+## PS03 complete
+
+Five published records plus draft BytesCRM. Seven meaningful contract failures confirmed before renderer implementation; all seven pass after validation/escaping. Exact-host HTTPS validation, safe local paths, duplicate detection and draft exclusion in place. Next PS04: embed own product proof.
