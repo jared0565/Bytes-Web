@@ -83,11 +83,11 @@ The new implementation paths above are planned, not claims that those files alre
 
 **Read:** `docs/knowledge-base.md`, `bytes-website/public/dashboard/{index.html,main.js}`, `bytes-website/public/plans.json`, `bytes-website/src/chatbot-content.js`, the design, and Graphite context/impact for the files being changed.
 
-- [ ] Record the latest authorization and select an isolated implementation checkout using the `using-git-worktrees` skill. Record its resolved path and branch `ux/project-showcase`; retain the planning checkpoint in its history. Do not overwrite an existing branch/worktree with that name.
-- [ ] Run the start/resume commands and refresh a stale graph before relying on context/impact results.
-- [ ] Map each displayed workflow step to the actual screen, source symbol and plan availability. Record real pipeline stage labels, email confirmation behavior, proposal review, Won/Lost handling and follow-up limits.
-- [ ] Write `docs/superpowers/evidence/project-showcase/capabilities.md` with one row per claim: display copy, source path/symbol, plan restriction, demonstration asset and verification method.
-- [ ] Run `npm --prefix bytes-website run build` and record its exit code as the UI baseline. Separate an existing failure from a feature regression.
+- [x] Record the latest authorization and select an isolated implementation checkout using the `using-git-worktrees` skill. Record its resolved path and branch `ux/project-showcase`; retain the planning checkpoint in its history. Do not overwrite an existing branch/worktree with that name.
+- [x] Run the start/resume commands and refresh a stale graph before relying on context/impact results.
+- [x] Map each displayed workflow step to the actual screen, source symbol and plan availability. Record real pipeline stage labels, email confirmation behavior, proposal review, Won/Lost handling and follow-up limits.
+- [x] Write `docs/superpowers/evidence/project-showcase/capabilities.md` with one row per claim: display copy, source path/symbol, plan restriction, demonstration asset and verification method.
+- [x] Run `npm --prefix bytes-website run build` and record its exit code as the UI baseline. Separate an existing failure from a feature regression.
 
 **Done when:** every proposed BytesFX claim has a source and a truthful plan restriction; the checkout is recorded and baseline build status is known. Commit the capability record and progress update through normal hooks.
 

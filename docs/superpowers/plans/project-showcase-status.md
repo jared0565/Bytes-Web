@@ -6,15 +6,15 @@ Read this first, then the [task list](2026-11-05-project-showcase.md) and [desig
 
 | Field | Value |
 |---|---|
-| Checkpoint | SHOWCASE-PLAN-01: resumable planning documents |
-| Phase | Planning checkpoint; application implementation has not started |
-| Authorized scope | Prepare and version the task list/recovery record. No application merge or deployment is authorized by this planning request. |
+| Checkpoint | PS01: capability evidence and passing baseline |
+| Phase | Implementation in progress |
+| Authorized scope | Owner authorized implementation on 5 November 2026. Merge/deployment remain pending review. |
 | Repository | Bytes-Web; work only in the selected checkout of this repository |
-| Planning branch | `docs/project-showcase-plan` |
+| Planning branch | `ux/project-showcase` |
 | Unchanged application baseline | `52ad87af2f1745b2b7f2003813c6cabafde775d8` |
 | Completed task | PS00, planning record and review |
-| First unfinished task | PS01, verify product truth and execution baseline |
-| Current blocker | Implementation instruction has not been given. This is an authorization boundary, not a failed technical check. |
+| First unfinished task | PS02, capture actual interfaces with synthetic data |
+| Current blocker | None. Screenshot capture is next. |
 | Next action when implementation is requested | Read PS01; record the instruction, select the isolated checkout, then inspect Graphite context for `bytes-website/public/dashboard/main.js` and `bytes-website/public/plans.json` before mapping actual workflow screens. |
 | Visual passes used | 0 of 2 for the upcoming showcase implementation |
 | Running owned processes | None |
@@ -74,3 +74,7 @@ aramid handover write --file docs/superpowers/plans/project-showcase-status.md -
 ```
 
 On restart, inspect Git before trusting any recorded completion. If source or remote state differs, follow the recovery table in the task list. Preserve authorization already granted, but do not infer implementation/release approval from an old completed task's unrelated merge permission.
+
+## Implementation PS01
+
+Owner authorization: yes to begin implementation, 5 November 2026. Worktree: C:/Users/fbmac/atlas/Codex/.codex_state/user_home/worktrees/626f/Bytes-Web. Branch ux/project-showcase. Baseline build exit 0. Capability source/plan mapping: ../evidence/project-showcase/capabilities.md. PS01 completed; PS02 next. Visual passes 0/2. No production writes or release.
