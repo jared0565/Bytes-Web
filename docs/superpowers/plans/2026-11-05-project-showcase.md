@@ -206,12 +206,12 @@ git diff --cached --check
 
 **Depends on:** PS09 and explicit release authorization.
 
-- [ ] Verify whether push/PR/merge was already authorized in the conversation/status; preserve prior authorization and do not ask again unnecessarily. A documentation checkpoint is not authorization to merge application changes.
-- [ ] Open/update the feature PR with final behavior, validation and limitations. Match the reviewed head SHA and required checks before merging; never force/bypass a failing gate.
-- [ ] Monitor the normal Deploy Agency workflow after merge. Record PR URL, merge SHA, workflow URL/ID and each chatbot/API/website step outcome; a partial rollout is not successful completion.
-- [ ] Make read-only live checks of the chatbot page, project index and published case pages: correct copy, intended published records, real assets, safe links and preserved trial paths. No production chats/leads/booking/payment tests without separate authorization.
-- [ ] If a deployment fails, read its failed step and use `docs/how-to/rollback.md` where needed. Reconcile the remote state before retrying anything after an interruption.
-- [ ] Record the actual release state, close owned processes and write the signed Aramid handover. Mark release complete only after the monitored outcome is verified.
+- [x] Verify whether push/PR/merge was already authorized in the conversation/status; preserve prior authorization and do not ask again unnecessarily. A documentation checkpoint is not authorization to merge application changes.
+- [x] Open/update the feature PR with final behavior, validation and limitations. Match the reviewed head SHA and required checks before merging; never force/bypass a failing gate.
+- [x] Monitor the normal Deploy Agency workflow after merge. Record PR URL, merge SHA, workflow URL/ID and each chatbot/API/website step outcome; a partial rollout is not successful completion.
+- [x] Make read-only live checks of the chatbot page, project index and published case pages: correct copy, intended published records, real assets, safe links and preserved trial paths. No production chats/leads/booking/payment tests without separate authorization.
+- [x] If a deployment fails, read its failed step and use `docs/how-to/rollback.md` where needed. Reconcile the remote state before retrying anything after an interruption.
+- [x] Record the actual release state, close owned processes and write the signed Aramid handover. Mark release complete only after the monitored outcome is verified.
 
 ## Checkpoint discipline
 

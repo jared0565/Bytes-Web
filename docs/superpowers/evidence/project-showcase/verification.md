@@ -42,3 +42,7 @@ Two completed visual passes; detector run once. Its 72 findings comprised 70 ref
 - bytes-website/src/showcase-html.js SHA-256: b1d244bf1c59b8add872b31834db2c037025f0db3ef8e7d8f27feac8eab9b92a
 
 No packages installed. Capture helper paths made checkout-relative after browser verification; this changes artifact location only. Preview/browser closed. Public previews are editorial evidence, not measured customer outcomes. BytesCRM remains draft. No application merge or deployment performed.
+
+## Production release confirmation
+
+Owner explicitly authorized merge/deployment on 5 November 2026. PR #104 merged as 2008892124a24ac9f48bcf172797e9c14c74efa4. Deploy Agency run 42041277281 completed successfully for both APIs, website build and website deployment. Read-only production checks: seven pages and nine screenshot assets returned HTTP 200; all screenshot hashes match; canonical/trial links, workflow copy, featured order, five plans, security headers, sitemap and robots checked. Zero production writes. Live URLs: https://web.bytesfx.com/ai-chatbot/#product-workflow and https://web.bytesfx.com/projects/ .

@@ -4,18 +4,18 @@ Read the [task list](2026-11-05-project-showcase.md), [design](../specs/2026-11-
 
 | Field | Current state |
 |---|---|
-| Phase | PS09 complete; implementation ready for owner review |
-| Authorization | Owner authorized implementation on 5 November 2026. Merge/deployment await owner review. |
+| Phase | PS10 complete; merged, deployed and verified live |
+| Authorization | Owner authorized implementation, then explicitly instructed merge and deployment on 5 November 2026. |
 | Branch | ux/project-showcase |
 | Isolated checkout | C:/Users/fbmac/atlas/Codex/.codex_state/user_home/worktrees/626f/Bytes-Web |
 | Planning/application bases | 702ebf3 / 52ad87a |
-| Completed tasks | PS00–PS09 |
-| Next | PS10 only after explicit release authorization. Review the feature branch and screenshots first. |
+| Completed tasks | PS00–PS10 |
+| Next | Owner reviews the live showcase; no further engineering action pending. |
 | Visual passes | 2/2 completed; detector run once |
 | Verified | Website build, output mutation checks, 108/108 browser checks twice, root pre-push gate exit 0 |
 | Owned processes | None; preview 85205 and browser showcase-capture closed |
-| Release | No application merge or production deployment |
-| Blockers | None for implementation; release awaits owner review |
+| Release | PR #104 merged; Deploy Agency run 42041277281 succeeded |
+| Blockers | None |
 
 ## Fixed decisions
 
@@ -46,3 +46,17 @@ Application/source checkpoint: 8ac90ef (resolve the full SHA with git rev-parse 
 Branch backup: https://github.com/jared0565/Bytes-Web/tree/ux/project-showcase
 
 Review screenshots and verification are committed. PR creation/merge and production deployment were not performed. The two visual passes are exhausted; no further polishing without owner steering. The original checkout remains on docs/project-showcase-plan with owner files preserved. Resume this isolated feature checkout, not the original planning branch.
+
+## Production release, 5 November 2026
+
+Owner instruction: “i want to review it live. Please merge and deploy it.” Authorization covers this release; do not request it again for completed actions.
+
+- PR: https://github.com/jared0565/Bytes-Web/pull/104
+- Reviewed feature head: 79040ba83ca675cc34584ced066cacb827f58d32. Cloudflare Pages check succeeded; GitHub reported mergeable/clean. Main had no required status contexts. Merge used the expected head SHA.
+- Production merge: 2008892124a24ac9f48bcf172797e9c14c74efa4. Fetched and compared to the feature checkpoint; application tree matches.
+- Deploy Agency: https://github.com/jared0565/Bytes-Web/actions/runs/42041277281. Job 127292424364 completed successfully: chatbot API, CRM API, website build, website deploy all success.
+- Live verification: seven pages and nine PNG assets HTTP 200; all PNG hashes match committed assets. Actual workflow, exact three featured examples, five plans, canonical/trial links, CSP, sitemap, dashboard robots exclusion and draft CRM omission checked. Zero production writes.
+- Live review: https://web.bytesfx.com/ai-chatbot/#product-workflow and https://web.bytesfx.com/projects/
+- Raw local results: output/playwright/showcase/live-release.json. No browser/server started for live checks; two-pass visual budget remains exhausted.
+
+Release supersedes the earlier “not merged/deployed” checkpoint statements above. This documentation update is backed up on the feature branch without another production deployment. Original owner untracked files remain preserved.
