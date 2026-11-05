@@ -73,7 +73,7 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  if(process.argv.includes('--self-test')){
   const mutants=[
    s=>s.replace('data-project="pivot-parlor"','data-project="bytescrm"'),
-   s=>s.replace('src="/projects/pivot-parlor.png"','src="/projects/missing.png"'),
+   s=>s.replace('src="/projects/pivot-platform.png"','src="/projects/missing.png"'),
    s=>s.replace('width="1440"','width="0"'),
    s=>s.replace('<!--@ld-->','')+'<iframe src="https://example.com"></iframe>',
    s=>s.replace('href="/onboarding/"','href="/missing-trial/"')

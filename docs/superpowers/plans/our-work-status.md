@@ -44,3 +44,22 @@ remain internal build-time evidence, never rendered in public pages. The output
 checker now rejects GitHub links across the showcase routes. Website build and
 output self-test pass after this change; no additional layout or interaction
 changes and no deployment.
+
+## Review follow-up: Pivot Parlor platform scope
+
+Owner clarified that the generated shop substantially understated the project:
+Pivot Parlor creates individual shops with unique frontends. Updated card,
+homepage/chatbot previews, project classification, delivery scope, walkthrough,
+metadata and main destination to represent the platform. Captured its public
+homepage as the main image. The existing generated-shop screenshot and demo
+remain in a distinct example section. Public GitHub links remain absent.
+
+Website build, nine catalogue tests and output self-test pass. Focused browser
+review passed 45/45 checks for homepage, chatbot, catalogue and Pivot case at
+1440, 390 and 320px, including both images, destinations and 200% text. No
+production writes forwarded. Screenshots: `output/playwright/our-work/pivot-case-*`.
+Evidence and claim boundaries: `docs/superpowers/evidence/project-showcase/pivot-platform.md`.
+
+Awaiting the owner's clarification of the additional surfaces meant by
+“multi-platform”; no native apps or unpublished management portals are claimed.
+No deployment performed.

@@ -1,5 +1,5 @@
 // Build-time renderer. Catalogue records are trusted editorial data, validated at the publication boundary.
-export const kindLabels = Object.freeze({'owned-product':'Owned product','live-store':'Live store','demonstration':'Demonstration'});
+export const kindLabels = Object.freeze({'owned-product':'Owned product','live-store':'Live store','demonstration':'Demonstration','platform':'Platform'});
 const LIVE_HOSTS = new Set(['web.bytesfx.com','pivotparlor.com','activepaw.co.uk','learn.bytesai.uk','cafe.bytesfx.com','file-converter.bmorris0565.workers.dev']);
 export const escapeHTML = value => String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const text = (v,name) => { if(typeof v!=='string'||!v.trim())throw new Error('Missing '+name); };
@@ -24,6 +24,13 @@ function validateProject(p) {
   }
   validateImage(p.image);
   checkedURL(p.liveUrl,LIVE_HOSTS);
+  if(p.imageCaption!==undefined)text(p.imageCaption,'image caption');
+  if(p.example!==undefined){
+    if(!p.example||typeof p.example!=='object')throw new Error('Invalid project example');
+    for(const field of ['title','caption','actionLabel'])text(p.example[field],'example '+field);
+    validateImage(p.example.image);
+    checkedURL(p.example.url,LIVE_HOSTS);
+  }
   p.repositoryUrls.forEach(u=>checkedURL(u,new Set(['github.com'])));
   if(p.featuredOrder!==null&&(!Number.isInteger(p.featuredOrder)||p.featuredOrder<1))throw new Error('Invalid featured order');
 }
@@ -71,11 +78,16 @@ function projectEnquiryHTML() {
 function trialHTML() {
  return '<aside class="showcase-return" aria-label="Try BytesFX"><div><h2>Turn your website’s questions into leads</h2><p>Explore BytesFX’s own chat-to-sales workflow, or start your free trial.</p><a href="/ai-chatbot/">See the chatbot &rarr;</a></div><a class="hx-btn hx-btn-primary" href="/onboarding/">Start your free trial</a></aside>';
 }
+function projectExampleHTML(p) {
+ const example=p.example;
+ if(!example)return '';
+ return '<section class="showcase-case-screens"><h2>'+escapeHTML(example.title)+'</h2><figure class="showcase-case-image">'+imageHTML(example.image)+'<figcaption>'+escapeHTML(example.caption)+'</figcaption></figure><a class="showcase-all" href="'+escapeHTML(example.url)+'">'+escapeHTML(example.actionLabel)+' &nearr;</a></section>';
+}
 export function projectCaseHTML(record) {
  const p=publishedProjects([record])[0];if(!p)return '';
  const isBytesFX=p.id==='bytesfx';
- const caption=isBytesFX?'Actual BytesFX interface, captured November 2026. Synthetic sample data; no customer results.':'Actual public interface, captured November 2026.';
- return '<section class="hx-section showcase-case"><div class="hx-container"><a href="/projects/" class="showcase-back">&larr; Our Work</a><header class="cb-head"><p class="showcase-kicker">Built by BytesFX</p><h1>'+escapeHTML(p.title)+'</h1><p class="showcase-kind">'+kindLabels[p.kind]+'</p><p>'+escapeHTML(p.summary)+'</p></header><figure class="showcase-case-image">'+imageHTML(p.image)+'<figcaption>'+caption+'</figcaption></figure><div class="showcase-case-body"><section><h2>The problem</h2><p>'+escapeHTML(p.problem)+'</p><h2>What we built</h2><p>'+escapeHTML(p.implementation)+'</p><p>BytesFX led the complete delivery, from design and development to integration and deployment.</p>'+listHTML(p.deliveryScope)+'<h2>Explore the workflow</h2><ol>'+p.walkthrough.map(s=>'<li>'+escapeHTML(s)+'</li>').join('')+'</ol></section><aside><h2>What you can inspect</h2>'+listHTML(p.capabilities)+'<p>'+escapeHTML(p.note)+'</p><a class="hx-btn hx-btn-primary" href="'+escapeHTML(p.liveUrl)+'">'+escapeHTML(p.liveActionLabel)+' &nearr;</a></aside></div>'+(isBytesFX?'<div class="showcase-case-screens"><h2>The lead and proposal screens</h2><p>Actual interfaces with synthetic sample data. No customer contact details or sales results are shown.</p><div class="showcase-screen-pair"><figure>'+imageHTML({src:'/projects/bytesfx-lead.png',alt:'BytesFX lead details with an invented example.com contact',width:460,height:1000})+'<figcaption>Lead details and verification status.</figcaption></figure><figure>'+imageHTML({src:'/projects/bytesfx-proposal.png',alt:'BytesFX proposal editor showing an AI draft that needs human review',width:460,height:1000})+'<figcaption>Proposal draft for review before sending.</figcaption></figure></div></div>'+trialHTML():projectEnquiryHTML())+'</div></section>';
+ const caption=p.imageCaption||(isBytesFX?'Actual BytesFX interface, captured November 2026. Synthetic sample data; no customer results.':'Actual public interface, captured November 2026.');
+ return '<section class="hx-section showcase-case"><div class="hx-container"><a href="/projects/" class="showcase-back">&larr; Our Work</a><header class="cb-head"><p class="showcase-kicker">Built by BytesFX</p><h1>'+escapeHTML(p.title)+'</h1><p class="showcase-kind">'+kindLabels[p.kind]+'</p><p>'+escapeHTML(p.summary)+'</p></header><figure class="showcase-case-image">'+imageHTML(p.image)+'<figcaption>'+escapeHTML(caption)+'</figcaption></figure><div class="showcase-case-body"><section><h2>The problem</h2><p>'+escapeHTML(p.problem)+'</p><h2>What we built</h2><p>'+escapeHTML(p.implementation)+'</p><p>BytesFX led the complete delivery, from design and development to integration and deployment.</p>'+listHTML(p.deliveryScope)+'<h2>Explore the workflow</h2><ol>'+p.walkthrough.map(s=>'<li>'+escapeHTML(s)+'</li>').join('')+'</ol></section><aside><h2>What you can inspect</h2>'+listHTML(p.capabilities)+'<p>'+escapeHTML(p.note)+'</p><a class="hx-btn hx-btn-primary" href="'+escapeHTML(p.liveUrl)+'">'+escapeHTML(p.liveActionLabel)+' &nearr;</a></aside></div>'+projectExampleHTML(p)+(isBytesFX?'<div class="showcase-case-screens"><h2>The lead and proposal screens</h2><p>Actual interfaces with synthetic sample data. No customer contact details or sales results are shown.</p><div class="showcase-screen-pair"><figure>'+imageHTML({src:'/projects/bytesfx-lead.png',alt:'BytesFX lead details with an invented example.com contact',width:460,height:1000})+'<figcaption>Lead details and verification status.</figcaption></figure><figure>'+imageHTML({src:'/projects/bytesfx-proposal.png',alt:'BytesFX proposal editor showing an AI draft that needs human review',width:460,height:1000})+'<figcaption>Proposal draft for review before sending.</figcaption></figure></div></div>'+trialHTML():projectEnquiryHTML())+'</div></section>';
 }
 export function productProofHTML(plans) {
  const paid=plans.plans.filter(p=>p.aiFollowUps).map(p=>p.name);

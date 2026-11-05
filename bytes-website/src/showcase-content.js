@@ -23,38 +23,47 @@ export const projects = [
   {
     "id": "pivot-parlor",
     "title": "Pivot Parlor",
-    "deliveryScope": ["Experience design and branded website", "Service, team and booking interfaces", "Scripted demonstration assistant", "Application integration and deployment"],
-    "kind": "demonstration",
-    "summary": "A branded barber shop website connects services, a team and a booking walkthrough.",
+    "deliveryScope": ["Platform design and application development", "Shop creation and unique branded frontends", "Service, team, scheduling and booking workflows", "Backend integration and production deployment"],
+    "kind": "platform",
+    "summary": "A shop-creation platform with unique branded frontends, staff scheduling and online booking for salons and barbershops.",
     "capabilities": [
-      "Service discovery",
-      "Sample booking flow",
-      "Scripted sample assistant"
+      "Individual shop creation",
+      "Unique branded frontends",
+      "Booking and staff scheduling"
     ],
     "repositoryUrls": [
       "https://github.com/fbmacagba/Pivot-Parlor"
     ],
-    "liveUrl": "https://pivotparlor.com/ferdyms-barber-shop-014",
-    "liveActionLabel": "Try booking demo",
+    "liveUrl": "https://pivotparlor.com/",
+    "liveActionLabel": "Explore the platform",
     "featuredOrder": 1,
-    "problem": "A service business needs a clear path from browsing treatments to choosing an appointment.",
-    "implementation": "A fictional shop brings service descriptions, illustrative prices and team profiles into one branded experience.",
+    "problem": "Independent salons and barbershops need their own identity online, supported by a system for services, staff availability and customer bookings.",
+    "implementation": "BytesFX built the platform that creates individual shops with their own distinct customer-facing frontends. Each shop brings its branding, services, team and booking journey together within the wider Pivot Parlor system. The work spans platform design, shop creation, frontend development, backend integration and deployment.",
     "walkthrough": [
-      "Browse the example services and team.",
-      "Explore sample availability and booking steps.",
-      "Try the scripted assistant. No real appointment or payment is created."
+      "Explore the platform homepage to understand shop onboarding, branded page generation and scheduling.",
+      "See one generated shop below, with its own branding, services and team.",
+      "Explore the shop’s sample booking flow and scripted assistant. The demonstration creates no real appointment or payment."
     ],
-    "note": "Demonstration with fictional services, prices and people. The assistant uses scripted replies.",
+    "note": "The platform is the project; the linked shop is one demonstration of its output. That shop uses fictional services, prices and people, and its sample assistant uses scripted replies.",
+    "imageCaption": "Pivot Parlor’s public platform homepage. See one generated shop below.",
     "publishState": "published",
     "caseStudyPath": "/projects/pivot-parlor/",
     "image": {
-      "src": "/projects/pivot-parlor.png",
-      "alt": "Pivot Parlor: actual public website preview",
+      "src": "/projects/pivot-platform.png",
+      "alt": "Pivot Parlor platform homepage introducing branded shop creation, scheduling and booking",
       "width": 1440,
       "height": 1000
     },
+    "example": {
+      "title": "One shop created with the platform",
+      "caption": "Ferdy’s Barber Shop is a demonstration of a generated frontend. It represents one shop within the wider platform.",
+      "url": "https://pivotparlor.com/ferdyms-barber-shop-014",
+      "actionLabel": "Explore the example shop",
+      "image": {"src": "/projects/pivot-parlor.png", "alt": "Ferdy’s Barber Shop, one generated Pivot Parlor shop frontend", "width": 1440, "height": 1000}
+    },
     "evidence": [
-      "docs/superpowers/evidence/project-showcase/assets.md"
+      "docs/superpowers/evidence/project-showcase/assets.md",
+      "docs/superpowers/evidence/project-showcase/pivot-platform.md"
     ]
   },
   {

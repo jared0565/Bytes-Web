@@ -24,16 +24,16 @@ test('HTML escapes all editorial text and attribute characters',()=>{
  assert.ok(html.includes('&#39;'));assert.ok(!html.includes('<script>'));assert.ok(!html.includes('alt=""><img'));
 });
 test('missing image metadata, unsafe paths and invalid publication states fail closed',()=>{
- for(const edit of [p=>delete p.image.alt,p=>p.image.width=0,p=>p.image.height=NaN,p=>p.image.src='/projects/../secret.png',p=>p.caseStudyPath='/projects/other/',p=>p.publishState='pending',p=>p.kind='client']){
+ for(const edit of [p=>delete p.image.alt,p=>p.image.width=0,p=>p.image.height=NaN,p=>p.image.src='/projects/../secret.png',p=>p.caseStudyPath='/projects/other/',p=>p.publishState='pending',p=>p.kind='client',p=>p.example.url='javascript:alert(1)',p=>p.example.image.src='/projects/../secret.png',p=>delete p.example.caption]){
   const p=sample();edit(p);assert.throws(()=>publishedProjects([p]));
  }
 });
 test('duplicate routes and featured ranks cannot produce ambiguous pages',()=>{
  const p=sample();assert.throws(()=>publishedProjects([p,p]));
- const q=structuredClone(projects[1]);q.featuredOrder=p.featuredOrder;assert.throws(()=>publishedProjects([p,q]));
+ const q=structuredClone(projects.find(p=>p.id==='active-paw'));q.featuredOrder=p.featuredOrder;assert.throws(()=>publishedProjects([p,q]));
 });
 test('kind labels distinguish demonstrations and owned work',()=>{
- assert.deepEqual(kindLabels,{'owned-product':'Owned product','live-store':'Live store','demonstration':'Demonstration'});
+ assert.deepEqual(kindLabels,{'owned-product':'Owned product','live-store':'Live store','demonstration':'Demonstration','platform':'Platform'});
  for(const p of projects.filter(p=>p.publishState==='published'))assert.ok(projectCardHTML(p).includes(kindLabels[p.kind]));
 });
 
