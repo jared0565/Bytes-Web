@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { productProofHTML } from './src/showcase-html.js';
 import { planCards } from './src/plans-html.js';
 import { faqHTML, chatbotStructuredData } from './src/chatbot-content.js';
 
@@ -26,6 +27,7 @@ function chatbotPage() {
         };
         return html
           .replace(/\{\{(\w+)\}\}/g, (m, k) => (k in values ? String(values[k]) : m))
+          .replace('<!--@product-proof-->', productProofHTML(data))
           .replace('<!--@plans-->', planCards(data))
           .replace('<!--@faq-->', faqHTML(data))
           .replace('<!--@ld-->', `<script type="application/ld+json">${ld}</script>`);

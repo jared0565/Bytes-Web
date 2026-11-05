@@ -119,12 +119,12 @@ The new implementation paths above are planned, not claims that those files alre
 
 **Depends on:** PS02 and PS03.
 
-- [ ] Load the relevant Impeccable context/playbook and craft floor before UI edits, preserving the incumbent visual identity.
-- [ ] Update the existing feature/proof area in `ai-chatbot/index.html` and its build-rendered content to explain all verified workflow steps. Use actual screenshot evidence and clear sample-data captions; the pipeline is the focal screen.
-- [ ] Keep text accessible in server/build output, without requiring interaction or browser JavaScript to discover the lead, pipeline and follow-up capabilities.
-- [ ] Apply scoped responsive styles in `src/chatbot.css`. Preserve existing live-chat IDs, signup behavior, accessible navigation and reduced-motion behavior.
-- [ ] Render plan-dependent follow-up/proposal wording from verified plan facts. Preserve `plans.json` as the entitlement source and keep `/onboarding/` as the primary action.
-- [ ] Run the focused catalogue tests and `npm --prefix bytes-website run build`. Inspect the built proof HTML and commit this verified slice with its status update.
+- [x] Load the relevant Impeccable context/playbook and craft floor before UI edits, preserving the incumbent visual identity.
+- [x] Update the existing feature/proof area in `ai-chatbot/index.html` and its build-rendered content to explain all verified workflow steps. Use actual screenshot evidence and clear sample-data captions; the pipeline is the focal screen.
+- [x] Keep text accessible in server/build output, without requiring interaction or browser JavaScript to discover the lead, pipeline and follow-up capabilities.
+- [x] Apply scoped responsive styles in `src/chatbot.css`. Preserve existing live-chat IDs, signup behavior, accessible navigation and reduced-motion behavior.
+- [x] Render plan-dependent follow-up/proposal wording from verified plan facts. Preserve `plans.json` as the entitlement source and keep `/onboarding/` as the primary action.
+- [x] Run the focused catalogue tests and `npm --prefix bytes-website run build`. Inspect the built proof HTML and commit this verified slice with its status update.
 
 **Done when:** the offered product itself visibly proves chat, lead management and sales follow-up, with sample data and accurate restrictions; it does not send visitors to another CRM to explain BytesFX's capabilities.
 
