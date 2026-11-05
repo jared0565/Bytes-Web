@@ -157,10 +157,10 @@ The new implementation paths above are planned, not claims that those files alre
 
 **Depends on:** PS04, PS05 and PS06.
 
-- [ ] Implement `scripts/check-showcase-pages.mjs` to inspect built HTML: local case/image files exist, draft records are absent, featured order/count is correct, kind labels/canonical metadata are present, trial links work, image dimensions/alt text are supplied, and no external application iframe is included.
-- [ ] Extend the catalogue tests with any security/data-contract failure uncovered during integration. Test behavior and publication boundaries, not CSS class strings or copies of implementation logic.
-- [ ] Wire the focused Node tests before Vite build and the built-output checker after it in `bytes-website/package.json`. Preserve consent, navigation and existing chatbot-page checks in their current order.
-- [ ] Run the commands below from the repository root and record actual exit codes. Never report an unexecuted check as passing.
+- [x] Implement `scripts/check-showcase-pages.mjs` to inspect built HTML: local case/image files exist, draft records are absent, featured order/count is correct, kind labels/canonical metadata are present, trial links work, image dimensions/alt text are supplied, and no external application iframe is included.
+- [x] Extend the catalogue tests with any security/data-contract failure uncovered during integration. Test behavior and publication boundaries, not CSS class strings or copies of implementation logic.
+- [x] Wire the focused Node tests before Vite build and the built-output checker after it in `bytes-website/package.json`. Preserve consent, navigation and existing chatbot-page checks in their current order.
+- [x] Run the commands below from the repository root and record actual exit codes. Never report an unexecuted check as passing.
 
 ```powershell
 node --test bytes-website/scripts/test-showcase-content.mjs

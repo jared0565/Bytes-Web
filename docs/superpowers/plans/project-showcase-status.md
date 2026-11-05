@@ -98,3 +98,7 @@ Three examples rendered between product proof and setup: Pivot Parlor, Active Pa
 ## PS06 complete
 
 Static projects index and five case entries added using shared renderer, incumbent navigation/footer and project script with no app fetching. Explicit Vite inputs and published-only sitemap routes. Unique metadata and trial return paths on each. Next PS07 complete built-output validation. Visual passes 0/2.
+
+## PS07 complete
+
+Build now runs seven catalogue/security tests before Vite, preserves existing consent/navigation/chatbot checks, and audits seven built pages afterward. Built-output audit verifies routes, assets/dimensions, metadata, trial actions, exact featured order, sitemap and draft exclusion. Five negative output mutations detected. npm build, checker --self-test and git diff --check exit 0. Next PS08 batched browser verification. Preview session 85205 on 127.0.0.1:4173; browser showcase-capture. Visual passes 0/2.
