@@ -1,8 +1,29 @@
 // Trusted build-time editorial records. No customer metrics or runtime fetches.
 export const projects = [
   {
+    "id": "bytesfx",
+    "title": "BytesFX Chat & Sales",
+    "kind": "owned-product",
+    "summary": "A website conversation becomes a captured lead, a reviewed proposal and a tracked sales opportunity.",
+    "capabilities": ["AI chat and lead capture", "Sales pipeline", "Proposals and email follow-ups"],
+    "deliveryScope": ["Product design and customer-facing website", "Chat widget, dashboard and backend APIs", "Lead storage, AI and email integrations", "Production deployment and operation"],
+    "repositoryUrls": ["https://github.com/jared0565/Bytes-Web"],
+    "liveUrl": "https://web.bytesfx.com/ai-chatbot/#product-workflow",
+    "liveActionLabel": "Explore the chatbot",
+    "featuredOrder": null,
+    "problem": "Businesses need to connect website enquiries with the people, decisions and follow-up work that move a sale forward.",
+    "implementation": "BytesFX designed and built the complete product: the public website, embedded chat, lead dashboard, sales pipeline, backend services and integrations. Leads retain their verification status, proposals stay subject to human review, and the business records the final Won or Lost outcome.",
+    "walkthrough": ["Explore chat and lead capture on the chatbot page.", "Inspect the sample pipeline, lead details and proposal screens below.", "Start a free trial to set up the workflow for your own business."],
+    "note": "An owned product. Dashboard screenshots use synthetic contacts, amounts and outcomes. AI email follow-ups depend on the plan and sender setup; reply tracking requires email routing.",
+    "publishState": "published",
+    "caseStudyPath": "/projects/bytesfx/",
+    "image": {"src": "/projects/bytesfx-pipeline.png", "alt": "BytesFX sales pipeline with synthetic sample contacts and amounts", "width": 1440, "height": 1000},
+    "evidence": ["docs/superpowers/evidence/project-showcase/capabilities.md", "docs/superpowers/evidence/project-showcase/assets.md"]
+  },
+  {
     "id": "pivot-parlor",
     "title": "Pivot Parlor",
+    "deliveryScope": ["Experience design and branded website", "Service, team and booking interfaces", "Scripted demonstration assistant", "Application integration and deployment"],
     "kind": "demonstration",
     "summary": "A branded barber shop website connects services, a team and a booking walkthrough.",
     "capabilities": [
@@ -39,6 +60,7 @@ export const projects = [
   {
     "id": "active-paw",
     "title": "Active Paw",
+    "deliveryScope": ["Storefront design and Shopify theme development", "Product discovery and shopping interfaces", "PawScout backend and store integrations", "Theme and backend deployment"],
     "kind": "live-store",
     "summary": "A pet-care store brings product discovery, collections and shopping guidance together.",
     "capabilities": [
@@ -76,6 +98,7 @@ export const projects = [
   {
     "id": "bytesai-learning",
     "title": "BytesAI Learning",
+    "deliveryScope": ["Product design and course discovery experience", "Course, provider and topic interfaces", "Learning quiz integration", "Application development and deployment"],
     "kind": "owned-product",
     "summary": "A course discovery site helps visitors explore AI learning by topic and provider.",
     "capabilities": [
@@ -112,6 +135,7 @@ export const projects = [
   {
     "id": "cafe-bookings",
     "title": "BytesFX Cafe & Bookings",
+    "deliveryScope": ["Hospitality experience design and website", "Menu, soft-play and party interfaces", "Calendar and booking integration", "Application development and deployment"],
     "kind": "demonstration",
     "summary": "A family cafe demonstration connects the menu, soft play, parties and calendar.",
     "capabilities": [
@@ -148,6 +172,7 @@ export const projects = [
   {
     "id": "file-converter",
     "title": "File Converter",
+    "deliveryScope": ["Utility design and application development", "File selection and conversion workflows", "On-device saved-file library", "Production deployment"],
     "kind": "owned-product",
     "summary": "A focused utility offers document, image and data conversion from one interface.",
     "capabilities": [

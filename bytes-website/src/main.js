@@ -1,5 +1,6 @@
 import './style.css';
 import './home.css';
+import './showcase.css';
 // The one plan list (also served as /plans.json to onboarding and the dashboard, and bundled into the API)
 import PLAN_DATA from '../public/plans.json';
 import { initChatbot } from './chat.js';
@@ -255,7 +256,7 @@ function renderHomePage() {
               Get a free consultation
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h11m-4-4 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </a>
-            <a href="#services" class="hx-btn hx-btn-ghost">See what we build</a>
+            <a href="/projects/" class="hx-btn hx-btn-ghost">Explore Our Work</a>
           </div>
           <dl class="hx-stats reveal" style="--d:4">
             <!-- Only what is true today: no figure goes here until records back it -->
@@ -387,6 +388,8 @@ function renderHomePage() {
         </div>
       </div>
     </section>
+
+    ${document.getElementById('homeProjects')?.innerHTML || ''}
 
     <!-- Why BytesFX -->
     <section class="hx-section hx-why">

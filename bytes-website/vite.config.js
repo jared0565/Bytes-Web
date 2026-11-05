@@ -18,6 +18,7 @@ function chatbotPage() {
       order: 'pre',
       handler(html, ctx) {
         const filename = ctx.filename.replace(/\\/g, '/');
+        if (filename === here('./index.html').replace(/\\/g, '/')) return html.replace('<!--@home-projects-->', selectedProjectsHTML(projects));
         if (filename.endsWith('/projects/index.html')) return html.replace('<!--@project-page-->', projectIndexHTML(projects));
         const project = publishedProjects(projects).find(p => filename.endsWith(p.caseStudyPath + 'index.html'));
         if (project) return html.replace('<!--@project-page-->', projectCaseHTML(project));
@@ -50,6 +51,7 @@ export default defineConfig({
         main: here('./index.html'),
         chatbot: here('./ai-chatbot/index.html'),
         projects: here('./projects/index.html'),
+        bytesfx: here('./projects/bytesfx/index.html'),
         'pivot-parlor': here('./projects/pivot-parlor/index.html'),
         'active-paw': here('./projects/active-paw/index.html'),
         'bytesai-learning': here('./projects/bytesai-learning/index.html'),

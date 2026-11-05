@@ -1,6 +1,6 @@
 // Build-time renderer. Catalogue records are trusted editorial data, validated at the publication boundary.
 export const kindLabels = Object.freeze({'owned-product':'Owned product','live-store':'Live store','demonstration':'Demonstration'});
-const LIVE_HOSTS = new Set(['pivotparlor.com','activepaw.co.uk','learn.bytesai.uk','cafe.bytesfx.com','file-converter.bmorris0565.workers.dev']);
+const LIVE_HOSTS = new Set(['web.bytesfx.com','pivotparlor.com','activepaw.co.uk','learn.bytesai.uk','cafe.bytesfx.com','file-converter.bmorris0565.workers.dev']);
 export const escapeHTML = value => String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const text = (v,name) => { if(typeof v!=='string'||!v.trim())throw new Error('Missing '+name); };
 function checkedURL(value, hosts) {
@@ -18,7 +18,7 @@ function validateProject(p) {
   if(p.caseStudyPath!=='/projects/'+p.id+'/')throw new Error('Invalid case path');
   if(!Object.hasOwn(kindLabels,p.kind))throw new Error('Invalid project kind');
   for(const field of ['title','summary','liveActionLabel','problem','implementation','note'])text(p[field],field);
-  for(const key of ['capabilities','walkthrough','repositoryUrls','evidence']){
+  for(const key of ['capabilities','deliveryScope','walkthrough','repositoryUrls','evidence']){
     if(!Array.isArray(p[key])||!p[key].length)throw new Error('Missing '+key);
     p[key].forEach(v=>text(v,key));
   }
@@ -49,22 +49,33 @@ export function imageHTML(image, className='') {
   return '<img class="'+escapeHTML(className)+'" src="'+escapeHTML(image.src)+'" alt="'+escapeHTML(image.alt)+'" width="'+image.width+'" height="'+image.height+'" loading="lazy" decoding="async">';
 }
 const listHTML = values => '<ul>'+values.map(v=>'<li>'+escapeHTML(v)+'</li>').join('')+'</ul>';
-export function projectCardHTML(record) {
+export function projectCardHTML(record, headingLevel=3) {
+  if(![2,3].includes(headingLevel))throw new Error('Invalid heading level');
   const p=publishedProjects([record])[0];if(!p)return '';
-  return '<article class="showcase-project" data-project="'+p.id+'"><a class="showcase-preview" href="'+p.caseStudyPath+'" aria-label="View '+escapeHTML(p.title)+' project">'+imageHTML(p.image)+'</a><div class="showcase-project-copy"><h3><a href="'+p.caseStudyPath+'">'+escapeHTML(p.title)+'</a></h3><p class="showcase-kind">'+kindLabels[p.kind]+'</p><p>'+escapeHTML(p.summary)+'</p>'+listHTML(p.capabilities)+'<div class="showcase-actions"><a href="'+p.caseStudyPath+'">View project<span class="sr-only">: '+escapeHTML(p.title)+'</span> &rarr;</a><a href="'+escapeHTML(p.liveUrl)+'">'+escapeHTML(p.liveActionLabel)+'<span class="sr-only">: '+escapeHTML(p.title)+'</span> &nearr;</a></div></div></article>';
+  return '<article class="showcase-project" data-project="'+p.id+'"><a class="showcase-preview" href="'+p.caseStudyPath+'" aria-label="View '+escapeHTML(p.title)+' project">'+imageHTML(p.image)+'</a><div class="showcase-project-copy"><h'+headingLevel+'><a href="'+p.caseStudyPath+'">'+escapeHTML(p.title)+'</a></h'+headingLevel+'><p class="showcase-kind">'+kindLabels[p.kind]+'</p><p>'+escapeHTML(p.summary)+'</p>'+listHTML(p.capabilities)+(p.id==='bytesfx'?'<p class="showcase-sample">Interface shown with synthetic sample data.</p>':'')+'<div class="showcase-actions"><a href="'+p.caseStudyPath+'">View project<span class="sr-only">: '+escapeHTML(p.title)+'</span> &rarr;</a><a href="'+escapeHTML(p.liveUrl)+'">'+escapeHTML(p.liveActionLabel)+'<span class="sr-only">: '+escapeHTML(p.title)+'</span> &nearr;</a></div></div></article>';
 }
 export function selectedProjectsHTML(records) {
-  return '<section id="projects" class="hx-section showcase-selected" aria-labelledby="projectsTitle"><div class="hx-container"><header class="cb-head"><h2 id="projectsTitle">Explore what we’ve built</h2><p>Booking experiences, a live store and a learning product. Different problems, working interfaces you can explore.</p></header><div class="showcase-selected-grid">'+featuredProjects(records).map(projectCardHTML).join('')+'</div><div class="showcase-return"><a href="/projects/">See all projects &rarr;</a><a class="hx-btn hx-btn-primary" href="/onboarding/">Start your free trial</a></div></div></section>';
+  return '<section id="projects" class="hx-section showcase-selected" aria-labelledby="projectsTitle"><div class="hx-container"><header class="showcase-heading"><div><p class="showcase-kicker">Built by BytesFX</p><h2 id="projectsTitle">What we’ve built</h2><p>Booking experiences, a live store and a learning product. Explore a few examples of our work.</p></div><a class="showcase-all" href="/projects/">Explore Our Work &rarr;</a></header><div class="showcase-selected-grid">'+featuredProjects(records).map(projectPreviewHTML).join('')+'</div></div></section>';
+}
+function projectPreviewHTML(p) {
+  return '<article class="showcase-project" data-project="'+p.id+'"><a class="showcase-preview" href="'+p.caseStudyPath+'" aria-label="View '+escapeHTML(p.title)+' project">'+imageHTML(p.image)+'</a><div class="showcase-project-copy"><p class="showcase-kind">'+kindLabels[p.kind]+'</p><h3><a href="'+p.caseStudyPath+'">'+escapeHTML(p.title)+'</a></h3><p>'+escapeHTML(p.summary)+'</p><a class="showcase-all" href="'+p.caseStudyPath+'">View project<span class="sr-only">: '+escapeHTML(p.title)+'</span> &rarr;</a></div></article>';
 }
 export function projectIndexHTML(records) {
- return '<section class="hx-section"><div class="hx-container"><header class="cb-head"><h1>Work you can explore</h1><p>Owned products, a live store and clearly labelled demonstrations. Inspect what was built, then explore the interface.</p></header><div class="showcase-index">'+publishedProjects(records).map(projectCardHTML).join('')+'</div>'+trialHTML()+'</div></section>';
+ const published=publishedProjects(records);
+ const flagship=published.find(p=>p.id==='bytesfx');
+ return '<section class="hx-section"><div class="hx-container"><header class="cb-head"><p class="showcase-kicker">Built by BytesFX</p><h1>What we’ve built</h1><p>From the first design to the live application, we own the complete development process. Explore our products, a live store and working demonstrations.</p></header>'+(flagship?'<div class="showcase-flagship" aria-label="Featured project">'+projectCardHTML(flagship,2)+'</div>':'')+'<header class="showcase-heading"><h2>More work to explore</h2><p>Open a project to see what we built, or explore the live interface.</p></header><div class="showcase-index">'+published.filter(p=>p.id!=='bytesfx').map(p=>projectCardHTML(p)).join('')+'</div>'+projectEnquiryHTML()+'</div></section>';
+}
+function projectEnquiryHTML() {
+ return '<aside class="showcase-return" aria-label="Discuss a project"><div><h2>What would you like to build?</h2><p>Tell us about your business and the workflow you want to improve.</p></div><a class="hx-btn hx-btn-primary" href="/#contact">Discuss your project &rarr;</a></aside>';
 }
 function trialHTML() {
  return '<aside class="showcase-return" aria-label="Try BytesFX"><div><h2>Turn your website’s questions into leads</h2><p>Explore BytesFX’s own chat-to-sales workflow, or start your free trial.</p><a href="/ai-chatbot/">See the chatbot &rarr;</a></div><a class="hx-btn hx-btn-primary" href="/onboarding/">Start your free trial</a></aside>';
 }
 export function projectCaseHTML(record) {
  const p=publishedProjects([record])[0];if(!p)return '';
- return '<section class="hx-section showcase-case"><div class="hx-container"><a href="/projects/" class="showcase-back">&larr; All projects</a><header class="cb-head"><h1>'+escapeHTML(p.title)+'</h1><p class="showcase-kind">'+kindLabels[p.kind]+'</p><p>'+escapeHTML(p.summary)+'</p></header><figure class="showcase-case-image">'+imageHTML(p.image)+'<figcaption>Actual public interface, captured November 2026.</figcaption></figure><div class="showcase-case-body"><section><h2>The problem</h2><p>'+escapeHTML(p.problem)+'</p><h2>What we built</h2><p>'+escapeHTML(p.implementation)+'</p><h2>Explore the workflow</h2><ol>'+p.walkthrough.map(s=>'<li>'+escapeHTML(s)+'</li>').join('')+'</ol></section><aside><h2>What you can inspect</h2>'+listHTML(p.capabilities)+'<p>'+escapeHTML(p.note)+'</p><a class="hx-btn hx-btn-primary" href="'+escapeHTML(p.liveUrl)+'">'+escapeHTML(p.liveActionLabel)+' &nearr;</a><h2>Technical work</h2>'+p.repositoryUrls.map((u,i)=>'<p><a href="'+escapeHTML(u)+'">View repository'+(p.repositoryUrls.length>1?' '+(i+1):'')+' on GitHub &nearr;</a></p>').join('')+'</aside></div>'+trialHTML()+'</div></section>';
+ const isBytesFX=p.id==='bytesfx';
+ const caption=isBytesFX?'Actual BytesFX interface, captured November 2026. Synthetic sample data; no customer results.':'Actual public interface, captured November 2026.';
+ return '<section class="hx-section showcase-case"><div class="hx-container"><a href="/projects/" class="showcase-back">&larr; Our Work</a><header class="cb-head"><p class="showcase-kicker">Built by BytesFX</p><h1>'+escapeHTML(p.title)+'</h1><p class="showcase-kind">'+kindLabels[p.kind]+'</p><p>'+escapeHTML(p.summary)+'</p></header><figure class="showcase-case-image">'+imageHTML(p.image)+'<figcaption>'+caption+'</figcaption></figure><div class="showcase-case-body"><section><h2>The problem</h2><p>'+escapeHTML(p.problem)+'</p><h2>What we built</h2><p>'+escapeHTML(p.implementation)+'</p><p>BytesFX led the complete delivery, from design and development to integration and deployment.</p>'+listHTML(p.deliveryScope)+'<h2>Explore the workflow</h2><ol>'+p.walkthrough.map(s=>'<li>'+escapeHTML(s)+'</li>').join('')+'</ol></section><aside><h2>What you can inspect</h2>'+listHTML(p.capabilities)+'<p>'+escapeHTML(p.note)+'</p><a class="hx-btn hx-btn-primary" href="'+escapeHTML(p.liveUrl)+'">'+escapeHTML(p.liveActionLabel)+' &nearr;</a><h2>Technical work</h2>'+p.repositoryUrls.map((u,i)=>'<p><a href="'+escapeHTML(u)+'">View repository'+(p.repositoryUrls.length>1?' '+(i+1):'')+' on GitHub &nearr;</a></p>').join('')+'</aside></div>'+(isBytesFX?'<div class="showcase-case-screens"><h2>The lead and proposal screens</h2><p>Actual interfaces with synthetic sample data. No customer contact details or sales results are shown.</p><div class="showcase-screen-pair"><figure>'+imageHTML({src:'/projects/bytesfx-lead.png',alt:'BytesFX lead details with an invented example.com contact',width:460,height:1000})+'<figcaption>Lead details and verification status.</figcaption></figure><figure>'+imageHTML({src:'/projects/bytesfx-proposal.png',alt:'BytesFX proposal editor showing an AI draft that needs human review',width:460,height:1000})+'<figcaption>Proposal draft for review before sending.</figcaption></figure></div></div>'+trialHTML():projectEnquiryHTML())+'</div></section>';
 }
 export function productProofHTML(plans) {
  const paid=plans.plans.filter(p=>p.aiFollowUps).map(p=>p.name);

@@ -18,15 +18,27 @@
 .showcase-screen-pair img { width:100%;height:auto;display:block;border:1px solid var(--line-strong);border-radius:12px; }
 .showcase-plan-note { max-width:75ch;margin-bottom:0; }
 .showcase-selected { border-block:1px solid var(--line);background:var(--ink-1); }
-.showcase-selected-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3rem 2.5rem; }
-.showcase-selected-grid .showcase-project:first-child { grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:2.5rem;align-items:center; }
+.showcase-selected-grid { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2rem; }
+.showcase-heading { display:flex;align-items:center;justify-content:space-between;gap:1.5rem;margin-bottom:2rem; }
+.showcase-heading h2 { font:600 clamp(1.8rem,3vw,2.6rem)/1.15 var(--font-display);letter-spacing:-.02em;margin:0 0 .75rem; }
+.showcase-heading p { color:var(--text-dim);max-width:65ch; }
+.showcase-heading .showcase-kicker,.showcase-kicker { color:var(--mint);font:600 .85rem/1.5 var(--font-mono);margin:0 0 1rem; }
+.showcase-all { display:inline-flex;align-items:center;min-height:44px;color:var(--mint);font-weight:600; }
+.showcase-heading>.showcase-all { flex-shrink:0; }
+.showcase-selected-grid .showcase-project h3 { font-size:1.4rem; }
+.showcase-selected-grid .showcase-project p { font-size:.95rem; }
+.showcase-flagship { border-block:1px solid var(--line-strong);padding-block:2.5rem;margin-bottom:3.5rem; }
+.showcase-flagship .showcase-project { display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:2.5rem;align-items:center; }
+.showcase-flagship .showcase-project-copy { padding-top:0; }
+.showcase-case-screens { border-top:1px solid var(--line-strong);margin-top:3rem;padding-top:2rem; }
+.showcase-case-screens>p { color:var(--text-dim); }
 .showcase-preview { display:block;overflow:hidden;border-radius:12px;background:var(--ink-2);border:1px solid var(--line-strong); }
 .showcase-preview img { display:block;width:100%;height:auto;aspect-ratio:1.44;object-fit:cover;object-position:top;transition:transform .25s ease-out; }
 .showcase-preview:hover img { transform:scale(1.015); }
 .showcase-preview:active img { transform:scale(1); }
 .showcase-project-copy { padding-top:1.25rem; }
-.showcase-project h3 { font:600 1.65rem/1.25 var(--font-display);margin:0 0 .5rem;letter-spacing:-.02em; }
-.showcase-project h3 a { color:var(--text);text-decoration:none; }
+.showcase-project h2,.showcase-project h3 { font:600 1.65rem/1.25 var(--font-display);margin:0 0 .5rem;letter-spacing:-.02em; }
+.showcase-project h2 a,.showcase-project h3 a { color:var(--text);text-decoration:none; }
 .showcase-project p,.showcase-project li { color:var(--text-dim);line-height:1.7; }
 .showcase-kind { color:var(--mint)!important;font-size:.85rem;font-weight:600;margin:.4rem 0 .75rem; }
 .showcase-project ul { padding-left:1.2rem;margin:1rem 0; }
@@ -50,9 +62,12 @@
 .showcase-page a:not(.hx-btn):not(.logo):hover,.showcase-proof a:hover { color:var(--mint); }
 .showcase-page a:not(.hx-btn):active,.showcase-proof a:active { color:var(--amber); }
 .showcase-page a:focus-visible,.showcase-selected a:focus-visible,.showcase-proof a:focus-visible,.showcase-details summary:focus-visible { outline:2px solid var(--mint);outline-offset:5px; }
+.showcase-selected a:hover { color:var(--amber); }
+.showcase-selected a:active { color:var(--mint); }
 @media(max-width:767px) {
- .showcase-workflow,.showcase-selected-grid,.showcase-selected-grid .showcase-project:first-child,.showcase-index,.showcase-case-body { display:grid;grid-template-columns:minmax(0,1fr);gap:2rem; }
- .showcase-selected-grid .showcase-project:first-child { grid-column:auto;gap:0; }
+ .showcase-workflow,.showcase-selected-grid,.showcase-flagship .showcase-project,.showcase-index,.showcase-case-body { display:grid;grid-template-columns:minmax(0,1fr);gap:2rem; }
+ .showcase-heading { align-items:flex-start;flex-direction:column;gap:.5rem; }
+ .showcase-flagship .showcase-project { gap:1.5rem; }
  .showcase-screen-pair { grid-template-columns:minmax(0,460px); }
  .showcase-return { align-items:flex-start;flex-direction:column; }
  .showcase-page .hx-section { padding-block:2.5rem; }

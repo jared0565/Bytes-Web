@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {projects} from '../src/showcase-content.js';
-import {publishedProjects,featuredProjects,projectCardHTML,kindLabels} from '../src/showcase-html.js';
-const sample=()=>structuredClone(projects[0]);
+import {publishedProjects,featuredProjects,projectCardHTML,projectCaseHTML,projectIndexHTML,kindLabels} from '../src/showcase-html.js';
+const sample=()=>structuredClone(projects.find(p=>p.id==='pivot-parlor'));
 test('draft content never reaches published records or featured order',()=>{
- assert.equal(publishedProjects(projects).length,5);
+ assert.equal(publishedProjects(projects).length,6);
  assert.deepEqual(featuredProjects(projects).map(p=>p.id),['pivot-parlor','active-paw','bytesai-learning']);
  assert.equal(projectCardHTML({...sample(),publishState:'draft'}),'');
 });
@@ -35,4 +35,24 @@ test('duplicate routes and featured ranks cannot produce ambiguous pages',()=>{
 test('kind labels distinguish demonstrations and owned work',()=>{
  assert.deepEqual(kindLabels,{'owned-product':'Owned product','live-store':'Live store','demonstration':'Demonstration'});
  for(const p of projects.filter(p=>p.publishState==='published'))assert.ok(projectCardHTML(p).includes(kindLabels[p.kind]));
+});
+
+test('ownership is explicit and full delivery scope is required and escaped',()=>{
+ const p=sample();
+ delete p.deliveryScope;
+ assert.throws(()=>publishedProjects([p]),/deliveryScope/);
+ p.deliveryScope=['Design <script>'];
+ const html=projectCaseHTML(p);
+ assert.ok(html.includes('Built by BytesFX'));
+ assert.ok(html.includes('complete delivery'));
+ assert.ok(html.includes('Design &lt;script&gt;'));
+ assert.ok(html.includes('href="/#contact"'));
+});
+
+test('the catalogue leads with the owned BytesFX system and labels sample data',()=>{
+ const html=projectIndexHTML(projects);
+ assert.ok(html.indexOf('data-project="bytesfx"')<html.indexOf('data-project="pivot-parlor"'));
+ const detail=projectCaseHTML(projects.find(p=>p.id==='bytesfx'));
+ assert.ok(detail.includes('Synthetic sample data'));
+ assert.ok(detail.includes('href="/onboarding/"'));
 });

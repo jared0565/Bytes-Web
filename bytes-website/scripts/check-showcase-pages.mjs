@@ -22,6 +22,9 @@ export function auditShowcase({read=defaultRead,exists=defaultExists}={}) {
   check(/<meta name="description" content="[^"]+"/.test(html),route+': missing description');
   check(html.includes('href="https://web.bytesfx.com'+route+'"'),route+': canonical missing');
   check(html.includes('href="/onboarding/"'),route+': trial action missing');
+  const nav=html.match(/<ul class="nav-links"[\s\S]*?<\/ul>/)?.[0]||'';
+  check(/href="\/projects\/" class="nav-item nav-work"/.test(nav),route+': Our Work navigation missing');
+  if(route.startsWith('/projects/'))check(/nav-work" aria-current="(?:page|location)"/.test(nav),route+': current section missing');
   check(!html.includes('<!--@')&&!/\{\{\w+\}\}/.test(html),route+': unfilled marker');
   check(!/<iframe\b/i.test(html),route+': iframe forbidden');
   for(const draft of projects.filter(p=>p.publishState==='draft'))check(!html.toLowerCase().includes(draft.id),route+': draft leaked');
@@ -41,7 +44,16 @@ export function auditShowcase({read=defaultRead,exists=defaultExists}={}) {
  check(JSON.stringify(featured)===JSON.stringify(featuredProjects(projects).map(p=>p.id)),'featured count/order mismatch');
  check(cb.indexOf('id="product-workflow"')<cb.indexOf('id="projects"')&&cb.indexOf('id="projects"')<cb.indexOf('id="how"'),'product/project/setup sequence incorrect');
  for(const term of ['Inbox','Priority','Opportunity','Campaigns','Closed','Won','Lost','synthetic sample data','review'])check(cb.includes(term),'missing product proof '+term);
- for(const p of publicProjects)check(read(p.caseStudyPath.slice(1)+'index.html').includes(kindLabels[p.kind]),p.id+': kind label missing');
+ for(const p of publicProjects){
+  const html=read(p.caseStudyPath.slice(1)+'index.html');
+  check(html.includes(kindLabels[p.kind]),p.id+': kind label missing');
+  check(html.includes('Built by BytesFX')&&html.includes('complete delivery'),p.id+': ownership missing');
+  check(p.deliveryScope.every(scope=>html.includes(scope)),p.id+': delivery scope missing');
+ }
+ const home=read('index.html'),index=read('projects/index.html');
+ check(home.includes('class="nav-item nav-work"')&&home.includes('id="homeProjects"')&&home.includes('Explore Our Work'),'homepage discovery missing');
+ check(index.includes('What we’ve built')&&index.includes('Built by BytesFX'),'showcase positioning missing');
+ check(index.indexOf('data-project="bytesfx"')<index.indexOf('data-project="pivot-parlor"'),'BytesFX flagship must lead');
  const map=read('sitemap.xml');
  for(const route of routes.slice(1))check(map.includes('<loc>https://web.bytesfx.com'+route+'</loc>'),'sitemap route missing '+route);
  for(const draft of projects.filter(p=>p.publishState==='draft')){
@@ -71,5 +83,5 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
   }
  }
  if(failures.length){failures.forEach(f=>console.error('[showcase] '+f));process.exitCode=1;}
- else console.log('[showcase] seven built pages, published routes, image metadata, trial paths and draft boundary verified'+(process.argv.includes('--self-test')?'; five negative mutations detected':''));
+ else console.log('[showcase] '+(publicProjects.length+2)+' built pages, navigation, ownership, published routes, image metadata, trial paths and draft boundary verified'+(process.argv.includes('--self-test')?'; five negative mutations detected':''));
 }

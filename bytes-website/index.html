@@ -74,7 +74,7 @@
 
 <body>
   <!-- Top Navigation -->
-  <nav class="navbar glass-nav">
+  <nav class="navbar glass-nav" aria-label="Main navigation">
     <div class="logo-container">
       <a href="#home" class="logo">
         Bytes<span class="highlight">FX</span>
@@ -92,6 +92,7 @@
 
     <!-- Menu on the right -->
     <ul class="nav-links" id="navLinks">
+      <li><a href="/projects/" class="nav-item nav-work">Our Work</a></li>
       <li><a href="#services" class="nav-item">Services</a></li>
       <li><a href="#process" class="nav-item">Process</a></li>
       <li><a href="/ai-chatbot/" class="nav-item">AI Chatbot</a></li>
@@ -103,6 +104,7 @@
 
   <!-- App Container for Single Page App views -->
   <main id="app"></main>
+  <template id="homeProjects"><!--@home-projects--></template>
 
   <!-- Persistent Global Footer -->
   <footer class="site-footer">
@@ -119,6 +121,7 @@
       <div class="footer-links-group">
         <h3>Services</h3>
         <ul>
+          <li><a href="/projects/">Our Work</a></li>
           <li><a href="#services">Website Development</a></li>
           <li><a href="#services">Website Upgrading</a></li>
           <li><a href="#services">App Development</a></li>
