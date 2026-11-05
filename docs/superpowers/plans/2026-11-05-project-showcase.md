@@ -144,12 +144,12 @@ The new implementation paths above are planned, not claims that those files alre
 
 **Depends on:** PS03 and PS05.
 
-- [ ] Add the index and the five initial case-study entry files listed in the file map. Use a shared renderer with per-project problem, implementation, walkthrough, capabilities and external destination.
-- [ ] Add `src/projects-page.js` to load existing site styles, `showcase.css` and existing navigation/footer helpers. Do not add application data fetching.
-- [ ] Extend Vite's explicit build inputs and HTML transform for the index and published cases. Supply one H1, unique title/description, canonical URL and working trial link per page.
-- [ ] Add only published output routes to `public/sitemap.xml`. Keep the dashboard's existing robots exclusion and the chatbot's existing canonical/schema behavior.
-- [ ] Check all internal project links against actual built files; do not publish a draft CRM route or call its signup page a live demo.
-- [ ] Run the site build and commit the project pages, renderer integration, styles, sitemap and progress update.
+- [x] Add the index and the five initial case-study entry files listed in the file map. Use a shared renderer with per-project problem, implementation, walkthrough, capabilities and external destination.
+- [x] Add `src/projects-page.js` to load existing site styles, `showcase.css` and existing navigation/footer helpers. Do not add application data fetching.
+- [x] Extend Vite's explicit build inputs and HTML transform for the index and published cases. Supply one H1, unique title/description, canonical URL and working trial link per page.
+- [x] Add only published output routes to `public/sitemap.xml`. Keep the dashboard's existing robots exclusion and the chatbot's existing canonical/schema behavior.
+- [x] Check all internal project links against actual built files; do not publish a draft CRM route or call its signup page a live demo.
+- [x] Run the site build and commit the project pages, renderer integration, styles, sitemap and progress update.
 
 **Done when:** all five published case studies and their index load directly as static pages, explain their relevance truthfully, and link back to the chatbot trial.
 

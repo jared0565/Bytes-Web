@@ -2,7 +2,7 @@ import { defineConfig } from 'vite';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { projects } from './src/showcase-content.js';
-import { productProofHTML, selectedProjectsHTML } from './src/showcase-html.js';
+import { productProofHTML, selectedProjectsHTML, publishedProjects, projectCaseHTML, projectIndexHTML } from './src/showcase-html.js';
 import { planCards } from './src/plans-html.js';
 import { faqHTML, chatbotStructuredData } from './src/chatbot-content.js';
 
@@ -17,6 +17,10 @@ function chatbotPage() {
     transformIndexHtml: {
       order: 'pre',
       handler(html, ctx) {
+        const filename = ctx.filename.replace(/\\/g, '/');
+        if (filename.endsWith('/projects/index.html')) return html.replace('<!--@project-page-->', projectIndexHTML(projects));
+        const project = publishedProjects(projects).find(p => filename.endsWith(p.caseStudyPath + 'index.html'));
+        if (project) return html.replace('<!--@project-page-->', projectCaseHTML(project));
         if (!ctx.filename.replace(/\\/g, '/').endsWith('/ai-chatbot/index.html')) return html;
         const data = JSON.parse(readFileSync(here('./public/plans.json'), 'utf8'));
         const ld = JSON.stringify(chatbotStructuredData(data)).replace(/</g, '\\u003c');
@@ -45,6 +49,12 @@ export default defineConfig({
       input: {
         main: here('./index.html'),
         chatbot: here('./ai-chatbot/index.html'),
+        projects: here('./projects/index.html'),
+        'pivot-parlor': here('./projects/pivot-parlor/index.html'),
+        'active-paw': here('./projects/active-paw/index.html'),
+        'bytesai-learning': here('./projects/bytesai-learning/index.html'),
+        'cafe-bookings': here('./projects/cafe-bookings/index.html'),
+        'file-converter': here('./projects/file-converter/index.html'),
       },
     },
   },

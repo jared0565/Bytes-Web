@@ -94,3 +94,7 @@ Actual pipeline screenshot, sample-data captions, lead/proposal disclosures, thr
 ## PS05 complete
 
 Three examples rendered between product proof and setup: Pivot Parlor, Active Paw, BytesAI Learning. Correct labels/actions and repeated trial action; current styling inherited. Full destination build verification follows immediately in PS06/PS07. Next PS06 project pages. Visual passes 0/2.
+
+## PS06 complete
+
+Static projects index and five case entries added using shared renderer, incumbent navigation/footer and project script with no app fetching. Explicit Vite inputs and published-only sitemap routes. Unique metadata and trial return paths on each. Next PS07 complete built-output validation. Visual passes 0/2.
