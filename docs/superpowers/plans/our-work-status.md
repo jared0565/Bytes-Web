@@ -63,3 +63,35 @@ Evidence and claim boundaries: `docs/superpowers/evidence/project-showcase/pivot
 Awaiting the owner's clarification of the additional surfaces meant by
 “multi-platform”; no native apps or unpublished management portals are claimed.
 No deployment performed.
+
+## System-level case-study revision
+
+The owner requested a full documentation audit and stronger briefs/diagrams for
+all projects, and explicitly allowed documentation-only reads of the six related
+repositories. Audit reports and pinned inventory are in
+`docs/superpowers/evidence/project-showcase/*-doc-audit.md` and
+`documentation-inventory.md`. No external source/config/runtime was read, and
+no other repository was modified. Five PDF documents were subsequently decoded
+and extracted; old proposal forecasts are not used as customer results.
+
+All six existing case-study pages now have full-system briefs, operational scope,
+integrations and static workflow diagrams. Active Paw is presented together with
+PawScout. Human-action markers preserve the documented review/funding boundaries.
+Planned/dormant capabilities and unverified business outcomes are excluded.
+
+Validation: website build passed (consent, five navigation tests, eleven catalogue
+tests, chatbot output and eight-page showcase checks); five negative output
+mutations detected. Final browser review: **278/278**, no runtime errors, zero
+production writes forwarded. All six cases at 1440, 1024, 768, 390 and 320px,
+including 200% text, arrow direction, image loading, workflow completeness and
+project navigation. Diagram text/arrow measurements were separated in the verifier;
+inherited nested-section spacing and long-word wrapping were corrected.
+
+Local preview remains http://127.0.0.1:4173/projects/ . Start with
+http://127.0.0.1:4173/projects/active-paw/ for the most substantial correction.
+Final diagram screenshots and the Active Paw full-page previews are under
+`output/playwright/system-cases/`. Raw audit snapshots, PDFs and extraction files
+are local-only under `output/project-doc-audit/`; never stage or publish them.
+
+No package installed, backend changed, PR opened, merge or deployment performed.
+Next: owner reviews the expanded pages before any requested release.

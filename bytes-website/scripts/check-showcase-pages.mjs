@@ -50,6 +50,10 @@ export function auditShowcase({read=defaultRead,exists=defaultExists}={}) {
   check(html.includes(kindLabels[p.kind]),p.id+': kind label missing');
   check(html.includes('Built by BytesFX')&&html.includes('complete delivery'),p.id+': ownership missing');
   check(p.deliveryScope.every(scope=>html.includes(scope)),p.id+': delivery scope missing');
+  check(html.includes('aria-label="Project workflow"'),p.id+': system workflow missing');
+  const laneCount=(html.match(/class="showcase-flow-lane"/g)||[]).length;
+  check(laneCount===p.workflow.lanes.length,p.id+': workflow lane count differs');
+  check((html.match(/class="showcase-scope-section"/g)||[]).length===p.sections.length,p.id+': system explanation missing');
  }
  const home=read('index.html'),index=read('projects/index.html');
  check(home.includes('class="nav-item nav-work"')&&home.includes('id="homeProjects"')&&home.includes('Explore Our Work'),'homepage discovery missing');

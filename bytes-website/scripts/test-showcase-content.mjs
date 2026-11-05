@@ -56,3 +56,33 @@ test('the catalogue leads with the owned BytesFX system and labels sample data',
  assert.ok(detail.includes('Synthetic sample data'));
  assert.ok(detail.includes('href="/onboarding/"'));
 });
+
+test('every published case has system scope and a readable, escaped workflow',()=>{
+ for(const p of publishedProjects(projects)){
+  const html=projectCaseHTML(p);
+  assert.ok(html.includes('aria-label="Project workflow"'),p.id);
+  assert.equal((html.match(/class="showcase-flow-lane"/g)||[]).length,p.workflow.lanes.length,p.id);
+  assert.ok(html.includes('Our delivery scope'),p.id);
+ }
+ const p=sample();
+ p.workflow.lanes[0].steps[0].title='<img src=x onerror=alert(1)>';
+ p.sections[0].body='<script>alert(1)</script>';
+ const html=projectCaseHTML(p);
+ assert.ok(html.includes('&lt;img src=x onerror=alert(1)&gt;'));
+ assert.ok(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
+ assert.ok(!html.includes('<img src=x'));
+ assert.ok(!html.includes('<script>alert'));
+});
+
+test('malformed or excessive workflow data cannot publish',()=>{
+ for(const edit of [
+  p=>delete p.workflow,
+  p=>p.workflow.lanes=[],
+  p=>p.workflow.lanes[0].steps=[{}],
+  p=>p.workflow.lanes[0].steps=Array(6).fill(p.workflow.lanes[0].steps[0]),
+  p=>p.workflow.lanes[0].steps[0].ownerAction='false',
+  p=>p.sections=[null],
+ ]){
+  const p=sample();edit(p);assert.throws(()=>publishedProjects([p]));
+ }
+});
