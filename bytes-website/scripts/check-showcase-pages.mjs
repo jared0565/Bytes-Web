@@ -27,6 +27,7 @@ export function auditShowcase({read=defaultRead,exists=defaultExists}={}) {
   if(route.startsWith('/projects/'))check(/nav-work" aria-current="(?:page|location)"/.test(nav),route+': current section missing');
   check(!html.includes('<!--@')&&!/\{\{\w+\}\}/.test(html),route+': unfilled marker');
   check(!/<iframe\b/i.test(html),route+': iframe forbidden');
+  check(!/href="https?:\/\/(?:www\.)?github\.com\//i.test(html),route+': public repository link present');
   for(const draft of projects.filter(p=>p.publishState==='draft'))check(!html.toLowerCase().includes(draft.id),route+': draft leaked');
   for(const m of html.matchAll(/(?:href|src)="(\/[^"]*)"/g)){
    const u=new URL(m[1],'https://web.bytesfx.com');

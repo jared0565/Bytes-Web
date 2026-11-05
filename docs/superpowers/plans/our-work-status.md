@@ -34,3 +34,13 @@ No packages installed and no worker/backend production source changed.
 Next: owner reviews the preview. Release requires the owner to request deployment;
 a push to main deploys production components. Preserve this checkpoint and do not
 reopen completed implementation work without new feedback.
+
+## Review follow-up: public repository links
+
+Owner requested removing GitHub links because the projects are offered as a
+service. Removed the Technical work/repository section from all six public case
+studies. Delivery scope, live projects and demos remain. Repository references
+remain internal build-time evidence, never rendered in public pages. The output
+checker now rejects GitHub links across the showcase routes. Website build and
+output self-test pass after this change; no additional layout or interaction
+changes and no deployment.
