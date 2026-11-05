@@ -78,3 +78,7 @@ On restart, inspect Git before trusting any recorded completion. If source or re
 ## Implementation PS01
 
 Owner authorization: yes to begin implementation, 5 November 2026. Worktree: C:/Users/fbmac/atlas/Codex/.codex_state/user_home/worktrees/626f/Bytes-Web. Branch ux/project-showcase. Baseline build exit 0. Capability source/plan mapping: ../evidence/project-showcase/capabilities.md. PS01 completed; PS02 next. Visual passes 0/2. No production writes or release.
+
+## PS02 complete
+
+Nine inspected PNG assets and synthetic fixtures captured. Stable drawer captures replaced the rejected transition images. Capture script blocks all writes; 19 attempts aborted, zero forwarded. Public preview hydration errors disclosed in assets.md. Next PS03: catalogue/renderer. Seven contract tests confirmed red before implementation. Visual passes remain 0/2.

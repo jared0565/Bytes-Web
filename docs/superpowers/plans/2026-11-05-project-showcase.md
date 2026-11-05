@@ -95,11 +95,11 @@ The new implementation paths above are planned, not claims that those files alre
 
 **Depends on:** PS01.
 
-- [ ] Create `scripts/fixtures/showcase-leads.json` under `bytes-website/`, using the response shape verified in PS01. Use invented names, `example.com` email addresses and sample amounts clearly labelled as examples. Include the actual pipeline/proposal/outcome states needed for the walkthrough.
-- [ ] Create `scripts/capture-showcase-assets.mjs` using the existing browser tooling. Serve the actual dashboard locally, mock the verified auth/config/lead read contracts, and abort all production requests and all write methods. Do not weaken production auth or add a demo bypass to the shipped dashboard.
-- [ ] Capture the chat, lead, pipeline and proposal/outcome evidence required by the design, plus the five initial external case-study previews. Combine screens only when their captions still make the workflow clear.
-- [ ] Save approved screenshots beneath `bytes-website/public/projects/`. Record actual filenames, source screen, synthetic-data status, alt text, pixel dimensions and byte size in `docs/superpowers/evidence/project-showcase/assets.md`.
-- [ ] Inspect every image for credentials, real contact details, confusing example values and unreadable text. Reject unsuitable assets; do not publish blank image frames or fabricated application screenshots.
+- [x] Create `scripts/fixtures/showcase-leads.json` under `bytes-website/`, using the response shape verified in PS01. Use invented names, `example.com` email addresses and sample amounts clearly labelled as examples. Include the actual pipeline/proposal/outcome states needed for the walkthrough.
+- [x] Create `scripts/capture-showcase-assets.mjs` using the existing browser tooling. Serve the actual dashboard locally, mock the verified auth/config/lead read contracts, and abort all production requests and all write methods. Do not weaken production auth or add a demo bypass to the shipped dashboard.
+- [x] Capture the chat, lead, pipeline and proposal/outcome evidence required by the design, plus the five initial external case-study previews. Combine screens only when their captions still make the workflow clear.
+- [x] Save approved screenshots beneath `bytes-website/public/projects/`. Record actual filenames, source screen, synthetic-data status, alt text, pixel dimensions and byte size in `docs/superpowers/evidence/project-showcase/assets.md`.
+- [x] Inspect every image for credentials, real contact details, confusing example values and unreadable text. Reject unsuitable assets; do not publish blank image frames or fabricated application screenshots.
 
 **Done when:** actual approved asset files exist and the capture demonstrates no production/write requests. If authenticated-screen capture is unavailable, record that specific blocker; complete other ready assets without pretending the missing screen is done.
 
