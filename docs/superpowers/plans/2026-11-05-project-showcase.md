@@ -132,11 +132,11 @@ The new implementation paths above are planned, not claims that those files alre
 
 **Depends on:** PS03 and PS04.
 
-- [ ] Place the selected-project section after product proof and before the existing installation/pricing sections in `ai-chatbot/index.html`, using a build-time marker handled by `vite.config.js` and `showcase-html.js`.
-- [ ] Render no more than three published external examples: Pivot Parlor, Active Paw/PawScout and BytesAI Learning. Make real screenshots the visual evidence, not decorative icons or invented metrics.
-- [ ] Include accurate kind labels, business problem, implementation capabilities, internal case-study action and correctly named external action. Pivot's assistant must be called scripted; Active Paw must not be claimed as proof of the BytesFX widget.
-- [ ] Preserve a clear trial action after the examples. Stack examples on narrow screens; no carousel, external iframe or external application script is introduced.
-- [ ] Run focused tests and the site build, then commit the section and status update.
+- [x] Place the selected-project section after product proof and before the existing installation/pricing sections in `ai-chatbot/index.html`, using a build-time marker handled by `vite.config.js` and `showcase-html.js`.
+- [x] Render no more than three published external examples: Pivot Parlor, Active Paw/PawScout and BytesAI Learning. Make real screenshots the visual evidence, not decorative icons or invented metrics.
+- [x] Include accurate kind labels, business problem, implementation capabilities, internal case-study action and correctly named external action. Pivot's assistant must be called scripted; Active Paw must not be claimed as proof of the BytesFX widget.
+- [x] Preserve a clear trial action after the examples. Stack examples on narrow screens; no carousel, external iframe or external application script is introduced.
+- [x] Run focused tests and the site build, then commit the section and status update.
 
 **Done when:** all three examples appear in built HTML, all destinations are concrete, and the page keeps its own product/trial as the primary conversion.
 

@@ -90,3 +90,7 @@ Five published records plus draft BytesCRM. Seven meaningful contract failures c
 ## PS04 complete
 
 Actual pipeline screenshot, sample-data captions, lead/proposal disclosures, three source-backed workflow steps and plan-derived AI follow-up note now render as static HTML. Existing FAQ checker now scopes questions to .cb-faq, allowing supplementary native disclosure without adding it to FAQ schema. CSS import moved to file start after first build exposed an import-order warning. Final build must pass warning-free before checkpoint. Next PS05 selected projects. Visual passes 0/2.
+
+## PS05 complete
+
+Three examples rendered between product proof and setup: Pivot Parlor, Active Paw, BytesAI Learning. Correct labels/actions and repeated trial action; current styling inherited. Full destination build verification follows immediately in PS06/PS07. Next PS06 project pages. Visual passes 0/2.
