@@ -14,6 +14,9 @@ you merge.
 
 ## Documentation
 
+- **[Project showcase status](docs/superpowers/plans/project-showcase-status.md):** current checkpoint and exact next
+  action. Read the linked [implementation task list](docs/superpowers/plans/2026-11-05-project-showcase.md) before
+  continuing this feature after a restart.
 - **[Knowledge base](docs/knowledge-base.md):** the reference. Architecture, Cloudflare resources, configuration,
   data, plans and limits, features by area, and open items.
 - **[How-to guides](docs/how-to/README.md):** step-by-step tasks, such as running locally, running the tests, deploying,
