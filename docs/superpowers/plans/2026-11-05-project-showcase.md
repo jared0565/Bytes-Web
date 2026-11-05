@@ -39,7 +39,7 @@ The plan's task checkboxes are the single completion list. The status file recor
 - The initial external examples are Pivot Parlor, Active Paw/PawScout as one project, and BytesAI Learning. Cafe and File Converter are supporting portfolio entries.
 - BytesCRM is optional supporting work. It must not replace Bytes-Web as the primary product proof or block this implementation. Its existing public claims remain unverified until the owner supplies evidence or corrects them.
 - Preserve current styling, the embedded live chat, navigation, signup links, paid-plan enquiry paths, prices and entitlements. Do not submit real leads, chats, bookings, emails or payments during checks.
-- Current authorization covers preparing and versioning this planning checkpoint. Application implementation and publication have not started. Record later implementation/release instructions in the status file; do not repeatedly request authorization already given.
+- Owner authorized implementation on 5 November 2026. Implementation checkpoints and feature-branch backup are in scope. Application merge/deployment need later release authorization. Preserve authorization already granted.
 
 ## Planned file map
 
@@ -175,12 +175,12 @@ git diff --check
 
 **Depends on:** PS07.
 
-- [ ] Run the built site locally with `npm --prefix bytes-website run preview -- --host 127.0.0.1 --port 4173`. Record the actual session/port; handle a port conflict without stopping an unrelated process.
-- [ ] Implement/run `scripts/verify-showcase-ui.mjs` against localhost using the available isolated browser. Mock external APIs and block production writes before loading the page; preserve the existing live chat's local test coverage without making real chats/leads.
-- [ ] Inspect 320, 390, 768 and 1440px layouts, keyboard navigation/focus, 200% text sizing, reduced motion, page overflow, image loading, direct case URLs and every relevant trial/project action together in the first pass.
-- [ ] Run Impeccable's mechanical detector once on the changed UI targets. Triage findings against the existing visual identity and fix substantive defects in one batch.
-- [ ] Confirm those fixes in at most one further visual pass. Persist the used-pass count across session restarts; a restart does not reset the verification budget.
-- [ ] Record sanitized results in `docs/superpowers/evidence/project-showcase/verification.md`: commands, date, tested source/checkpoint, browser/viewports, exit codes, failed/fixed checks, image paths and external/write-request counts. Close owned preview/browser sessions.
+- [x] Run the built site locally with `npm --prefix bytes-website run preview -- --host 127.0.0.1 --port 4173`. Record the actual session/port; handle a port conflict without stopping an unrelated process.
+- [x] Implement/run `scripts/verify-showcase-ui.mjs` against localhost using the available isolated browser. Mock external APIs and block production writes before loading the page; preserve the existing live chat's local test coverage without making real chats/leads.
+- [x] Inspect 320, 390, 768 and 1440px layouts, keyboard navigation/focus, 200% text sizing, reduced motion, page overflow, image loading, direct case URLs and every relevant trial/project action together in the first pass.
+- [x] Run Impeccable's mechanical detector once on the changed UI targets. Triage findings against the existing visual identity and fix substantive defects in one batch.
+- [x] Confirm those fixes in at most one further visual pass. Persist the used-pass count across session restarts; a restart does not reset the verification budget.
+- [x] Record sanitized results in `docs/superpowers/evidence/project-showcase/verification.md`: commands, date, tested source/checkpoint, browser/viewports, exit codes, failed/fixed checks, image paths and external/write-request counts. Close owned preview/browser sessions.
 
 **Done when:** the agreed UI and conversion paths pass, no production writes occurred and all material limitations are disclosed. Any newly changed code needs its affected checks rerun before marking this complete.
 

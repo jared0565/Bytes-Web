@@ -45,6 +45,13 @@ ok('no email carries the old name', sent.length >= 2 && !OLD.test(JSON.stringify
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const allowedFiles = ['bytes-website/crm-api-worker/test/brand.mjs', 'bytes-website/crm-api-worker/data-fixes/2026-10-11-bytesfx-name.sql'];
 const allowedLine = (file, line) => file === 'chatbot-api/src/index.ts' && line.includes("replace('web.bytesai.com', 'web.bytesfx.com')");
+const portfolioFiles = new Set(['bytes-website/src/showcase-content.js','bytes-website/src/showcase-html.js','bytes-website/projects/bytesai-learning/index.html','bytes-website/vite.config.js','bytes-website/scripts/test-showcase-content.mjs','bytes-website/scripts/verify-showcase-ui.mjs','bytes-website/scripts/capture-showcase-assets.mjs']);
+// Remove only exact verified portfolio tokens; bare agency names and old agency domains remain detectable.
+const brandSource = (file, source) => portfolioFiles.has(file) ? source.replace(/\bBytesAI Learning\b|\blearn\.bytesai\.uk\b|\bbytesai-learning\b/g, 'PORTFOLIO_REFERENCE') : source;
+ok('portfolio title and exact route/domain are allowed in showcase files', !OLD.test(brandSource('bytes-website/src/showcase-content.js', 'BytesAI Learning https://learn.bytesai.uk/ /projects/bytesai-learning/')));
+ok('bare retired agency branding still fails inside showcase files', OLD.test(brandSource('bytes-website/src/showcase-content.js', 'BytesAI Learning. Contact the BytesAI team.')));
+ok('unrecognised old domains still fail inside showcase files', OLD.test(brandSource('bytes-website/src/showcase-content.js', 'https://web.bytesai.com/')));
+ok('portfolio exceptions do not apply to agency code', OLD.test(brandSource('chatbot-api/src/index.ts', 'BytesAI Learning')));
 const skipDirs = new Set(['node_modules', 'dist', '.wrangler', '.build', '.git']);
 const text = /\.(m?js|cjs|ts|html|css|sql|jsonc?|toml|md|txt|svg|ya?ml)$/;
 const left = []; let scanned = 0;
@@ -56,7 +63,7 @@ const walk = (dir) => {
     if (!text.test(e.name) || e.name === 'package-lock.json' || allowedFiles.includes(file)) continue;
     scanned++;
     // Tags are dropped as well, so a logo written as <span>Bytes</span><span>AI</span> is found too
-    const src = readFileSync(full, 'utf8'); const before = left.length;
+    const src = brandSource(file, readFileSync(full, 'utf8')); const before = left.length;
     src.split('\n').forEach((line, i) => { if ((OLD.test(line) || OLD.test(line.replace(/<[^>]*>/g, ''))) && !allowedLine(file, line)) left.push(`${file}:${i + 1}`); });
     // ...and one whose two halves sit on different lines
     if (left.length === before && file !== 'chatbot-api/src/index.ts' && /\bbytes[\s_-]?ai(?![a-z])/i.test(src.replace(/<[^>]*>/g, '').replace(/\s+/g, ' '))) left.push(`${file} (split across lines)`);

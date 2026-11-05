@@ -1,8 +1,9 @@
+// Start the named CLI browser from the intended checkout root; artifact paths are relative to that browser session.
 // CLI function expression: playwright-cli run-code --filename <this file>.
 // Copy scripts/fixtures/showcase-leads.json to dist/__showcase-fixtures.json for capture only.
 // A subsequent build removes that temporary fixture; it is never added to public/.
 async (page) => {
- const local='http://127.0.0.1:4173',root='C:/Users/fbmac/atlas/Codex/.codex_state/user_home/worktrees/626f/Bytes-Web';
+ const local='http://127.0.0.1:4173',root='.';
  const response=await page.request.get(local+'/__showcase-fixtures.json');
  if(!response.ok()) throw new Error('Serve the synthetic fixture locally before capture');
  const {leads}=await response.json();
