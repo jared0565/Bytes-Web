@@ -188,8 +188,8 @@ git diff --check
 
 **Depends on:** PS08.
 
-- [ ] Review the final named-file diff against the design, capability evidence, catalogue and asset manifest. Preserve unrelated owner changes and do not stage raw browser profiles/logs or local secrets.
-- [ ] Run root gates and inspect the ledger. A degraded/timeout result is unresolved, not a pass.
+- [x] Review the final named-file diff against the design, capability evidence, catalogue and asset manifest. Preserve unrelated owner changes and do not stage raw browser profiles/logs or local secrets.
+- [x] Run root gates and inspect the ledger. A degraded/timeout result is unresolved, not a pass.
 
 ```powershell
 aramid check --staged
@@ -197,8 +197,8 @@ aramid ledger filter --status open
 git diff --cached --check
 ```
 
-- [ ] Commit the source, tests and matching task/status/evidence update together through normal hooks. Record how to resolve the checkpoint commit, and back it up to the approved feature branch through normal pre-push checks.
-- [ ] Record the exact commit, remaining limitations and readiness in the status file. Application implementation is complete only after evidence-backed acceptance, not because the code was written.
+- [x] Commit the source, tests and matching task/status/evidence update together through normal hooks. Record how to resolve the checkpoint commit, and back it up to the approved feature branch through normal pre-push checks.
+- [x] Record the exact commit, remaining limitations and readiness in the status file. Application implementation is complete only after evidence-backed acceptance, not because the code was written.
 
 **Done when:** there is a reviewable implementation checkpoint, its source and evidence agree, and no unowned files were included.
 
