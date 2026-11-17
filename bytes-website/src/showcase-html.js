@@ -68,9 +68,9 @@ export function publishedProjects(records) {
   });
 }
 export const featuredProjects = records => publishedProjects(records).filter(p=>p.featuredOrder!==null).sort((a,b)=>a.featuredOrder-b.featuredOrder).slice(0,3);
-export function imageHTML(image, className='') {
+export function imageHTML(image, className='', priority=false) {
   validateImage(image);
-  return '<img class="'+escapeHTML(className)+'" src="'+escapeHTML(image.src)+'" alt="'+escapeHTML(image.alt)+'" width="'+image.width+'" height="'+image.height+'" loading="lazy" decoding="async">';
+  return '<img class="'+escapeHTML(className)+'" src="'+escapeHTML(image.src)+'" alt="'+escapeHTML(image.alt)+'" width="'+image.width+'" height="'+image.height+'" '+(priority?'loading="eager" fetchpriority="high"':'loading="lazy"')+' decoding="async">';
 }
 const listHTML = values => '<ul>'+values.map(v=>'<li>'+escapeHTML(v)+'</li>').join('')+'</ul>';
 export function projectCardHTML(record, headingLevel=3) {
@@ -103,7 +103,7 @@ function projectExampleHTML(p) {
 function projectScreensHTML(p) {
  const screens=p.screens;
  if(!screens)return '';
- return '<section class="showcase-case-screens"><h2>'+escapeHTML(screens.title)+'</h2><p>'+escapeHTML(screens.intro)+'</p><div class="showcase-screen-grid">'+screens.items.map(item=>'<figure>'+imageHTML(item.image)+'<figcaption>'+escapeHTML(item.caption)+'</figcaption></figure>').join('')+'</div></section>';
+ return '<section class="showcase-case-screens"><h2>'+escapeHTML(screens.title)+'</h2><p>'+escapeHTML(screens.intro)+'</p><div class="showcase-screen-grid">'+screens.items.map(item=>'<figure>'+imageHTML(item.image)+'<figcaption>'+escapeHTML(item.caption)+' <a href="'+escapeHTML(item.image.src)+'">Open full-size screenshot<span class="sr-only">: '+escapeHTML(item.caption)+'</span></a></figcaption></figure>').join('')+'</div></section>';
 }
 function bytesfxScreensHTML() {
   const lead = {src:'/projects/bytesfx-lead.png', alt:'BytesFX lead details with an invented example.com contact', width:460, height:1000};
@@ -134,7 +134,7 @@ export function projectCaseHTML(record) {
       <p class="showcase-kind">${kindLabels[p.kind]}</p>
       <p>${escapeHTML(p.summary)}</p>
     </header>
-    <figure class="showcase-case-image">${imageHTML(p.image)}<figcaption>${escapeHTML(caption)}</figcaption></figure>
+    <figure class="showcase-case-image">${imageHTML(p.image,'',true)}<figcaption>${escapeHTML(caption)}</figcaption></figure>
     <div class="showcase-case-body">
       <section>
         <h2>The problem</h2><p>${escapeHTML(p.problem)}</p>
@@ -152,9 +152,9 @@ export function projectCaseHTML(record) {
         <ol>${p.walkthrough.map(item => '<li>'+escapeHTML(item)+'</li>').join('')}</ol>
       </aside>
     </div>
-    ${workflowHTML(p.workflow)}
     ${projectExampleHTML(p)}
     ${projectScreensHTML(p)}
+    ${workflowHTML(p.workflow)}
     ${isBytesFX ? bytesfxScreensHTML() + trialHTML() : projectEnquiryHTML()}
   </div></section>`;
 }

@@ -100,7 +100,18 @@ test('optional workspace screens render escaped, in order',()=>{
  assert.ok(html.includes('&lt;script&gt;x&lt;/script&gt;'));
  assert.ok(!html.includes('<script>x'));
  assert.equal((html.match(/<figure><img/g)||[]).length,2);
- assert.ok(html.indexOf('class="showcase-screen-grid"')>html.indexOf('class="showcase-flow'));
+ assert.ok(html.indexOf('class="showcase-screen-grid"')<html.indexOf('class="showcase-flow'));
+ assert.ok(html.indexOf('showcase-case-screens')<html.indexOf('class="showcase-flow'));
+ for(const caption of ['&lt;script&gt;x&lt;/script&gt;','Second'])
+  assert.ok(html.includes('<figcaption>'+caption+' <a href="/projects/pivot-till.png">Open full-size screenshot<span class="sr-only">: '+caption+'</span></a></figcaption>'),caption);
+});
+
+test('the case hero loads first and other images stay lazy',()=>{
+ const imgs=projectCaseHTML(withScreens()).match(/<img\b[^>]*>/g);
+ assert.ok(imgs[0].includes('src="/projects/pivot-parlor.png"'));
+ assert.ok(imgs[0].includes('loading="eager" fetchpriority="high"'));
+ for(const tag of imgs.slice(1)){assert.ok(tag.includes('loading="lazy"'),tag);assert.ok(!tag.includes('fetchpriority'),tag);}
+ assert.ok(!projectCardHTML(sample()).includes('fetchpriority'));
 });
 
 test('records without screens render no screen grid',()=>{
