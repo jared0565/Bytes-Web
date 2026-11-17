@@ -30,7 +30,7 @@ async page => {
   }
   // The index leads with the product proof, and does not repeat the chatbot page's workflow.
   check('index leads with the product proof',await page.locator('.showcase-proof-feature').count()===1);
-  check('product proof points at the chatbot workflow',await page.locator('.showcase-proof-feature a[href="/ai-chatbot/#product-workflow"]').count()===1);
+  check('product proof opens the BytesFX case study',await page.locator('.showcase-proof-feature a[href="/projects/bytesfx/"]').count()===1);
   check('product proof names the chatbot page',await page.locator('.showcase-proof-feature a[href="/ai-chatbot/"]').count()===1);
   check('the index does not repeat the chatbot workflow',await page.locator('.showcase-workflow').count()===0);
   // Keyboard: a card action is reachable and carries a visible focus ring.
@@ -42,9 +42,10 @@ async page => {
   await page.keyboard.press('Enter');
   await page.waitForTimeout(600);
   check('the keyboard opens the case from the index',new URL(page.url()).pathname===firstHref);
+  // The BytesFX case has no card (the product proof leads to it), so it is reviewed alongside the cards' cases.
   for(const width of [1440,768,390,320]){
     await page.setViewportSize({width,height:1000});
-    for(const slug of cases){
+    for(const slug of ['bytesfx',...cases]){
       const route='/projects/'+slug+'/';
       const response=await page.goto(origin+route,{waitUntil:'networkidle'});
       await page.evaluate(()=>document.fonts.ready);
