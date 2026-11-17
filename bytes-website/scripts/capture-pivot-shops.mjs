@@ -3,7 +3,8 @@
 // Read-only capture of the two public Pivot Parlor demo shops: only GET and HEAD leave the browser.
 // Clean-frame recipe from the 17 Nov 2026 Pivot Parlor handoff: cookie consent and the install prompt are
 // pre-answered in localStorage, the chat button is hidden, lazy images are forced to load and motion is
-// reduced. The demo notice stays in shot; a frame without it, or with an unloaded image, is never saved.
+// reduced. The demo notice stays in shot; a frame without it, with an unloaded image, or with a cookie
+// notice, chat button or install prompt in view is never saved. Afterwards run optimize-pivot-images.py.
 async (page) => {
  const root='.',blocked=[],errors=[],results=[];
  await page.emulateMedia({reducedMotion:'reduce'});
@@ -42,6 +43,22 @@ async (page) => {
    .filter(i=>(i.currentSrc||i.src)&&(!i.complete||i.naturalWidth===0))
    .map(i=>i.currentSrc||i.src));
   if(unloaded.length)throw new Error(id+': images not loaded: '+unloaded.join(', '));
+  // The localStorage keys and the chat class above belong to Pivot Parlor; if they change, refuse the frame.
+  const overlays=await page.evaluate(()=>{
+   const shown=e=>{const r=e.getBoundingClientRect(),s=getComputedStyle(e);
+    return r.width>=1&&r.height>=1&&r.bottom>0&&r.right>0&&r.top<innerHeight&&r.left<innerWidth&&s.visibility!=='hidden'&&Number(s.opacity)>0;};
+   const ownText=e=>[...e.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join(' ').trim();
+   const found=[];
+   for(const e of document.querySelectorAll('body *')){
+    if(!shown(e))continue;
+    const text=ownText(e),label=e.getAttribute('aria-label')||'';
+    if(/Cookies & privacy|strictly necessary cookies/i.test(text)||(e.tagName==='BUTTON'&&e.textContent.trim()==='Got it'))found.push('cookie notice: '+(text||'Got it').slice(0,40));
+    else if(e.matches('.pp-chat-fab')||(/^(BUTTON|A)$/.test(e.tagName)&&/chat|assistant/i.test(label)))found.push('chat button: '+(label||e.className).slice(0,40));
+    else if(/install the app|add to home screen/i.test(text))found.push('install prompt: '+text.slice(0,40));
+   }
+   return found;
+  });
+  if(overlays.length)throw new Error(id+': overlay in frame: '+overlays.join('; '));
   await page.screenshot({path:root+'/bytes-website/public/projects/'+id+'.png'});
   results.push({id,url:page.url(),title});
  }
