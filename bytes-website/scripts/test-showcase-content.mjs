@@ -86,3 +86,70 @@ test('malformed or excessive workflow data cannot publish',()=>{
   const p=sample();edit(p);assert.throws(()=>publishedProjects([p]));
  }
 });
+
+const screenItem=caption=>({image:{src:'/projects/pivot-till.png',alt:'Till screen',width:1440,height:1000},caption});
+const withScreens=()=>{const p=sample();p.screens={title:'Inside the workspace',intro:'Sample data only.',items:[screenItem('First'),screenItem('Second')]};return p;};
+
+test('optional workspace screens render escaped, in order',()=>{
+ const p=withScreens();
+ p.screens.title='Inside <b>';p.screens.intro='Sample & data';p.screens.items[0].caption='<script>x</script>';
+ const html=projectCaseHTML(p);
+ assert.equal((html.match(/class="showcase-screen-grid"/g)||[]).length,1);
+ assert.ok(html.includes('Inside &lt;b&gt;'));
+ assert.ok(html.includes('Sample &amp; data'));
+ assert.ok(html.includes('&lt;script&gt;x&lt;/script&gt;'));
+ assert.ok(!html.includes('<script>x'));
+ assert.equal((html.match(/<figure><img/g)||[]).length,2);
+ assert.ok(html.indexOf('class="showcase-screen-grid"')<html.indexOf('class="showcase-flow'));
+ assert.ok(html.indexOf('showcase-case-screens')<html.indexOf('class="showcase-flow'));
+ for(const caption of ['&lt;script&gt;x&lt;/script&gt;','Second'])
+  assert.ok(html.includes('<figcaption>'+caption+' <a href="/projects/pivot-till.png">Open full-size screenshot<span class="sr-only">: '+caption+'</span></a></figcaption>'),caption);
+});
+
+test('the case hero loads first and other images stay lazy',()=>{
+ const imgs=projectCaseHTML(withScreens()).match(/<img\b[^>]*>/g);
+ assert.ok(imgs[0].includes('src="/projects/pivot-parlor.png"'));
+ assert.ok(imgs[0].includes('loading="eager" fetchpriority="high"'));
+ for(const tag of imgs.slice(1)){assert.ok(tag.includes('loading="lazy"'),tag);assert.ok(!tag.includes('fetchpriority'),tag);}
+ assert.ok(!projectCardHTML(sample()).includes('fetchpriority'));
+});
+
+test('records without screens render no screen grid',()=>{
+ const html=projectCaseHTML(projects.find(p=>p.id==='active-paw'));
+ assert.ok(html.includes('Our delivery scope'));
+ assert.ok(!html.includes('showcase-screen-grid'));
+});
+
+test('malformed screens fail closed',()=>{
+ assert.equal(publishedProjects([withScreens()]).length,1);
+ for(const edit of [
+  p=>p.screens=null,
+  p=>p.screens.items=[],
+  p=>p.screens.items=[screenItem('Only')],
+  p=>p.screens.items=Array.from({length:7},(_,i)=>screenItem('Item '+i)),
+  p=>p.screens.items[0].image.src='/projects/../x.png',
+  p=>delete p.screens.items[0].caption,
+  p=>delete p.screens.title,
+  p=>delete p.screens.intro,
+ ]){
+  const p=withScreens();edit(p);assert.throws(()=>publishedProjects([p]));
+ }
+});
+
+test('Pivot claims match the 17 Nov handoff',()=>{
+ const p=projects.find(x=>x.id==='pivot-parlor'),all=JSON.stringify(p);
+ assert.equal(p.liveUrl,'https://pivotparlor.com/ferdyms-barber-shop-demo');
+ assert.equal(p.example.url,'https://pivotparlor.com/linden-and-lark-demo');
+ assert.ok(all.includes("FerdyM's Barber Shop"));
+ assert.ok(!/Ferdy’s|FerdyM’s|ferdyms-barber-shop-014/.test(all));
+ assert.ok(!p.capabilities.some(c=>/deposit/i.test(c)));
+ assert.ok(/test mode/.test(all));
+ assert.ok(!/\bSMS\b|text message|push notification|offline|app store|Stripe/i.test(all));
+ assert.ok(!/salons and barbershops create/i.test(all));
+ assert.ok(!all.includes('—'));
+ assert.equal(p.screens.items.length,6);
+ assert.ok(!/its only source/.test(all));
+ assert.ok(all.includes('every factual claim traced to the owner’s details'));
+ assert.ok(all.includes('The team portraits and three service photos were supplied separately'));
+ assert.ok(!/a few photos/.test(all));
+});

@@ -126,58 +126,124 @@ export const projects = [
     "summary": "A multi-shop booking and business platform that generates branded shop websites and connects customer booking with owner, staff and operator tools.",
     "capabilities": [
       "Generated shop websites",
-      "Booking, deposits and scheduling",
+      "Guest booking and staff scheduling",
       "Owner, staff and operator workspaces",
       "POS, stock and revenue tools"
     ],
     "repositoryUrls": [
       "https://github.com/fbmacagba/Pivot-Parlor"
     ],
-    "liveUrl": "https://pivotparlor.com/",
-    "liveActionLabel": "Explore the platform",
+    "liveUrl": "https://pivotparlor.com/ferdyms-barber-shop-demo",
+    "liveActionLabel": "Explore the demo shop",
     "featuredOrder": 1,
     "problem": "Independent salons and barbershops need a distinct online identity and the operational tools to manage appointments, staff, walk-ins and in-store sales.",
-    "implementation": "BytesFX built Pivot Parlor as a multi-tenant web platform with separate customer, shop-owner, staff and operator experiences. Shop onboarding feeds an AI-assisted design and content workflow that produces a branded booking website for each shop. Guest booking connects services, staff and availability with optional deposits, confirmations and reminders. Behind the public sites, the platform brings scheduling, queues, point of sale, stock and revenue tools into the shop workspace.",
+    "implementation": "BytesFX built Pivot Parlor as a multi-tenant web platform with separate customer, shop-owner, staff and operator experiences. The operator opens each shop and the owner adds services, team, hours and style notes. An AI-assisted design and content workflow then produces a branded booking website, with every factual claim traced to the owner’s details. Customers book as guests and receive an email confirmation and reminder. Behind the public sites, the platform brings scheduling, walk-in queues, point of sale, stock and revenue tools into the shop workspace.",
     "walkthrough": [
-      "Explore the platform homepage to understand shop onboarding, branded page generation and scheduling.",
-      "See one generated shop below, with its own branding, services and team.",
-      "Explore the shop’s sample booking flow and scripted assistant. The demonstration creates no real appointment or payment."
+      "Explore FerdyM's Barber Shop, a demo shop generated with the platform.",
+      "Compare it with Linden & Lark Hair Studio below: one platform, two distinct shops.",
+      "Try a sample booking and the scripted assistant on either shop. Nothing is booked, charged or emailed.",
+      "See the owner, staff and operator screens below, shown with sample data."
     ],
-    "note": "The public shop is a fictional demonstration of one generated frontend. Its booking walkthrough creates no real appointment or payment, and its assistant uses scripted replies.",
-    "imageCaption": "Pivot Parlor’s public platform homepage. The generated shop below is one output of the wider platform.",
+    "note": "Both public shops are fictional demonstrations generated with the platform. The team portraits and three service photos were supplied separately. Their booking uses each shop’s own menu and team with sample times, the assistant is scripted, and nothing is booked, charged or emailed.",
+    "imageCaption": "FerdyM's Barber Shop: a fictional demo shop generated with Pivot Parlor. Its services, prices and team are illustrative, and the sample assistant uses scripted replies.",
     "publishState": "published",
     "caseStudyPath": "/projects/pivot-parlor/",
     "image": {
-      "src": "/projects/pivot-platform.png",
-      "alt": "Pivot Parlor platform homepage introducing branded shop creation, scheduling and booking",
+      "src": "/projects/pivot-parlor.png",
+      "alt": "FerdyM's Barber Shop demo homepage, with a barber at work in a green-tiled shop, the headline Precise Barbering in the Heart of Deptford, booking buttons and the demo notice",
       "width": 1440,
       "height": 1000
     },
     "example": {
-      "title": "One shop created with the platform",
-      "caption": "Ferdy’s Barber Shop is a demonstration of a generated frontend. It represents one shop within the wider platform.",
-      "url": "https://pivotparlor.com/ferdyms-barber-shop-014",
-      "actionLabel": "Explore the example shop",
+      "title": "A contrasting shop from the same platform",
+      "caption": "Linden & Lark Hair Studio: a second fictional demo shop, with its own headline type, imagery, colours and content emphasis.",
+      "url": "https://pivotparlor.com/linden-and-lark-demo",
+      "actionLabel": "Explore Linden & Lark",
       "image": {
-        "src": "/projects/pivot-parlor.png",
-        "alt": "Ferdy’s Barber Shop, one generated Pivot Parlor shop frontend",
+        "src": "/projects/pivot-linden-lark.png",
+        "alt": "Linden & Lark Hair Studio demo homepage, with a stylist and a client in a daylit studio, the headline Considered hair design in Clifton, booking buttons and the demo notice",
         "width": 1440,
         "height": 1000
       }
     },
+    "screens": {
+      "title": "Inside the shop workspace",
+      "intro": "Owner, staff and operator screens from a local copy of the platform, using sample data. No real shop, customer or payment is shown.",
+      "items": [
+        {
+          "image": {
+            "src": "/projects/pivot-bookings.png",
+            "alt": "Bookings list for FerdyM's Barber Shop with sample appointments showing time, service, barber, status and price.",
+            "width": 1200,
+            "height": 1000
+          },
+          "caption": "Every booking in one list, grouped by day."
+        },
+        {
+          "image": {
+            "src": "/projects/pivot-walkin-queue.png",
+            "alt": "Walk-in queue for FerdyM's Barber Shop with one customer being served and two waiting.",
+            "width": 1200,
+            "height": 500
+          },
+          "caption": "Walk-ins join a live queue alongside booked appointments."
+        },
+        {
+          "image": {
+            "src": "/projects/pivot-till.png",
+            "alt": "Point of sale for FerdyM's Barber Shop with a skin fade and a beard oil in the cart, and options to pay by cash, card or QR code.",
+            "width": 1200,
+            "height": 780
+          },
+          "caption": "The till rings up services and retail products together. Online payments run in test mode."
+        },
+        {
+          "image": {
+            "src": "/projects/pivot-inventory.png",
+            "alt": "Inventory page for FerdyM's Barber Shop showing retail sales, an open purchase order and a stock take in progress.",
+            "width": 1200,
+            "height": 1000
+          },
+          "caption": "Stock, purchase orders and stock takes in one place."
+        },
+        {
+          "image": {
+            "src": "/projects/pivot-staff-today.png",
+            "alt": "Staff view for a barber at FerdyM's Barber Shop showing the next appointment, today’s schedule and a link to share the booking page.",
+            "width": 1200,
+            "height": 725
+          },
+          "caption": "Each barber gets their own view of the day."
+        },
+        {
+          "image": {
+            "src": "/projects/pivot-operator-onboarding.png",
+            "alt": "Onboard new shop form with a shop name, web address, owner email and shop type filled in with sample values.",
+            "width": 1200,
+            "height": 781
+          },
+          "caption": "The operator opens each shop and invites its owner."
+        }
+      ]
+    },
     "evidence": [
       "docs/superpowers/evidence/project-showcase/assets.md",
       "docs/superpowers/evidence/project-showcase/pivot-platform.md",
-      "docs/superpowers/evidence/project-showcase/pivot-doc-audit.md"
+      "docs/superpowers/evidence/project-showcase/pivot-doc-audit.md",
+      "docs/superpowers/evidence/project-showcase/2026-11-17-pivot-handoff.md"
     ],
     "sections": [
       {
         "title": "One platform, distinct shop experiences",
-        "body": "Shop-specific branding includes copy, imagery, typography, colours and page composition. Customers explore a shop through its own frontend and book as guests. Operators manage onboarding and generation; owners manage the business; staff have a focused day-to-day workspace."
+        "body": "Each shop’s site has its own copy, imagery, typography, colours and section mix within a shared page framework. Customers explore a shop through its own site and book as guests. Operators open and publish shops; owners run the business and approve site updates; staff have a focused day-to-day workspace."
       },
       {
         "title": "Online booking and shop operations",
-        "body": "The documented platform includes optional Stripe deposits, appointment handling, walk-ins, waitlists, retail stock, purchasing, stock-takes and returns. Its mobile delivery is responsive, installable web software. The public example below uses sample booking data and scripted chat; it does not create a real appointment or payment."
+        "body": "The platform includes appointments, walk-in queues, waitlists, retail stock, purchasing, stock-takes and returns, with optional card deposits. Online payments currently run in test mode, and confirmations and reminders are sent by email. Shop sites are responsive and can be added to a phone’s home screen. The public demo shops use sample booking data and a scripted chat; nothing is booked, charged or emailed."
+      },
+      {
+        "title": "Generated from the owner’s own details",
+        "body": "Site generation draws only on what the owner provides. Claims that cannot be traced to those details are dropped, so no reviews, ratings or guarantees are invented. When a live site is regenerated, the new version waits as a private preview until the owner publishes it."
       }
     ],
     "workflow": {
@@ -188,18 +254,18 @@ export const projects = [
           "title": "Platform and shop creation",
           "steps": [
             {
-              "title": "Operator onboarding",
-              "body": "Configure the shop and business details",
+              "title": "Onboarding",
+              "body": "The operator opens the shop; the owner adds services, team, hours and style notes",
               "ownerAction": true
             },
             {
               "title": "Design and content",
-              "body": "Generate shop-specific branding and composition",
+              "body": "Generate branding, copy and imagery from the owner’s details",
               "ownerAction": false
             },
             {
               "title": "Shop frontend",
-              "body": "Publish the branded web/PWA experience",
+              "body": "The operator publishes the branded web and installable phone experience",
               "ownerAction": false
             }
           ]
@@ -219,12 +285,12 @@ export const projects = [
             },
             {
               "title": "Deposit if required",
-              "body": "Payment integration for eligible bookings",
+              "body": "Card deposit for eligible bookings (test mode)",
               "ownerAction": false
             },
             {
               "title": "Appointment",
-              "body": "Confirmation and reminder workflow",
+              "body": "Email confirmation and reminder",
               "ownerAction": false
             }
           ]
