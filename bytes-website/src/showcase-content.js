@@ -137,14 +137,14 @@ export const projects = [
     "liveActionLabel": "Explore the demo shop",
     "featuredOrder": 1,
     "problem": "Independent salons and barbershops need a distinct online identity and the operational tools to manage appointments, staff, walk-ins and in-store sales.",
-    "implementation": "BytesFX built Pivot Parlor as a multi-tenant web platform with separate customer, shop-owner, staff and operator experiences. The operator opens each shop and the owner adds services, team, hours and style notes. An AI-assisted design and content workflow then produces a branded booking website, using the owner’s details as its only source. Customers book as guests and receive an email confirmation and reminder. Behind the public sites, the platform brings scheduling, walk-in queues, point of sale, stock and revenue tools into the shop workspace.",
+    "implementation": "BytesFX built Pivot Parlor as a multi-tenant web platform with separate customer, shop-owner, staff and operator experiences. The operator opens each shop and the owner adds services, team, hours and style notes. An AI-assisted design and content workflow then produces a branded booking website, with every factual claim traced to the owner’s details. Customers book as guests and receive an email confirmation and reminder. Behind the public sites, the platform brings scheduling, walk-in queues, point of sale, stock and revenue tools into the shop workspace.",
     "walkthrough": [
       "Explore FerdyM's Barber Shop, a demo shop generated with the platform.",
       "Compare it with Linden & Lark Hair Studio below: one platform, two distinct shops.",
       "Try a sample booking and the scripted assistant on either shop. Nothing is booked, charged or emailed.",
       "See the owner, staff and operator screens below, shown with sample data."
     ],
-    "note": "Both public shops are fictional demonstrations generated with the platform; a few photos were supplied separately. Their booking uses each shop’s own menu and team with sample times, the assistant is scripted, and nothing is booked, charged or emailed.",
+    "note": "Both public shops are fictional demonstrations generated with the platform. The team portraits and three service photos were supplied separately. Their booking uses each shop’s own menu and team with sample times, the assistant is scripted, and nothing is booked, charged or emailed.",
     "imageCaption": "FerdyM's Barber Shop: a fictional demo shop generated with Pivot Parlor. Its services, prices and team are illustrative, and the sample assistant uses scripted replies.",
     "publishState": "published",
     "caseStudyPath": "/projects/pivot-parlor/",

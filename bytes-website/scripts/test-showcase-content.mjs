@@ -137,4 +137,8 @@ test('Pivot claims match the 17 Nov handoff',()=>{
  assert.ok(!/salons and barbershops create/i.test(all));
  assert.ok(!all.includes('—'));
  assert.equal(p.screens.items.length,6);
+ assert.ok(!/its only source/.test(all));
+ assert.ok(all.includes('every factual claim traced to the owner’s details'));
+ assert.ok(all.includes('The team portraits and three service photos were supplied separately'));
+ assert.ok(!/a few photos/.test(all));
 });
