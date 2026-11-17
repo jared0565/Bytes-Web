@@ -216,7 +216,7 @@ Verification on 17 November, local only:
 - Browser reviews against a local preview, at 1440, 768, 390 and 320 and with 200% text:
   `review-our-work.mjs` 310/310, `review-system-cases.mjs` 388/388 (now including the BytesFX
   case), `verify-showcase-ui.mjs` 151/151. No runtime errors, and no production requests: every
-  non-local request was answered locally.
+  request other than local and Google Fonts GETs was answered locally.
 - No new em or en dash in the showcase copy or the built pages.
 - Images loaded up front on `/projects/`: 3,329 KB at 1440 (3,359 KB before) and 2,227 KB at
   390 (2,239 KB before).
