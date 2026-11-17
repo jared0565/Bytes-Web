@@ -45,13 +45,18 @@ ok('no email carries the old name', sent.length >= 2 && !OLD.test(JSON.stringify
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
 const allowedFiles = ['bytes-website/crm-api-worker/test/brand.mjs', 'bytes-website/crm-api-worker/data-fixes/2026-10-11-bytesfx-name.sql'];
 const allowedLine = (file, line) => file === 'chatbot-api/src/index.ts' && line.includes("replace('web.bytesai.com', 'web.bytesfx.com')");
-const portfolioFiles = new Set(['bytes-website/src/showcase-content.js','bytes-website/src/showcase-html.js','bytes-website/projects/bytesai-learning/index.html','bytes-website/vite.config.js','bytes-website/scripts/test-showcase-content.mjs','bytes-website/scripts/verify-showcase-ui.mjs','bytes-website/scripts/capture-showcase-assets.mjs']);
+const portfolioFiles = new Set(['bytes-website/src/showcase-content.js','bytes-website/src/showcase-html.js','bytes-website/projects/bytesai-learning/index.html','bytes-website/vite.config.js','bytes-website/scripts/test-showcase-content.mjs','bytes-website/scripts/verify-showcase-ui.mjs','bytes-website/scripts/capture-showcase-assets.mjs','bytes-website/scripts/review-system-cases.mjs']);
 // Remove only exact verified portfolio tokens; bare agency names and old agency domains remain detectable.
-const brandSource = (file, source) => portfolioFiles.has(file) ? source.replace(/\bBytesAI Learning\b|\blearn\.bytesai\.uk\b|\bbytesai-learning\b/g, 'PORTFOLIO_REFERENCE') : source;
+const brandSource = (file, source) => portfolioFiles.has(file) ? source.replace(/\bBytesAI Learning\b|\blearn\.bytesai\.uk\b|\bshikaku\.bytesai\.uk\b|\bbytesai-learning\b/g, 'PORTFOLIO_REFERENCE') : source;
 ok('portfolio title and exact route/domain are allowed in showcase files', !OLD.test(brandSource('bytes-website/src/showcase-content.js', 'BytesAI Learning https://learn.bytesai.uk/ /projects/bytesai-learning/')));
 ok('bare retired agency branding still fails inside showcase files', OLD.test(brandSource('bytes-website/src/showcase-content.js', 'BytesAI Learning. Contact the BytesAI team.')));
 ok('unrecognised old domains still fail inside showcase files', OLD.test(brandSource('bytes-website/src/showcase-content.js', 'https://web.bytesai.com/')));
 ok('portfolio exceptions do not apply to agency code', OLD.test(brandSource('chatbot-api/src/index.ts', 'BytesAI Learning')));
+// Shikaku is live at shikaku.bytesai.uk (owner decision, 17 Nov 2026): the exact domain is a portfolio reference too.
+ok('the exact Shikaku domain is allowed in showcase files', !OLD.test(brandSource('bytes-website/src/showcase-content.js', 'https://shikaku.bytesai.uk/')));
+ok('a look-alike of the Shikaku domain still fails', OLD.test(brandSource('bytes-website/src/showcase-content.js', 'https://shikaku.bytesai.com/')));
+ok('the system-case review may list the project domains', !OLD.test(brandSource('bytes-website/scripts/review-system-cases.mjs', "'learn.bytesai.uk','shikaku.bytesai.uk'")));
+ok('bare retired agency branding still fails in the system-case review', OLD.test(brandSource('bytes-website/scripts/review-system-cases.mjs', 'Contact the BytesAI team.')));
 const skipDirs = new Set(['node_modules', 'dist', '.wrangler', '.build', '.git']);
 const text = /\.(m?js|cjs|ts|html|css|sql|jsonc?|toml|md|txt|svg|ya?ml)$/;
 const left = []; let scanned = 0;
