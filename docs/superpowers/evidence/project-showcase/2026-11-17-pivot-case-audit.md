@@ -170,6 +170,11 @@ The capture script refused a probe run with the consent keys cleared and named t
 
 The double divider (a pre-existing finding) went away when the sections moved: only one full-width rule now separates the last frame from the workflow.
 
+**Touch targets:** the audit's positive "no link in the case content is under 44px tall" no longer holds.
+- The new "Open full-size screenshot" links are inline text links in their captions, about 18px tall (41px where they wrap onto two lines).
+- They fall under the inline exception of WCAG 2.2 success criterion 2.5.8 (Target Size, Minimum).
+- They use the same plain inline markup as the existing full-size links on `/ai-chatbot/`.
+
 **Detector re-run:**
 - **1280:** 8 hits — the amber glow 3, line length 4, the primary font 1.
 - **390:** 4 hits — the glow 2, the edge-flush footer paragraph 1, the font 1.
@@ -179,7 +184,7 @@ The double divider (a pre-existing finding) went away when the sections moved: o
 
 | # | Dimension | Before | After | Why |
 |---|---|---|---|---|
-| 1 | Accessibility | 3 | 4 | Frames readable on desktop; every frame has a named full-size link; focus visible |
+| 1 | Accessibility | 3 | 4 | Frames readable on desktop; every frame has a named full-size link; focus visible; the links are inline (about 18px), under the 2.5.8 inline exception |
 | 2 | Performance | 2 | 3 | Weight about halved and the hero loads first; the card is still about 4× `main`'s, with no `srcset` |
 | 3 | Theming | 4 | 4 | One new spacing rule, using an existing value |
 | 4 | Responsive | 3 | 3 | One column at every width, no overflow; on phones the frames are overview-only, with the full-size link carrying detail |
