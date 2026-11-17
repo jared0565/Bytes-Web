@@ -174,7 +174,7 @@ export const projects = [
           "image": {
             "src": "/projects/pivot-bookings.png",
             "alt": "Bookings list for FerdyM's Barber Shop with sample appointments showing time, service, barber, status and price.",
-            "width": 1440,
+            "width": 1200,
             "height": 1000
           },
           "caption": "Every booking in one list, grouped by day."
@@ -183,8 +183,8 @@ export const projects = [
           "image": {
             "src": "/projects/pivot-walkin-queue.png",
             "alt": "Walk-in queue for FerdyM's Barber Shop with one customer being served and two waiting.",
-            "width": 1440,
-            "height": 1000
+            "width": 1200,
+            "height": 500
           },
           "caption": "Walk-ins join a live queue alongside booked appointments."
         },
@@ -192,8 +192,8 @@ export const projects = [
           "image": {
             "src": "/projects/pivot-till.png",
             "alt": "Point of sale for FerdyM's Barber Shop with a skin fade and a beard oil in the cart, and options to pay by cash, card or QR code.",
-            "width": 1440,
-            "height": 1000
+            "width": 1200,
+            "height": 780
           },
           "caption": "The till rings up services and retail products together. Online payments run in test mode."
         },
@@ -201,7 +201,7 @@ export const projects = [
           "image": {
             "src": "/projects/pivot-inventory.png",
             "alt": "Inventory page for FerdyM's Barber Shop showing retail sales, an open purchase order and a stock take in progress.",
-            "width": 1440,
+            "width": 1200,
             "height": 1000
           },
           "caption": "Stock, purchase orders and stock takes in one place."
@@ -210,8 +210,8 @@ export const projects = [
           "image": {
             "src": "/projects/pivot-staff-today.png",
             "alt": "Staff view for a barber at FerdyM's Barber Shop showing the next appointment, today’s schedule and a link to share the booking page.",
-            "width": 1440,
-            "height": 1000
+            "width": 1200,
+            "height": 725
           },
           "caption": "Each barber gets their own view of the day."
         },
@@ -219,8 +219,8 @@ export const projects = [
           "image": {
             "src": "/projects/pivot-operator-onboarding.png",
             "alt": "Onboard new shop form with a shop name, web address, owner email and shop type filled in with sample values.",
-            "width": 1440,
-            "height": 1000
+            "width": 1200,
+            "height": 781
           },
           "caption": "The operator opens each shop and invites its owner."
         }
