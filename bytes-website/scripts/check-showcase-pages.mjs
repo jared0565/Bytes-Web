@@ -1,19 +1,23 @@
-import {readFileSync,existsSync} from 'node:fs';
+import {readFileSync,existsSync,readdirSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {resolve,join} from 'node:path';
 import {projects} from '../src/showcase-content.js';
-import {publishedProjects,featuredProjects,kindLabels} from '../src/showcase-html.js';
+import {publishedProjects,featuredProjects,kindLabels,escapeHTML} from '../src/showcase-html.js';
 
 const site=fileURLToPath(new URL('../',import.meta.url));
 const dist=join(site,'dist');
 const defaultRead=p=>existsSync(join(dist,p))?readFileSync(join(dist,p),'utf8'):'';
 const defaultExists=p=>existsSync(join(dist,p));
 const defaultBytes=p=>readFileSync(join(dist,p));
+const defaultListCases=()=>existsSync(join(dist,'projects'))?readdirSync(join(dist,'projects'),{withFileTypes:true}).filter(d=>d.isDirectory()).map(d=>d.name):[];
 const publicProjects=publishedProjects(projects);
-export function auditShowcase({read=defaultRead,exists=defaultExists,bytes=defaultBytes}={}) {
+export function auditShowcase({read=defaultRead,exists=defaultExists,bytes=defaultBytes,listCases=defaultListCases}={}) {
  const failures=[],check=(ok,m)=>{if(!ok)failures.push(m);};
  const routes=['/ai-chatbot/','/projects/',...publicProjects.map(p=>p.caseStudyPath)];
  const titles=new Set();
+ const map=read('sitemap.xml');
+ const builtCases=listCases().slice().sort();
+ check(JSON.stringify(builtCases)===JSON.stringify(publicProjects.map(p=>p.id).slice().sort()),'built case routes differ from the catalogue: '+builtCases.join(','));
  for(const route of routes){
   const html=read(route.slice(1)+'index.html');
   check(!!html,route+': missing built page');
@@ -23,6 +27,12 @@ export function auditShowcase({read=defaultRead,exists=defaultExists,bytes=defau
   check(/<meta name="description" content="[^"]+"/.test(html),route+': missing description');
   check(html.includes('href="https://web.bytesfx.com'+route+'"'),route+': canonical missing');
   check(html.includes('href="/onboarding/"'),route+': trial action missing');
+  const record=publicProjects.find(p=>route===p.caseStudyPath);
+  if(record){
+   check(html.includes('<meta name="description" content="'+escapeHTML(record.summary)+'">'),route+': shell description differs from the catalogue summary');
+   check(html.includes('<meta property="og:description" content="'+escapeHTML(record.summary)+'">'),route+': og description differs from the catalogue summary');
+   check(html.includes('<meta property="og:title" content="'+escapeHTML(record.title+' | BytesFX Project')+'">'),route+': og title differs from the catalogue title');
+  }
   const nav=html.match(/<ul class="nav-links"[\s\S]*?<\/ul>/)?.[0]||'';
   check(/href="\/projects\/" class="nav-item nav-work"/.test(nav),route+': Our Work navigation missing');
   if(route.startsWith('/projects/'))check(/nav-work" aria-current="(?:page|location)"/.test(nav),route+': current section missing');
@@ -59,8 +69,11 @@ export function auditShowcase({read=defaultRead,exists=defaultExists,bytes=defau
  const home=read('index.html'),index=read('projects/index.html');
  check(home.includes('class="nav-item nav-work"')&&home.includes('id="homeProjects"')&&home.includes('Explore Our Work'),'homepage discovery missing');
  check(index.includes('What we’ve built')&&index.includes('Built by BytesFX'),'showcase positioning missing');
- check(index.indexOf('data-project="bytesfx"')<index.indexOf('data-project="pivot-parlor"'),'BytesFX flagship must lead');
- const map=read('sitemap.xml');
+ check(!index.includes('data-project="bytesfx"'),'BytesFX leads the index and must not repeat as a card');
+ check(index.includes('<a href="/projects/bytesfx/">View project'),'the index lead must open the BytesFX case study');
+ check(publicProjects.length===8,'eight published case studies expected');
+ const caseUrls=publicProjects.map(p=>'https://web.bytesfx.com'+p.caseStudyPath);
+ check(caseUrls.every(u=>map.includes('<loc>'+u+'</loc>')),'sitemap case URL missing');
  for(const route of routes.slice(1))check(map.includes('<loc>https://web.bytesfx.com'+route+'</loc>'),'sitemap route missing '+route);
  for(const draft of projects.filter(p=>p.publishState==='draft')){
   check(!map.toLowerCase().includes(draft.id),'draft sitemap leak');
@@ -83,6 +96,7 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  let mutants=[];
  if(process.argv.includes('--self-test')){
   const chatbotPage=change=>({read:p=>p==='ai-chatbot/index.html'?change(defaultRead(p)):defaultRead(p)});
+  const sitemapFile=change=>({read:p=>p==='sitemap.xml'?change(defaultRead(p)):defaultRead(p)});
   const gone='projects/pivot-till.png';
   mutants=[
    chatbotPage(s=>s.replace('data-project="pivot-parlor"','data-project="bytescrm"')),
@@ -91,7 +105,10 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
    chatbotPage(s=>s.replace('<!--@ld-->','')+'<iframe src="https://example.com"></iframe>'),
    chatbotPage(s=>s.replace('href="/onboarding/"','href="/missing-trial/"')),
    // A case image missing from dist must be reported by name, not crash the audit.
-   {exists:p=>p!==gone&&defaultExists(p),bytes:p=>{if(p===gone)throw new Error('ENOENT '+p);return defaultBytes(p);},expect:'missing image /'+gone}
+   {exists:p=>p!==gone&&defaultExists(p),bytes:p=>{if(p===gone)throw new Error('ENOENT '+p);return defaultBytes(p);},expect:'missing image /'+gone},
+   // The sitemap and the built case directories must match the catalogue exactly.
+   sitemapFile(s=>s.replace(/\s*<url><loc>https:\/\/web\.bytesfx\.com\/projects\/bytesfx\/<\/loc><\/url>/,'')),
+   {listCases:()=>defaultListCases().filter(id=>id!=='bytesfx')}
   ];
   for(const {expect,...options} of mutants){
    const found=auditShowcase(options);

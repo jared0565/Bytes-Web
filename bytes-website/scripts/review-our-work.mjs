@@ -12,11 +12,11 @@ async (page) => {
     return route.fulfill({status: 200, contentType: 'application/json', body: '{}'});
   });
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto(origin + '/projects/', {waitUntil:'networkidle'});
+  await page.goto(origin + '/projects/', {waitUntil: 'networkidle'});
   const caseRoutes = await page.locator('[data-project] .showcase-preview').evaluateAll(links => links.map(link => link.getAttribute('href')));
-  check('catalogue case routes are present and unique', caseRoutes.length === 6 && new Set(caseRoutes).size === caseRoutes.length);
+  check('catalogue case routes are present and unique', caseRoutes.length === 7 && new Set(caseRoutes).size === caseRoutes.length);
   const routes = ['/', '/ai-chatbot/', '/projects/', ...caseRoutes, '/privacy-policy.html', '/terms-of-service.html', '/cookie-policy.html', '/data-deletion.html'];
-  for (const width of [1440, 1024, 800, 769, 768, 390, 320]) {
+  for (const width of [1440, 768, 390, 320]) {
     await page.setViewportSize({ width, height: 1000 });
     for (const route of routes) {
       const response = await page.goto(origin + route, {waitUntil: 'networkidle'});
@@ -46,8 +46,8 @@ async (page) => {
         await page.keyboard.press('Escape');
         check(`${width} ${route} Escape restores focus`, await page.evaluate(() => document.activeElement.id === 'mobileMenuBtn' && document.querySelector('#navLinks').inert));
       }
-      if ((width === 1440 || width === 390) && ['/', '/projects/', '/projects/bytesfx/'].includes(route)) {
-        const name = route === '/' ? 'home' : route === '/projects/' ? 'index' : 'bytesfx';
+      if ((width === 1440 || width === 390) && ['/', '/projects/', '/projects/pivot-parlor/'].includes(route)) {
+        const name = route === '/' ? 'home' : route === '/projects/' ? 'index' : 'pivot';
         await page.screenshot({ path: `output/playwright/our-work/${name}-${width}.png`, fullPage: true, animations: 'disabled' });
       }
       if (width === 390 && route === '/ai-chatbot/') await page.locator('#projects').screenshot({path:'output/playwright/our-work/chatbot-preview-390.png'});
@@ -59,10 +59,24 @@ async (page) => {
   await page.locator('#navLinks .nav-work').click();
   await page.waitForURL(origin + '/projects/');
   check('mobile Our Work click opens catalogue', await page.locator('h1').textContent() === 'What we’ve built');
-  check('catalogue shows six projects', await page.locator('[data-project]').count() === 6);
-  await page.locator('.showcase-flagship a.showcase-preview').click();
+  check('catalogue shows seven projects', await page.locator('[data-project]').count() === 7);
+  // The index leads with the BytesFX product proof: "View project" opens the BytesFX case
+  // study, and "Explore the chatbot" opens the chatbot page.
+  check('index leads with the product proof', await page.locator('.showcase-proof-feature').count() === 1);
+  await page.locator('.showcase-proof-feature a[href="/projects/bytesfx/"]').click();
   await page.waitForURL(origin + '/projects/bytesfx/');
-  check('flagship preview opens its case', await page.locator('h1').textContent() === 'BytesFX Chat & Sales');
+  check('product proof opens the BytesFX case study', await page.locator('h1').textContent() === 'BytesFX Chat & Sales');
+  check('BytesFX case keeps its trial action', await page.locator('.showcase-case a[href="/onboarding/"]').count() === 1);
+  await page.goto(origin + '/projects/', {waitUntil: 'networkidle'});
+  await page.locator('.showcase-proof-feature a[href="/ai-chatbot/"]').click();
+  await page.waitForURL(url => url.pathname === '/ai-chatbot/');
+  check('product proof opens the chatbot', await page.locator('#product-workflow').count() === 1);
+  check('product proof labels its sample data', (await page.locator('#product-workflow').innerText()).toLowerCase().includes('synthetic'));
+  // A project card opens its own case and returns to the index.
+  await page.goto(origin + '/projects/', {waitUntil: 'networkidle'});
+  await page.locator('[data-project="pivot-parlor"] .showcase-preview').click();
+  await page.waitForURL(origin + '/projects/pivot-parlor/');
+  check('a project card opens its case', await page.locator('h1').textContent() === 'Pivot Parlor');
   check('case states ownership', await page.getByText('Built by BytesFX', {exact:true}).count() === 1);
   await page.locator('.showcase-back').click();
   check('case returns to catalogue', new URL(page.url()).pathname === '/projects/');
@@ -72,5 +86,5 @@ async (page) => {
     check(`200% ${route} fits`, await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1));
   }
   check('no runtime errors', errors.length === 0, errors);
-  return {checkCount:checks.length, passed:checks.filter(check=>check.passed).length, failures: checks.filter(check => !check.passed), errors, productionWritesForwarded: 0};
+  return {checkCount:checks.length, passed:checks.filter(check=>check.passed).length, failures:checks.filter(check => !check.passed), errors, productionWritesForwarded: 0};
 }

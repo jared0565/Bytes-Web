@@ -57,6 +57,8 @@ export default defineConfig({
         'bytesai-learning': here('./projects/bytesai-learning/index.html'),
         'cafe-bookings': here('./projects/cafe-bookings/index.html'),
         'file-converter': here('./projects/file-converter/index.html'),
+        'medication-reminder': here('./projects/medication-reminder/index.html'),
+        'shikaku': here('./projects/shikaku/index.html'),
       },
     },
   },

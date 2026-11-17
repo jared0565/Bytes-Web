@@ -4,7 +4,7 @@ import {projects} from '../src/showcase-content.js';
 import {publishedProjects,featuredProjects,projectCardHTML,projectCaseHTML,projectIndexHTML,kindLabels} from '../src/showcase-html.js';
 const sample=()=>structuredClone(projects.find(p=>p.id==='pivot-parlor'));
 test('draft content never reaches published records or featured order',()=>{
- assert.equal(publishedProjects(projects).length,6);
+ assert.equal(publishedProjects(projects).length,8);
  assert.deepEqual(featuredProjects(projects).map(p=>p.id),['pivot-parlor','active-paw','bytesai-learning']);
  assert.equal(projectCardHTML({...sample(),publishState:'draft'}),'');
 });
@@ -49,12 +49,82 @@ test('ownership is explicit and full delivery scope is required and escaped',()=
  assert.ok(html.includes('href="/#contact"'));
 });
 
-test('the catalogue leads with the owned BytesFX system and labels sample data',()=>{
+test('a card lists at most three capabilities',()=>{
+ for(const p of publishedProjects(projects)){
+  const items=(projectCardHTML(p).match(/<li>/g)||[]).length;
+  assert.ok(items<=3,p.id+' lists '+items+' capabilities');
+ }
+});
+
+test('published summaries stay inside a readable band',()=>{
+ for(const p of publishedProjects(projects)){
+  const words=p.summary.trim().split(/\s+/).length;
+  assert.ok(words>=12&&words<=40,p.id+' summary is '+words+' words');
+ }
+});
+
+test('the index leads with the BytesFX product proof and lists seven project cards',()=>{
  const html=projectIndexHTML(projects);
- assert.ok(html.indexOf('data-project="bytesfx"')<html.indexOf('data-project="pivot-parlor"'));
- const detail=projectCaseHTML(projects.find(p=>p.id==='bytesfx'));
- assert.ok(detail.includes('Synthetic sample data'));
- assert.ok(detail.includes('href="/onboarding/"'));
+ assert.ok(html.includes('/projects/bytesfx-pipeline.png'));
+ // The lead opens the kept BytesFX case study; its second action still opens the chatbot.
+ const lead=html.slice(html.indexOf('showcase-proof-feature'),html.indexOf('class="showcase-index"'));
+ assert.match(lead,/<a href="\/projects\/bytesfx\/">View project/);
+ assert.ok(lead.includes('href="/ai-chatbot/"'));
+ assert.ok(html.includes('synthetic'));
+ assert.ok(!html.includes('data-project="bytesfx"'));
+ const ids=[...html.matchAll(/data-project="([^"]+)"/g)].map(m=>m[1]);
+ assert.deepEqual(ids,['pivot-parlor','active-paw','bytesai-learning','cafe-bookings','file-converter','medication-reminder','shikaku']);
+ assert.ok(html.indexOf('bytesfx-pipeline.png')<html.indexOf('data-project="pivot-parlor"'));
+ assert.ok(!html.includes('showcase-workflow'));
+ assert.ok(!html.includes('bytesfx-lead.png')&&!html.includes('bytesfx-proposal.png'));
+});
+
+test('the published catalogue is BytesFX and the seven approved projects in order',()=>{
+ assert.deepEqual(publishedProjects(projects).map(p=>p.id),[
+  'bytesfx','pivot-parlor','active-paw','bytesai-learning',
+  'cafe-bookings','file-converter','medication-reminder','shikaku'
+ ]);
+});
+
+test('the BytesFX case study is kept and published',()=>{
+ const bytesfx=publishedProjects(projects).find(p=>p.id==='bytesfx');
+ assert.ok(bytesfx);
+ assert.equal(bytesfx.caseStudyPath,'/projects/bytesfx/');
+ assert.equal(bytesfx.featuredOrder,null);
+});
+
+test('the BytesFX case page keeps its screens and trial',()=>{
+ const html=projectCaseHTML(projects.find(p=>p.id==='bytesfx'));
+ assert.ok(html.includes('bytesfx-lead.png')&&html.includes('bytesfx-proposal.png'));
+ assert.ok(html.includes('href="/onboarding/"'));
+ const other=projectCaseHTML(projects.find(p=>p.id==='active-paw'));
+ assert.ok(!other.includes('bytesfx-lead.png')&&!other.includes('href="/onboarding/"'));
+});
+
+test('the new project destinations are allowlisted and other hosts fail closed',()=>{
+ const medication=structuredClone(projects.find(p=>p.id==='medication-reminder'));
+ const shikaku=structuredClone(projects.find(p=>p.id==='shikaku'));
+ assert.equal(medication.liveUrl,'https://medication.bytesfx.com/');
+ assert.equal(shikaku.liveUrl,'https://shikaku.bytesai.uk/');
+ const p=sample();p.liveUrl='https://medication.example.com/';
+ assert.throws(()=>publishedProjects([p]),/URL/);
+});
+
+test('the featured set stays at three while the catalogue grows',()=>{
+ assert.equal(featuredProjects(projects).length,3);
+ assert.deepEqual(featuredProjects(projects).map(p=>p.id),['pivot-parlor','active-paw','bytesai-learning']);
+});
+
+test('a featured rank beyond the three featured slots is rejected, not silently dropped',()=>{
+ const p=structuredClone(projects.find(x=>x.id==='shikaku'));
+ p.featuredOrder=4;
+ assert.throws(()=>publishedProjects([p]),/featured/);
+});
+
+test('the medication reminder image is labelled as synthetic',()=>{
+ const medication=publishedProjects(projects).find(p=>p.id==='medication-reminder');
+ assert.match(medication.image.alt,/synthetic|sample/i);
+ assert.match(medication.imageCaption,/synthetic/i);
 });
 
 test('every published case has system scope and a readable, escaped workflow',()=>{

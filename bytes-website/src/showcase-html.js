@@ -3,7 +3,7 @@ import { escapeHTML } from './html-text.js';
 import { validateWorkflow, workflowHTML } from './showcase-flow.js';
 export { escapeHTML } from './html-text.js';
 export const kindLabels = Object.freeze({'owned-product':'Owned product','live-store':'Live store','demonstration':'Demonstration','platform':'Platform'});
-const LIVE_HOSTS = new Set(['web.bytesfx.com','pivotparlor.com','activepaw.co.uk','learn.bytesai.uk','cafe.bytesfx.com','file-converter.bmorris0565.workers.dev']);
+const LIVE_HOSTS = new Set(['web.bytesfx.com','pivotparlor.com','activepaw.co.uk','learn.bytesai.uk','cafe.bytesfx.com','file-converter.bmorris0565.workers.dev','medication.bytesfx.com','shikaku.bytesai.uk']);
 const text = (v,name) => { if(typeof v!=='string'||!v.trim())throw new Error('Missing '+name); };
 function checkedURL(value, hosts) {
   text(value,'URL');
@@ -49,7 +49,7 @@ function validateProject(p) {
     }
   }
   p.repositoryUrls.forEach(u=>checkedURL(u,new Set(['github.com'])));
-  if(p.featuredOrder!==null&&(!Number.isInteger(p.featuredOrder)||p.featuredOrder<1))throw new Error('Invalid featured order');
+  if(p.featuredOrder!==null&&(!Number.isInteger(p.featuredOrder)||p.featuredOrder<1||p.featuredOrder>3))throw new Error('Invalid featured order');
 }
 export function publishedProjects(records) {
   if(!Array.isArray(records))throw new Error('Invalid catalogue');
@@ -76,7 +76,7 @@ const listHTML = values => '<ul>'+values.map(v=>'<li>'+escapeHTML(v)+'</li>').jo
 export function projectCardHTML(record, headingLevel=3) {
   if(![2,3].includes(headingLevel))throw new Error('Invalid heading level');
   const p=publishedProjects([record])[0];if(!p)return '';
-  return '<article class="showcase-project" data-project="'+p.id+'"><a class="showcase-preview" href="'+p.caseStudyPath+'" aria-label="View '+escapeHTML(p.title)+' project">'+imageHTML(p.image)+'</a><div class="showcase-project-copy"><h'+headingLevel+'><a href="'+p.caseStudyPath+'">'+escapeHTML(p.title)+'</a></h'+headingLevel+'><p class="showcase-kind">'+kindLabels[p.kind]+'</p><p>'+escapeHTML(p.summary)+'</p>'+listHTML(p.capabilities)+(p.id==='bytesfx'?'<p class="showcase-sample">Interface shown with synthetic sample data.</p>':'')+'<div class="showcase-actions"><a href="'+p.caseStudyPath+'">View project<span class="sr-only">: '+escapeHTML(p.title)+'</span> &rarr;</a><a href="'+escapeHTML(p.liveUrl)+'">'+escapeHTML(p.liveActionLabel)+'<span class="sr-only">: '+escapeHTML(p.title)+'</span> &nearr;</a></div></div></article>';
+  return '<article class="showcase-project" data-project="'+p.id+'"><a class="showcase-preview" href="'+p.caseStudyPath+'" aria-label="View '+escapeHTML(p.title)+' project">'+imageHTML(p.image)+'</a><div class="showcase-project-copy"><h'+headingLevel+'><a href="'+p.caseStudyPath+'">'+escapeHTML(p.title)+'</a></h'+headingLevel+'><p class="showcase-kind">'+kindLabels[p.kind]+'</p><p>'+escapeHTML(p.summary)+'</p>'+listHTML(p.capabilities.slice(0,3))+'<div class="showcase-actions"><a href="'+p.caseStudyPath+'">View project<span class="sr-only">: '+escapeHTML(p.title)+'</span> &rarr;</a><a href="'+escapeHTML(p.liveUrl)+'">'+escapeHTML(p.liveActionLabel)+'<span class="sr-only">: '+escapeHTML(p.title)+'</span> &nearr;</a></div></div></article>';
 }
 export function selectedProjectsHTML(records) {
   return '<section id="projects" class="hx-section showcase-selected" aria-labelledby="projectsTitle"><div class="hx-container"><header class="showcase-heading"><div><p class="showcase-kicker">Built by BytesFX</p><h2 id="projectsTitle">What we’ve built</h2><p>Platforms, commerce automation and learning tools. Explore a few examples of our work.</p></div><a class="showcase-all" href="/projects/">Explore Our Work &rarr;</a></header><div class="showcase-selected-grid">'+featuredProjects(records).map(projectPreviewHTML).join('')+'</div></div></section>';
@@ -85,9 +85,12 @@ function projectPreviewHTML(p) {
   return '<article class="showcase-project" data-project="'+p.id+'"><a class="showcase-preview" href="'+p.caseStudyPath+'" aria-label="View '+escapeHTML(p.title)+' project">'+imageHTML(p.image)+'</a><div class="showcase-project-copy"><p class="showcase-kind">'+kindLabels[p.kind]+'</p><h3><a href="'+p.caseStudyPath+'">'+escapeHTML(p.title)+'</a></h3><p>'+escapeHTML(p.summary)+'</p><a class="showcase-all" href="'+p.caseStudyPath+'">View project<span class="sr-only">: '+escapeHTML(p.title)+'</span> &rarr;</a></div></article>';
 }
 export function projectIndexHTML(records) {
- const published=publishedProjects(records);
- const flagship=published.find(p=>p.id==='bytesfx');
- return '<section class="hx-section"><div class="hx-container"><header class="cb-head"><p class="showcase-kicker">Built by BytesFX</p><h1>What we’ve built</h1><p>From the first design to the live application, we own the complete development process. Explore our products, a live store and working demonstrations.</p></header>'+(flagship?'<div class="showcase-flagship" aria-label="Featured project">'+projectCardHTML(flagship,2)+'</div>':'')+'<header class="showcase-heading"><h2>More work to explore</h2><p>Open a project to see what we built, or explore the live interface.</p></header><div class="showcase-index">'+published.filter(p=>p.id!=='bytesfx').map(p=>projectCardHTML(p)).join('')+'</div>'+projectEnquiryHTML()+'</div></section>';
+ // BytesFX leads the index through the product-proof feature, so it is not repeated as a card.
+ const published=publishedProjects(records).filter(p=>p.id!=='bytesfx');
+ return '<section class="hx-section"><div class="hx-container"><header class="cb-head"><p class="showcase-kicker">Built by BytesFX</p><h1>What we’ve built</h1><p>From the first design to the live application, we own the complete development process. Explore owned products, a live store, a shop-creation platform and clearly labelled demonstrations.</p></header>'+productProofFeatureHTML()+'<header class="showcase-heading"><h2>More work to explore</h2><p>Open a project to see what we built, or explore the live interface.</p></header><div class="showcase-index">'+published.map(p=>projectCardHTML(p)).join('')+'</div>'+projectEnquiryHTML()+'</div></section>';
+}
+function productProofFeatureHTML() {
+ return '<div class="showcase-lead"><div class="showcase-proof-feature"><div class="showcase-proof-feature-copy"><p class="showcase-kicker">BytesFX Chat &amp; Sales</p><h2>One conversation. A clear path to the sale.</h2><p>Our own chat-to-sales system. The chatbot captures the enquiry, the dashboard holds the contact and the pipeline, and a person reviews the proposal before anything is sent.</p><div class="showcase-actions"><a href="/projects/bytesfx/">View project<span class="sr-only">: BytesFX Chat &amp; Sales</span> &rarr;</a><a href="/ai-chatbot/">Explore the chatbot<span class="sr-only">: BytesFX Chat &amp; Sales</span> &nearr;</a></div></div><figure class="showcase-case-image">'+imageHTML({src:'/projects/bytesfx-pipeline.png',alt:'Actual BytesFX dashboard with Inbox, Priority, Opportunity, Campaigns and Closed columns, using invented contacts and amounts',width:1440,height:1000})+'<figcaption>Actual BytesFX dashboard. The contacts, budgets and Won/Lost outcomes shown are synthetic sample data, not customer results.</figcaption></figure></div></div>';
 }
 function projectEnquiryHTML() {
  return '<aside class="showcase-return" aria-label="Discuss a project"><div><h2>What would you like to build?</h2><p>Tell us about your business and the workflow you want to improve.</p></div><a class="hx-btn hx-btn-primary" href="/#contact">Discuss your project &rarr;</a></aside>';
