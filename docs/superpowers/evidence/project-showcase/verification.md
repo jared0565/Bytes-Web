@@ -1,5 +1,11 @@
 # Showcase implementation verification
 
+> Superseded in part on 6 November 2026 by the expansion: the catalogue now publishes seven
+> projects, the index leads with a product-proof feature instead of a flagship card, and the
+> retired `/projects/bytesfx/` case page is gone. The expansion's own record is
+> [expansion-verification.md](expansion-verification.md); the section below is the original
+> 5 November run and is kept as the history of that checkpoint.
+
 Verified 5 November 2026 on ux/project-showcase. Application base 52ad87a; planning checkpoint 702ebf3. Tested source: PS01–PS07 plus final screenshot links and scoped branding-test correction.
 
 | Check | Result |

@@ -1,118 +1,6 @@
 // Trusted build-time editorial records. Scope and workflows are supported by the evidence listed for each project.
 export const projects = [
   {
-    "id": "bytesfx",
-    "title": "BytesFX Chat & Sales",
-    "kind": "owned-product",
-    "summary": "A business-specific chatbot, lead dashboard and sales follow-up system, from website enquiry to a reviewed proposal and recorded outcome.",
-    "capabilities": [
-      "Embeddable business-specific chat",
-      "Lead and conversation management",
-      "Reviewed proposals and email follow-up",
-      "Client onboarding and administration"
-    ],
-    "deliveryScope": [
-      "Product design, agency website and onboarding",
-      "Chat widget and client/admin dashboards",
-      "Chat and CRM APIs, lead data and attachment storage",
-      "AI routing, email integrations and scheduled workflows",
-      "Analytics, operational controls and production deployment"
-    ],
-    "repositoryUrls": [
-      "https://github.com/jared0565/Bytes-Web"
-    ],
-    "liveUrl": "https://web.bytesfx.com/ai-chatbot/#product-workflow",
-    "liveActionLabel": "Explore the chatbot",
-    "featuredOrder": null,
-    "problem": "A website enquiry is only the start. Businesses need to capture the contact, understand the work, keep the conversation together and decide what happens next.",
-    "implementation": "BytesFX built the complete website-to-sales product: the public website, client onboarding, embeddable chat widget, business dashboard and connected backend services. Each business can configure its assistant and websites, capture enquiries and manage contacts through a sales pipeline. Email replies feed a qualification workflow that can prepare a brief and proposal, with the owner reviewing and sending the final proposal.",
-    "walkthrough": [
-      "Explore chat and lead capture on the chatbot page.",
-      "Inspect the sample pipeline, lead details and proposal screens below.",
-      "Start a free trial to set up the workflow for your own business."
-    ],
-    "note": "An owned product. Dashboard screenshots use synthetic contacts, amounts and outcomes. AI email follow-ups depend on the plan and sender setup; reply tracking requires email routing.",
-    "publishState": "published",
-    "caseStudyPath": "/projects/bytesfx/",
-    "image": {
-      "src": "/projects/bytesfx-pipeline.png",
-      "alt": "BytesFX sales pipeline with synthetic sample contacts and amounts",
-      "width": 1440,
-      "height": 1000
-    },
-    "evidence": [
-      "docs/superpowers/evidence/project-showcase/capabilities.md",
-      "docs/superpowers/evidence/project-showcase/assets.md"
-    ],
-    "sections": [
-      {
-        "title": "A product businesses can operate",
-        "body": "The dashboard connects lead details, conversations, verification status, campaigns, proposals and Won/Lost records. Client settings govern business context, services, website access and sender configuration. The administration layer supports client setup and plan management."
-      },
-      {
-        "title": "Automation with a human decision point",
-        "body": "The sales workflow can collect additional information by email and use replies to prepare a structured brief and proposal. The business reviews the draft before sending. Follow-ups respond to replies, unsubscribe and recorded outcomes; availability depends on the plan, sender setup and reply routing."
-      }
-    ],
-    "workflow": {
-      "title": "How the system works",
-      "description": "Customer conversation, sales preparation and business decisions stay connected across the website, dashboard and email.",
-      "lanes": [
-        {
-          "title": "Capture and qualify",
-          "steps": [
-            {
-              "title": "Website visitor",
-              "body": "Chat or contact-form enquiry",
-              "ownerAction": false
-            },
-            {
-              "title": "Lead record",
-              "body": "Contact details and conversation",
-              "ownerAction": false
-            },
-            {
-              "title": "Email confirmation",
-              "body": "Verification status remains visible",
-              "ownerAction": false
-            },
-            {
-              "title": "Qualifying reply",
-              "body": "Needs, budget and context",
-              "ownerAction": false
-            }
-          ]
-        },
-        {
-          "title": "Prepare and follow through",
-          "steps": [
-            {
-              "title": "AI-assisted draft",
-              "body": "Brief and proposal preparation",
-              "ownerAction": false
-            },
-            {
-              "title": "Review and send",
-              "body": "The owner checks and sends the proposal",
-              "ownerAction": true
-            },
-            {
-              "title": "Follow-up",
-              "body": "Reply and unsubscribe handling",
-              "ownerAction": false
-            },
-            {
-              "title": "Record outcome",
-              "body": "The owner confirms Won or Lost",
-              "ownerAction": true
-            }
-          ]
-        }
-      ]
-    },
-    "imageCaption": "Actual BytesFX dashboard. Synthetic sample data: contacts, budgets and outcomes. The board is one part of the wider chat-to-sales product."
-  },
-  {
     "id": "pivot-parlor",
     "title": "Pivot Parlor",
     "deliveryScope": [
@@ -329,7 +217,7 @@ export const projects = [
       "Supervised supplier-order workflows and deployment controls"
     ],
     "kind": "live-store",
-    "summary": "A customized Shopify theme and PawScout commerce automation, connecting customer demand with supplier discovery, product listings and merchant operations.",
+    "summary": "A customised Active Paw Shopify theme works with the PawScout backend to support demand-led product discovery, catalogue management and commerce automation.",
     "capabilities": [
       "Customized Shopify shopping experience",
       "Demand-led supplier discovery and imports",
@@ -477,7 +365,7 @@ export const projects = [
     "liveActionLabel": "Visit learning site",
     "featuredOrder": 3,
     "problem": "Learners need to find relevant AI courses across providers, choose a starting point and return to their learning; maintaining useful discovery also requires catalogue and editorial operations.",
-    "implementation": "BytesFX built the learner experience and the operational platform behind it. Visitors can search and filter courses, explore providers and learning paths, and use quiz or conversational guidance to choose a starting point. Signed-in learners can save courses and track progress. Administration covers the course catalogue, provider discovery and batch imports, featured-course controls, analytics and AI-assisted insight generation.",
+    "implementation": "BytesFX built the learner experience and the operational platform behind it. The site curates and verifies free AI courses from providers including Microsoft, Anthropic, Google and NVIDIA, and marks each course free, so a learner can compare options before following a provider link. Visitors can browse by provider, category, topic and level, and use the learning quiz, learning paths or the chatbot for personalised guidance on where to start. Signed-in learners can save courses and track progress. Administration covers the course catalogue, provider discovery and batch imports, featured-course controls, analytics and AI-assisted insight generation.",
     "walkthrough": [
       "Browse the course previews.",
       "Explore providers and categories.",
@@ -499,7 +387,7 @@ export const projects = [
     "sections": [
       {
         "title": "Discovery with continuity",
-        "body": "Course, provider, topic and level information helps visitors compare learning options before following a provider link. Saved, started and completed states support returning learners. Quiz guidance, learning paths and the chatbot offer additional ways to find relevant material."
+        "body": "Every course in the catalogue is marked free, and each provider, category, topic and level is browsable, so a visitor can compare learning options before following a provider link. Saved, started and completed states support returning learners. The learning quiz, learning paths and the chatbot offer personalised guidance on where to start."
       },
       {
         "title": "The catalogue and editorial operation",
@@ -787,6 +675,218 @@ export const projects = [
       ]
     },
     "imageCaption": "File Converter’s public workspace. Conversion is accompanied by reader views and a device-local saved-file library."
+  },
+  {
+    "id": "medication-reminder",
+    "title": "Medication Reminder",
+    "kind": "owned-product",
+    "summary": "A privacy-focused reminder PWA combines local schedules and notifications with optional encrypted synchronization across paired devices.",
+    "capabilities": [
+      "Local schedules and reminders",
+      "Offline use on one device",
+      "Encrypted pairing and synchronization"
+    ],
+    "deliveryScope": [
+      "PWA schedule, reminder and notification experience",
+      "Local-first storage and device-only privacy controls",
+      "Optional account, pairing and encrypted synchronization",
+      "Worker API for pairing claims and cross-device sync",
+      "Packaging, deployment and documentation"
+    ],
+    "repositoryUrls": [
+      "https://github.com/jared0565/Medication-Reminder"
+    ],
+    "liveUrl": "https://medication.bytesfx.com/",
+    "liveActionLabel": "Open the app",
+    "featuredOrder": null,
+    "problem": "A daily medicine routine needs reminders that keep working without an account and without handing the schedule to a service, while sharing across devices should stay a deliberate choice.",
+    "implementation": "BytesFX built Medication Reminder as a local-first progressive web app. Schedules, dose records and settings live in the browser on the device, so the app opens and reminds offline. An account is optional and unlocks pairing, where a device is encrypted and claimed before any schedule moves between devices. The app presents what is stored locally and what has been shared, so the person using it can see which is which.",
+    "walkthrough": [
+      "Open the schedules view to see the daily routine.",
+      "Review the settings and the app's local-only storage boundary.",
+      "See pairing and encrypted synchronization offered as an optional, account-backed step."
+    ],
+    "note": "An organisational aid, not a medical device. No clinical or health-outcome claim is made. Screenshots show a synthetic sample schedule; no real medication record is shown.",
+    "publishState": "published",
+    "caseStudyPath": "/projects/medication-reminder/",
+    "image": {
+      "src": "/projects/medication-reminder.png",
+      "alt": "Medication Reminder schedules view with a synthetic sample routine of three reminder times",
+      "width": 1440,
+      "height": 1000
+    },
+    "evidence": [
+      "docs/superpowers/evidence/project-showcase/assets.md",
+      "docs/superpowers/evidence/project-showcase/new-project-scope.md"
+    ],
+    "sections": [
+      {
+        "title": "Local by default",
+        "body": "Schedules, dose records and settings are written to the browser storage on the device they were entered on. The app installs on a phone or a desktop, opens without a connection and keeps reminding without an account."
+      },
+      {
+        "title": "Sharing is a deliberate step",
+        "body": "An account unlocks pairing, where a second device is encrypted and claimed before any schedule moves. Until a device is paired, the routine stays on the device it was entered on."
+      }
+    ],
+    "workflow": {
+      "title": "How the reminder works",
+      "description": "A routine is entered once on the device that keeps it, and sharing across devices only happens when the person chooses it.",
+      "lanes": [
+        {
+          "title": "Plan and remind",
+          "steps": [
+            {
+              "title": "Add a routine",
+              "body": "Enter the reminder time and what to take at it",
+              "ownerAction": true
+            },
+            {
+              "title": "Keep it on this device",
+              "body": "The schedule is written to local browser storage",
+              "ownerAction": false
+            },
+            {
+              "title": "Remind on time",
+              "body": "The app notifies even when the device is offline",
+              "ownerAction": false
+            },
+            {
+              "title": "Record the dose",
+              "body": "Mark a reminder as taken, or undo it",
+              "ownerAction": true
+            }
+          ]
+        },
+        {
+          "title": "Share across devices, optionally",
+          "steps": [
+            {
+              "title": "Create an account",
+              "body": "An account is only needed for sharing",
+              "ownerAction": true
+            },
+            {
+              "title": "Pair the second device",
+              "body": "The claim is encrypted and confirmed before any transfer",
+              "ownerAction": true
+            },
+            {
+              "title": "Sync the schedule",
+              "body": "Paired devices receive the same routines",
+              "ownerAction": false
+            }
+          ]
+        }
+      ]
+    },
+    "imageCaption": "Medication Reminder's schedules view. Synthetic sample reminders; no real medication record is shown."
+  },
+  {
+    "id": "shikaku",
+    "title": "Shikaku: Puzzle Quest",
+    "kind": "owned-product",
+    "summary": "A playable logic-puzzle experience combines solo challenges with real-time 1v1 battles, rankings and cross-device QR sharing.",
+    "capabilities": [
+      "Solo logic puzzles",
+      "Real-time 1v1 battles",
+      "ELO rankings and leaderboards"
+    ],
+    "deliveryScope": [
+      "Puzzle board, level set and game rules",
+      "Real-time multiplayer battles over edge functions",
+      "ELO matchmaking and leaderboard storage",
+      "Accounts, QR sharing and session resume",
+      "Static hosting, edge functions and delivery"
+    ],
+    "repositoryUrls": [
+      "https://github.com/jared0565/shikaku"
+    ],
+    "liveUrl": "https://shikaku.bytesai.uk/",
+    "liveActionLabel": "Play Shikaku",
+    "featuredOrder": null,
+    "problem": "A logic puzzle needs enough depth to hold attention, a way to play against another person, and a record of how a player improves.",
+    "implementation": "BytesFX built Shikaku as a browser game: a solo puzzle mode with a level set, a real-time 1v1 arena, ELO-based matchmaking, leaderboards, accounts and QR sharing between devices. Solo play works as a guest; an account is what unlocks rankings, matchmaking and sharing.",
+    "walkthrough": [
+      "Open the puzzle board and read the rules.",
+      "Play a solo puzzle as a guest.",
+      "See the battle arena and the leaderboard entries."
+    ],
+    "note": "A game. Guest play was used for capture: no account was created, no matchmaking entered and no score submitted. No puzzle count is claimed, because the published material disagrees.",
+    "publishState": "published",
+    "caseStudyPath": "/projects/shikaku/",
+    "image": {
+      "src": "/projects/shikaku.png",
+      "alt": "Shikaku puzzle board with a numbered grid, ready for a guest to play",
+      "width": 1440,
+      "height": 1000
+    },
+    "evidence": [
+      "docs/superpowers/evidence/project-showcase/assets.md",
+      "docs/superpowers/evidence/project-showcase/new-project-scope.md"
+    ],
+    "sections": [
+      {
+        "title": "A puzzle that fits in a sitting",
+        "body": "Each board is a numbered grid to divide into rectangles and squares, with a level set that moves from short grids to denser ones. A solo puzzle can be started without an account."
+      },
+      {
+        "title": "Battles and rankings",
+        "body": "A 1v1 arena matches two players on the same board in real time, and ELO ratings record the result. An account is what unlocks matchmaking, the leaderboard and QR sharing to another device."
+      }
+    ],
+    "workflow": {
+      "title": "How a session runs",
+      "description": "A solo puzzle is a private grid; a battle puts two players on the same board with a result that counts.",
+      "lanes": [
+        {
+          "title": "Play solo",
+          "steps": [
+            {
+              "title": "Pick a puzzle",
+              "body": "Choose a board from the level set",
+              "ownerAction": false
+            },
+            {
+              "title": "Draw the regions",
+              "body": "Drag a rectangle around each numbered cell",
+              "ownerAction": true
+            },
+            {
+              "title": "Check the tiling",
+              "body": "The board accepts or rejects the solution",
+              "ownerAction": false
+            }
+          ]
+        },
+        {
+          "title": "Battle another player",
+          "steps": [
+            {
+              "title": "Sign in",
+              "body": "An account is needed to be matched",
+              "ownerAction": true
+            },
+            {
+              "title": "Matchmaking",
+              "body": "ELO ratings pair the two players",
+              "ownerAction": false
+            },
+            {
+              "title": "Play the board",
+              "body": "Both players work on the same puzzle in real time",
+              "ownerAction": false
+            },
+            {
+              "title": "Record the result",
+              "body": "The winner's rating moves up",
+              "ownerAction": false
+            }
+          ]
+        }
+      ]
+    },
+    "imageCaption": "Shikaku's guest puzzle board. Captured without an account; no score was submitted."
   },
   {
     "id": "bytescrm",

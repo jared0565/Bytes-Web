@@ -16,7 +16,7 @@ async(page)=>{
   return route.fulfill({status:200,contentType:'application/json',body:'{}'});
  });
  await page.emulateMedia({reducedMotion:'reduce'});
- const routes=['/ai-chatbot/','/projects/','/projects/bytesfx/','/projects/pivot-parlor/','/projects/active-paw/','/projects/bytesai-learning/','/projects/cafe-bookings/','/projects/file-converter/'];
+ const routes=['/ai-chatbot/','/projects/','/projects/pivot-parlor/','/projects/active-paw/','/projects/bytesai-learning/','/projects/cafe-bookings/','/projects/file-converter/','/projects/medication-reminder/','/projects/shikaku/'];
  for(const width of [1440,768,390,320]){
   await page.setViewportSize({width,height:1000});
   for(const route of routes){
