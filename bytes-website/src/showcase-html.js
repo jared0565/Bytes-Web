@@ -85,14 +85,18 @@ function projectPreviewHTML(p) {
   return '<article class="showcase-project" data-project="'+p.id+'"><a class="showcase-preview" href="'+p.caseStudyPath+'" aria-label="View '+escapeHTML(p.title)+' project">'+imageHTML(p.image)+'</a><div class="showcase-project-copy"><p class="showcase-kind">'+kindLabels[p.kind]+'</p><h3><a href="'+p.caseStudyPath+'">'+escapeHTML(p.title)+'</a></h3><p>'+escapeHTML(p.summary)+'</p><a class="showcase-all" href="'+p.caseStudyPath+'">View project<span class="sr-only">: '+escapeHTML(p.title)+'</span> &rarr;</a></div></article>';
 }
 export function projectIndexHTML(records) {
- const published=publishedProjects(records);
+ // BytesFX leads the index through the product-proof feature, so it is not repeated as a card.
+ const published=publishedProjects(records).filter(p=>p.id!=='bytesfx');
  return '<section class="hx-section"><div class="hx-container"><header class="cb-head"><p class="showcase-kicker">Built by BytesFX</p><h1>What we’ve built</h1><p>From the first design to the live application, we own the complete development process. Explore owned products, a live store, a shop-creation platform and clearly labelled demonstrations.</p></header>'+productProofFeatureHTML()+'<header class="showcase-heading"><h2>More work to explore</h2><p>Open a project to see what we built, or explore the live interface.</p></header><div class="showcase-index">'+published.map(p=>projectCardHTML(p)).join('')+'</div>'+projectEnquiryHTML()+'</div></section>';
 }
 function productProofFeatureHTML() {
- return '<div class="showcase-lead"><div class="showcase-proof-feature"><div class="showcase-proof-feature-copy"><p class="showcase-kicker">BytesFX Chat &amp; Sales</p><h2>One conversation. A clear path to the sale.</h2><p>Our own chat-to-sales system. The chatbot captures the enquiry, the dashboard holds the contact and the pipeline, and a person reviews the proposal before anything is sent.</p><div class="showcase-actions"><a href="/ai-chatbot/#product-workflow">View project<span class="sr-only">: BytesFX Chat &amp; Sales</span> &rarr;</a><a href="/ai-chatbot/">Explore the chatbot<span class="sr-only">: BytesFX Chat &amp; Sales</span> &nearr;</a></div></div><figure class="showcase-case-image">'+imageHTML({src:'/projects/bytesfx-pipeline.png',alt:'Actual BytesFX dashboard with Inbox, Priority, Opportunity, Campaigns and Closed columns, using invented contacts and amounts',width:1440,height:1000})+'<figcaption>Actual BytesFX dashboard. The contacts, budgets and Won/Lost outcomes shown are synthetic sample data, not customer results.</figcaption></figure></div></div>';
+ return '<div class="showcase-lead"><div class="showcase-proof-feature"><div class="showcase-proof-feature-copy"><p class="showcase-kicker">BytesFX Chat &amp; Sales</p><h2>One conversation. A clear path to the sale.</h2><p>Our own chat-to-sales system. The chatbot captures the enquiry, the dashboard holds the contact and the pipeline, and a person reviews the proposal before anything is sent.</p><div class="showcase-actions"><a href="/projects/bytesfx/">View project<span class="sr-only">: BytesFX Chat &amp; Sales</span> &rarr;</a><a href="/ai-chatbot/">Explore the chatbot<span class="sr-only">: BytesFX Chat &amp; Sales</span> &nearr;</a></div></div><figure class="showcase-case-image">'+imageHTML({src:'/projects/bytesfx-pipeline.png',alt:'Actual BytesFX dashboard with Inbox, Priority, Opportunity, Campaigns and Closed columns, using invented contacts and amounts',width:1440,height:1000})+'<figcaption>Actual BytesFX dashboard. The contacts, budgets and Won/Lost outcomes shown are synthetic sample data, not customer results.</figcaption></figure></div></div>';
 }
 function projectEnquiryHTML() {
  return '<aside class="showcase-return" aria-label="Discuss a project"><div><h2>What would you like to build?</h2><p>Tell us about your business and the workflow you want to improve.</p></div><a class="hx-btn hx-btn-primary" href="/#contact">Discuss your project &rarr;</a></aside>';
+}
+function trialHTML() {
+ return '<aside class="showcase-return" aria-label="Try BytesFX"><div><h2>Turn your website’s questions into leads</h2><p>Explore BytesFX’s own chat-to-sales workflow, or start your free trial.</p><a href="/ai-chatbot/">See the chatbot &rarr;</a></div><a class="hx-btn hx-btn-primary" href="/onboarding/">Start your free trial</a></aside>';
 }
 function projectExampleHTML(p) {
  const example=p.example;
@@ -104,10 +108,23 @@ function projectScreensHTML(p) {
  if(!screens)return '';
  return '<section class="showcase-case-screens"><h2>'+escapeHTML(screens.title)+'</h2><p>'+escapeHTML(screens.intro)+'</p><div class="showcase-screen-grid">'+screens.items.map(item=>'<figure>'+imageHTML(item.image)+'<figcaption>'+escapeHTML(item.caption)+' <a href="'+escapeHTML(item.image.src)+'">Open full-size screenshot<span class="sr-only">: '+escapeHTML(item.caption)+'</span></a></figcaption></figure>').join('')+'</div></section>';
 }
+function bytesfxScreensHTML() {
+  const lead = {src:'/projects/bytesfx-lead.png', alt:'BytesFX lead details with an invented example.com contact', width:460, height:1000};
+  const proposal = {src:'/projects/bytesfx-proposal.png', alt:'BytesFX proposal editor showing an AI draft that needs human review', width:460, height:1000};
+  return `<div class="showcase-case-screens">
+    <h2>The lead and proposal screens</h2>
+    <p>Actual interfaces with synthetic sample data. No customer contact details or sales results are shown.</p>
+    <div class="showcase-screen-pair">
+      <figure>${imageHTML(lead)}<figcaption>Lead details and verification status.</figcaption></figure>
+      <figure>${imageHTML(proposal)}<figcaption>Proposal draft for review before sending.</figcaption></figure>
+    </div>
+  </div>`;
+}
 
 export function projectCaseHTML(record) {
   const p = publishedProjects([record])[0];
   if (!p) return '';
+  const isBytesFX = p.id === 'bytesfx';
   const caption = p.imageCaption || 'Actual public interface, captured November 2026.';
   const sections = p.sections.map(section => `<section class="showcase-scope-section">
     <h3>${escapeHTML(section.title)}</h3><p>${escapeHTML(section.body)}</p>
@@ -141,7 +158,7 @@ export function projectCaseHTML(record) {
     ${projectExampleHTML(p)}
     ${projectScreensHTML(p)}
     ${workflowHTML(p.workflow)}
-    ${projectEnquiryHTML()}
+    ${isBytesFX ? bytesfxScreensHTML() + trialHTML() : projectEnquiryHTML()}
   </div></section>`;
 }
 

@@ -18,7 +18,6 @@ export function auditShowcase({read=defaultRead,exists=defaultExists,bytes=defau
  const map=read('sitemap.xml');
  const builtCases=listCases().slice().sort();
  check(JSON.stringify(builtCases)===JSON.stringify(publicProjects.map(p=>p.id).slice().sort()),'built case routes differ from the catalogue: '+builtCases.join(','));
- check(!map.includes('/projects/bytesfx/'),'sitemap still lists the retired case route');
  for(const route of routes){
   const html=read(route.slice(1)+'index.html');
   check(!!html,route+': missing built page');
@@ -38,7 +37,6 @@ export function auditShowcase({read=defaultRead,exists=defaultExists,bytes=defau
   check(/href="\/projects\/" class="nav-item nav-work"/.test(nav),route+': Our Work navigation missing');
   if(route.startsWith('/projects/'))check(/nav-work" aria-current="(?:page|location)"/.test(nav),route+': current section missing');
   check(!html.includes('<!--@')&&!/\{\{\w+\}\}/.test(html),route+': unfilled marker');
-  check(!html.includes('/projects/bytesfx/'),route+': retired case route still linked');
   check(!/<iframe\b/i.test(html),route+': iframe forbidden');
   check(!/href="https?:\/\/(?:www\.)?github\.com\//i.test(html),route+': public repository link present');
   for(const draft of projects.filter(p=>p.publishState==='draft'))check(!html.toLowerCase().includes(draft.id),route+': draft leaked');
@@ -71,8 +69,9 @@ export function auditShowcase({read=defaultRead,exists=defaultExists,bytes=defau
  const home=read('index.html'),index=read('projects/index.html');
  check(home.includes('class="nav-item nav-work"')&&home.includes('id="homeProjects"')&&home.includes('Explore Our Work'),'homepage discovery missing');
  check(index.includes('What we’ve built')&&index.includes('Built by BytesFX'),'showcase positioning missing');
- check(!index.includes('data-project="bytesfx"'),'the retired record must not appear as a card');
- check(publicProjects.length===7,'seven published projects expected');
+ check(!index.includes('data-project="bytesfx"'),'BytesFX leads the index and must not repeat as a card');
+ check(index.includes('<a href="/projects/bytesfx/">View project'),'the index lead must open the BytesFX case study');
+ check(publicProjects.length===8,'eight published case studies expected');
  const caseUrls=publicProjects.map(p=>'https://web.bytesfx.com'+p.caseStudyPath);
  check(caseUrls.every(u=>map.includes('<loc>'+u+'</loc>')),'sitemap case URL missing');
  for(const route of routes.slice(1))check(map.includes('<loc>https://web.bytesfx.com'+route+'</loc>'),'sitemap route missing '+route);
@@ -108,8 +107,8 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
    // A case image missing from dist must be reported by name, not crash the audit.
    {exists:p=>p!==gone&&defaultExists(p),bytes:p=>{if(p===gone)throw new Error('ENOENT '+p);return defaultBytes(p);},expect:'missing image /'+gone},
    // The sitemap and the built case directories must match the catalogue exactly.
-   sitemapFile(s=>s.replace('</urlset>','  <url><loc>https://web.bytesfx.com/projects/bytesfx/</loc></url>\n</urlset>')),
-   {listCases:()=>['bytesfx','pivot-parlor','active-paw','bytesai-learning','cafe-bookings','file-converter','medication-reminder','shikaku']}
+   sitemapFile(s=>s.replace(/\s*<url><loc>https:\/\/web\.bytesfx\.com\/projects\/bytesfx\/<\/loc><\/url>/,'')),
+   {listCases:()=>defaultListCases().filter(id=>id!=='bytesfx')}
   ];
   for(const {expect,...options} of mutants){
    const found=auditShowcase(options);

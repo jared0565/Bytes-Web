@@ -51,6 +51,7 @@ export default defineConfig({
         main: here('./index.html'),
         chatbot: here('./ai-chatbot/index.html'),
         projects: here('./projects/index.html'),
+        bytesfx: here('./projects/bytesfx/index.html'),
         'pivot-parlor': here('./projects/pivot-parlor/index.html'),
         'active-paw': here('./projects/active-paw/index.html'),
         'bytesai-learning': here('./projects/bytesai-learning/index.html'),

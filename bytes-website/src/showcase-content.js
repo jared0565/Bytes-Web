@@ -1,6 +1,118 @@
 // Trusted build-time editorial records. Scope and workflows are supported by the evidence listed for each project.
 export const projects = [
   {
+    "id": "bytesfx",
+    "title": "BytesFX Chat & Sales",
+    "kind": "owned-product",
+    "summary": "A business-specific chatbot, lead dashboard and sales follow-up system, from website enquiry to a reviewed proposal and recorded outcome.",
+    "capabilities": [
+      "Embeddable business-specific chat",
+      "Lead and conversation management",
+      "Reviewed proposals and email follow-up",
+      "Client onboarding and administration"
+    ],
+    "deliveryScope": [
+      "Product design, agency website and onboarding",
+      "Chat widget and client/admin dashboards",
+      "Chat and CRM APIs, lead data and attachment storage",
+      "AI routing, email integrations and scheduled workflows",
+      "Analytics, operational controls and production deployment"
+    ],
+    "repositoryUrls": [
+      "https://github.com/jared0565/Bytes-Web"
+    ],
+    "liveUrl": "https://web.bytesfx.com/ai-chatbot/#product-workflow",
+    "liveActionLabel": "Explore the chatbot",
+    "featuredOrder": null,
+    "problem": "A website enquiry is only the start. Businesses need to capture the contact, understand the work, keep the conversation together and decide what happens next.",
+    "implementation": "BytesFX built the complete website-to-sales product: the public website, client onboarding, embeddable chat widget, business dashboard and connected backend services. Each business can configure its assistant and websites, capture enquiries and manage contacts through a sales pipeline. Email replies feed a qualification workflow that can prepare a brief and proposal, with the owner reviewing and sending the final proposal.",
+    "walkthrough": [
+      "Explore chat and lead capture on the chatbot page.",
+      "Inspect the sample pipeline, lead details and proposal screens below.",
+      "Start a free trial to set up the workflow for your own business."
+    ],
+    "note": "An owned product. Dashboard screenshots use synthetic contacts, amounts and outcomes. AI email follow-ups depend on the plan and sender setup; reply tracking requires email routing.",
+    "publishState": "published",
+    "caseStudyPath": "/projects/bytesfx/",
+    "image": {
+      "src": "/projects/bytesfx-pipeline.png",
+      "alt": "BytesFX sales pipeline with synthetic sample contacts and amounts",
+      "width": 1440,
+      "height": 1000
+    },
+    "evidence": [
+      "docs/superpowers/evidence/project-showcase/capabilities.md",
+      "docs/superpowers/evidence/project-showcase/assets.md"
+    ],
+    "sections": [
+      {
+        "title": "A product businesses can operate",
+        "body": "The dashboard connects lead details, conversations, verification status, campaigns, proposals and Won/Lost records. Client settings govern business context, services, website access and sender configuration. The administration layer supports client setup and plan management."
+      },
+      {
+        "title": "Automation with a human decision point",
+        "body": "The sales workflow can collect additional information by email and use replies to prepare a structured brief and proposal. The business reviews the draft before sending. Follow-ups respond to replies, unsubscribe and recorded outcomes; availability depends on the plan, sender setup and reply routing."
+      }
+    ],
+    "workflow": {
+      "title": "How the system works",
+      "description": "Customer conversation, sales preparation and business decisions stay connected across the website, dashboard and email.",
+      "lanes": [
+        {
+          "title": "Capture and qualify",
+          "steps": [
+            {
+              "title": "Website visitor",
+              "body": "Chat or contact-form enquiry",
+              "ownerAction": false
+            },
+            {
+              "title": "Lead record",
+              "body": "Contact details and conversation",
+              "ownerAction": false
+            },
+            {
+              "title": "Email confirmation",
+              "body": "Verification status remains visible",
+              "ownerAction": false
+            },
+            {
+              "title": "Qualifying reply",
+              "body": "Needs, budget and context",
+              "ownerAction": false
+            }
+          ]
+        },
+        {
+          "title": "Prepare and follow through",
+          "steps": [
+            {
+              "title": "AI-assisted draft",
+              "body": "Brief and proposal preparation",
+              "ownerAction": false
+            },
+            {
+              "title": "Review and send",
+              "body": "The owner checks and sends the proposal",
+              "ownerAction": true
+            },
+            {
+              "title": "Follow-up",
+              "body": "Reply and unsubscribe handling",
+              "ownerAction": false
+            },
+            {
+              "title": "Record outcome",
+              "body": "The owner confirms Won or Lost",
+              "ownerAction": true
+            }
+          ]
+        }
+      ]
+    },
+    "imageCaption": "Actual BytesFX dashboard. Synthetic sample data: contacts, budgets and outcomes. The board is one part of the wider chat-to-sales product."
+  },
+  {
     "id": "pivot-parlor",
     "title": "Pivot Parlor",
     "deliveryScope": [

@@ -60,11 +60,17 @@ async (page) => {
   await page.waitForURL(origin + '/projects/');
   check('mobile Our Work click opens catalogue', await page.locator('h1').textContent() === 'What we’ve built');
   check('catalogue shows seven projects', await page.locator('[data-project]').count() === 7);
-  // The index leads with the BytesFX product proof, which points into the chatbot page.
+  // The index leads with the BytesFX product proof: "View project" opens the BytesFX case
+  // study, and "Explore the chatbot" opens the chatbot page.
   check('index leads with the product proof', await page.locator('.showcase-proof-feature').count() === 1);
-  await page.locator('.showcase-proof-feature a[href="/ai-chatbot/#product-workflow"]').click();
+  await page.locator('.showcase-proof-feature a[href="/projects/bytesfx/"]').click();
+  await page.waitForURL(origin + '/projects/bytesfx/');
+  check('product proof opens the BytesFX case study', await page.locator('h1').textContent() === 'BytesFX Chat & Sales');
+  check('BytesFX case keeps its trial action', await page.locator('.showcase-case a[href="/onboarding/"]').count() === 1);
+  await page.goto(origin + '/projects/', {waitUntil: 'networkidle'});
+  await page.locator('.showcase-proof-feature a[href="/ai-chatbot/"]').click();
   await page.waitForURL(url => url.pathname === '/ai-chatbot/');
-  check('product proof opens the chatbot workflow', await page.locator('#product-workflow').count() === 1);
+  check('product proof opens the chatbot', await page.locator('#product-workflow').count() === 1);
   check('product proof labels its sample data', (await page.locator('#product-workflow').innerText()).toLowerCase().includes('synthetic'));
   // A project card opens its own case and returns to the index.
   await page.goto(origin + '/projects/', {waitUntil: 'networkidle'});
