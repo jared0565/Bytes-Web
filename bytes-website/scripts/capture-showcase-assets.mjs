@@ -49,8 +49,8 @@ async (page) => {
  await page.goto(local+'/ai-chatbot/',{waitUntil:'networkidle'});
  await page.locator('#chatbot-window').screenshot({path:root+'/bytes-website/public/projects/bytesfx-chat.png'});
  const results=[];
+ // The Pivot Parlor demo shops are captured by capture-pivot-shops.mjs, which needs its own clean-frame steps.
  for(const [id,url] of [
- ['pivot-parlor','https://pivotparlor.com/ferdyms-barber-shop-014'],
  ['active-paw','https://activepaw.co.uk/'],
  ['bytesai-learning','https://learn.bytesai.uk/'],
  ['cafe-bookings','https://cafe.bytesfx.com/'],
