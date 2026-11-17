@@ -124,3 +124,17 @@ test('malformed screens fail closed',()=>{
   const p=withScreens();edit(p);assert.throws(()=>publishedProjects([p]));
  }
 });
+
+test('Pivot claims match the 17 Nov handoff',()=>{
+ const p=projects.find(x=>x.id==='pivot-parlor'),all=JSON.stringify(p);
+ assert.equal(p.liveUrl,'https://pivotparlor.com/ferdyms-barber-shop-demo');
+ assert.equal(p.example.url,'https://pivotparlor.com/linden-and-lark-demo');
+ assert.ok(all.includes("FerdyM's Barber Shop"));
+ assert.ok(!/Ferdy’s|FerdyM’s|ferdyms-barber-shop-014/.test(all));
+ assert.ok(!p.capabilities.some(c=>/deposit/i.test(c)));
+ assert.ok(/test mode/.test(all));
+ assert.ok(!/\bSMS\b|text message|push notification|offline|app store|Stripe/i.test(all));
+ assert.ok(!/salons and barbershops create/i.test(all));
+ assert.ok(!all.includes('—'));
+ assert.equal(p.screens.items.length,6);
+});
