@@ -86,3 +86,41 @@ test('malformed or excessive workflow data cannot publish',()=>{
   const p=sample();edit(p);assert.throws(()=>publishedProjects([p]));
  }
 });
+
+const screenItem=caption=>({image:{src:'/projects/pivot-till.png',alt:'Till screen',width:1440,height:1000},caption});
+const withScreens=()=>{const p=sample();p.screens={title:'Inside the workspace',intro:'Sample data only.',items:[screenItem('First'),screenItem('Second')]};return p;};
+
+test('optional workspace screens render escaped, in order',()=>{
+ const p=withScreens();
+ p.screens.title='Inside <b>';p.screens.intro='Sample & data';p.screens.items[0].caption='<script>x</script>';
+ const html=projectCaseHTML(p);
+ assert.equal((html.match(/class="showcase-screen-grid"/g)||[]).length,1);
+ assert.ok(html.includes('Inside &lt;b&gt;'));
+ assert.ok(html.includes('Sample &amp; data'));
+ assert.ok(html.includes('&lt;script&gt;x&lt;/script&gt;'));
+ assert.ok(!html.includes('<script>x'));
+ assert.equal((html.match(/<figure><img/g)||[]).length,2);
+ assert.ok(html.indexOf('class="showcase-screen-grid"')>html.indexOf('class="showcase-flow'));
+});
+
+test('records without screens render no screen grid',()=>{
+ const html=projectCaseHTML(projects.find(p=>p.id==='active-paw'));
+ assert.ok(html.includes('Our delivery scope'));
+ assert.ok(!html.includes('showcase-screen-grid'));
+});
+
+test('malformed screens fail closed',()=>{
+ assert.equal(publishedProjects([withScreens()]).length,1);
+ for(const edit of [
+  p=>p.screens=null,
+  p=>p.screens.items=[],
+  p=>p.screens.items=[screenItem('Only')],
+  p=>p.screens.items=Array.from({length:7},(_,i)=>screenItem('Item '+i)),
+  p=>p.screens.items[0].image.src='/projects/../x.png',
+  p=>delete p.screens.items[0].caption,
+  p=>delete p.screens.title,
+  p=>delete p.screens.intro,
+ ]){
+  const p=withScreens();edit(p);assert.throws(()=>publishedProjects([p]));
+ }
+});

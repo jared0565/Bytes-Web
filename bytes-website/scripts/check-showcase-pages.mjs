@@ -67,8 +67,10 @@ export function auditShowcase({read=defaultRead,exists=defaultExists}={}) {
  }
  check(!exists('__showcase-fixtures.json'),'temporary capture fixtures shipped');
  for(const p of publicProjects){
-  const data=readFileSync(join(dist,p.image.src));
-  check(data.readUInt32BE(16)===p.image.width&&data.readUInt32BE(20)===p.image.height,p.id+': PNG dimensions differ from metadata');
+  for(const image of [p.image,p.example?.image,...(p.screens?.items||[]).map(item=>item.image)].filter(Boolean)){
+   const data=readFileSync(join(dist,image.src));
+   check(data.readUInt32BE(16)===image.width&&data.readUInt32BE(20)===image.height,p.id+': PNG dimensions differ from metadata '+image.src);
+  }
  }
  return failures;
 }

@@ -39,6 +39,15 @@ function validateProject(p) {
     validateImage(p.example.image);
     checkedURL(p.example.url,LIVE_HOSTS);
   }
+  if(p.screens!==undefined){
+    if(!p.screens||typeof p.screens!=='object')throw new Error('Invalid project screens');
+    text(p.screens.title,'screens title');text(p.screens.intro,'screens intro');
+    if(!Array.isArray(p.screens.items)||p.screens.items.length<2||p.screens.items.length>6)throw new Error('Invalid project screens');
+    for(const item of p.screens.items){
+      if(!item||typeof item!=='object')throw new Error('Invalid project screen');
+      validateImage(item.image);text(item.caption,'screen caption');
+    }
+  }
   p.repositoryUrls.forEach(u=>checkedURL(u,new Set(['github.com'])));
   if(p.featuredOrder!==null&&(!Number.isInteger(p.featuredOrder)||p.featuredOrder<1))throw new Error('Invalid featured order');
 }
@@ -91,6 +100,11 @@ function projectExampleHTML(p) {
  if(!example)return '';
  return '<section class="showcase-case-screens"><h2>'+escapeHTML(example.title)+'</h2><figure class="showcase-case-image">'+imageHTML(example.image)+'<figcaption>'+escapeHTML(example.caption)+'</figcaption></figure><a class="showcase-all" href="'+escapeHTML(example.url)+'">'+escapeHTML(example.actionLabel)+' &nearr;</a></section>';
 }
+function projectScreensHTML(p) {
+ const screens=p.screens;
+ if(!screens)return '';
+ return '<section class="showcase-case-screens"><h2>'+escapeHTML(screens.title)+'</h2><p>'+escapeHTML(screens.intro)+'</p><div class="showcase-screen-grid">'+screens.items.map(item=>'<figure>'+imageHTML(item.image)+'<figcaption>'+escapeHTML(item.caption)+'</figcaption></figure>').join('')+'</div></section>';
+}
 function bytesfxScreensHTML() {
   const lead = {src:'/projects/bytesfx-lead.png', alt:'BytesFX lead details with an invented example.com contact', width:460, height:1000};
   const proposal = {src:'/projects/bytesfx-proposal.png', alt:'BytesFX proposal editor showing an AI draft that needs human review', width:460, height:1000};
@@ -140,6 +154,7 @@ export function projectCaseHTML(record) {
     </div>
     ${workflowHTML(p.workflow)}
     ${projectExampleHTML(p)}
+    ${projectScreensHTML(p)}
     ${isBytesFX ? bytesfxScreensHTML() + trialHTML() : projectEnquiryHTML()}
   </div></section>`;
 }

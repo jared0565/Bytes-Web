@@ -16,6 +16,9 @@
 .showcase-screen-pair { display:grid;grid-template-columns:repeat(2,minmax(0,460px));gap:2rem;justify-content:center;padding:1rem 0 2rem; }
 .showcase-screen-pair figure { margin:0; }
 .showcase-screen-pair img { width:100%;height:auto;display:block;border:1px solid var(--line-strong);border-radius:12px; }
+.showcase-screen-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2rem;padding-top:1rem; }
+.showcase-screen-grid figure { margin:0; }
+.showcase-screen-grid img { width:100%;height:auto;display:block;border:1px solid var(--line-strong);border-radius:12px; }
 .showcase-plan-note { max-width:75ch;margin-bottom:0; }
 .showcase-selected { border-block:1px solid var(--line);background:var(--ink-1); }
 .showcase-selected-grid { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2rem; }
@@ -95,6 +98,7 @@
  .showcase-heading { align-items:flex-start;flex-direction:column;gap:.5rem; }
  .showcase-flagship .showcase-project { gap:1.5rem; }
  .showcase-screen-pair { grid-template-columns:minmax(0,460px); }
+ .showcase-screen-grid { grid-template-columns:minmax(0,1fr); }
  .showcase-return { align-items:flex-start;flex-direction:column; }
  .showcase-page .hx-section { padding-block:2.5rem; }
 }
