@@ -8,8 +8,9 @@ const site=fileURLToPath(new URL('../',import.meta.url));
 const dist=join(site,'dist');
 const defaultRead=p=>existsSync(join(dist,p))?readFileSync(join(dist,p),'utf8'):'';
 const defaultExists=p=>existsSync(join(dist,p));
+const defaultBytes=p=>readFileSync(join(dist,p));
 const publicProjects=publishedProjects(projects);
-export function auditShowcase({read=defaultRead,exists=defaultExists}={}) {
+export function auditShowcase({read=defaultRead,exists=defaultExists,bytes=defaultBytes}={}) {
  const failures=[],check=(ok,m)=>{if(!ok)failures.push(m);};
  const routes=['/ai-chatbot/','/projects/',...publicProjects.map(p=>p.caseStudyPath)];
  const titles=new Set();
@@ -68,7 +69,10 @@ export function auditShowcase({read=defaultRead,exists=defaultExists}={}) {
  check(!exists('__showcase-fixtures.json'),'temporary capture fixtures shipped');
  for(const p of publicProjects){
   for(const image of [p.image,p.example?.image,...(p.screens?.items||[]).map(item=>item.image)].filter(Boolean)){
-   const data=readFileSync(join(dist,image.src));
+   const local=image.src.slice(1),present=exists(local);
+   check(present,p.id+': missing image '+image.src);
+   if(!present)continue;
+   const data=bytes(local);
    check(data.readUInt32BE(16)===image.width&&data.readUInt32BE(20)===image.height,p.id+': PNG dimensions differ from metadata '+image.src);
   }
  }
@@ -76,19 +80,24 @@ export function auditShowcase({read=defaultRead,exists=defaultExists}={}) {
 }
 if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
  const failures=auditShowcase();
+ let mutants=[];
  if(process.argv.includes('--self-test')){
-  const mutants=[
-   s=>s.replace('data-project="pivot-parlor"','data-project="bytescrm"'),
-   s=>s.replace('src="/projects/pivot-parlor.png"','src="/projects/missing.png"'),
-   s=>s.replace('width="1440"','width="0"'),
-   s=>s.replace('<!--@ld-->','')+'<iframe src="https://example.com"></iframe>',
-   s=>s.replace('href="/onboarding/"','href="/missing-trial/"')
+  const chatbotPage=change=>({read:p=>p==='ai-chatbot/index.html'?change(defaultRead(p)):defaultRead(p)});
+  const gone='projects/pivot-till.png';
+  mutants=[
+   chatbotPage(s=>s.replace('data-project="pivot-parlor"','data-project="bytescrm"')),
+   chatbotPage(s=>s.replace('src="/projects/pivot-parlor.png"','src="/projects/missing.png"')),
+   chatbotPage(s=>s.replace('width="1440"','width="0"')),
+   chatbotPage(s=>s.replace('<!--@ld-->','')+'<iframe src="https://example.com"></iframe>'),
+   chatbotPage(s=>s.replace('href="/onboarding/"','href="/missing-trial/"')),
+   // A case image missing from dist must be reported by name, not crash the audit.
+   {exists:p=>p!==gone&&defaultExists(p),bytes:p=>{if(p===gone)throw new Error('ENOENT '+p);return defaultBytes(p);},expect:'missing image /'+gone}
   ];
-  for(const change of mutants){
-   const found=auditShowcase({read:p=>p==='ai-chatbot/index.html'?change(defaultRead(p)):defaultRead(p)});
-   if(!found.length)failures.push('checker mutation escaped detection');
+  for(const {expect,...options} of mutants){
+   const found=auditShowcase(options);
+   if(!found.length||(expect&&!found.some(f=>f.endsWith(expect))))failures.push('checker mutation escaped detection');
   }
  }
  if(failures.length){failures.forEach(f=>console.error('[showcase] '+f));process.exitCode=1;}
- else console.log('[showcase] '+(publicProjects.length+2)+' built pages, navigation, ownership, published routes, image metadata, trial paths and draft boundary verified'+(process.argv.includes('--self-test')?'; five negative mutations detected':''));
+ else console.log('[showcase] '+(publicProjects.length+2)+' built pages, navigation, ownership, published routes, image metadata, trial paths and draft boundary verified'+(process.argv.includes('--self-test')?'; '+mutants.length+' negative mutations detected':''));
 }
