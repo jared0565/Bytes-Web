@@ -150,7 +150,7 @@ The weaknesses are presentation and weight, not correctness.
 
 None of these block on correctness. Each is a source change: plan first, then the owner's "go".
 
-## After the fixes (17 Nov 2026, about 04:15Z)
+## After the fixes (17 Nov 2026, measured between 03:56 and 04:04Z)
 
 All five findings were fixed on the same branch in five commits (`5f2c168`, `9d2d0c8`, `d1eb107`, `1186055`, plus the commit that records this section). The figures below were re-measured on a fresh build served by `vite preview`, using the same widths and network rule as the audit.
 

@@ -106,7 +106,7 @@ On the case page:
 
 Full-page captures paint lazy images as blank boxes. Viewport captures scrolled to each section show every frame rendered. At 390px the workspace frames are legible as screenshots, but their small text is not.
 
-### Second review, after the audit fixes (17 Nov 2026, about 04:10 UTC)
+### Second review, after the audit fixes (17 Nov 2026, between 03:56 and 04:04 UTC)
 
 `npm run build` passed. `check-showcase-pages.mjs --self-test` detected 6 of 6 negative mutations; the new one is a missing case image. Same four pages, same four widths, same network rule. Results on all 16 pairs:
 - no overflow;
