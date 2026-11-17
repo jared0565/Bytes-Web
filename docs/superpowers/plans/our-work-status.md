@@ -188,3 +188,38 @@ project rather than about this branch.
 
 Still true: no merge, push, pull request or deployment. A push to `main` deploys the chatbot
 API, the CRM API and the website together, and needs separate explicit owner authorization.
+
+## Release, 17 November 2026: the 6 November work, with the BytesFX case study kept
+
+The owner decided on 17 November to release the 6 November expansion and to keep the live
+`/projects/bytesfx/` case study. Branch `feat/our-work-expansion`, from `origin/main` `decb8b9`
+(PR #106). Plan: `docs/superpowers/plans/2026-11-17-our-work-expansion-release.md`.
+
+- The 6 November commits `a93054f..97d2299` were replayed as one change. The 5 November half had
+  already shipped as PR #105, so it was not replayed.
+- PR #106 wins every Pivot Parlor overlap: catalogue record, case shell, images
+  (`pivot-platform.png` stays removed), the image audit of example and screen images, and the
+  case-page order (example, screens, workflow).
+- Fixed Decision 1 of the 6 November plan is reversed: the BytesFX record, its screens and trial
+  box, its Vite input and its sitemap entry are restored verbatim from `origin/main`. The index's
+  product-proof lead opens the case study ("View project"); "Explore the chatbot" still opens the
+  chatbot page. BytesFX is not repeated as a card, so the grid shows the seven projects.
+- The built-output audit expects eight case studies and checks the lead's link; its self-test
+  removes the BytesFX sitemap entry and built directory rather than adding them.
+
+Verification on 17 November, local only:
+- `npm --prefix bytes-website run build`: exit 0 (25 catalogue tests, 7 editorial tests, 10 built
+  pages); `check-showcase-pages.mjs --self-test`: 8 negative mutations detected.
+- The built BytesFX and Pivot Parlor case pages are identical to the build of `decb8b9` apart
+  from hashed asset names. The stylesheet change only adds the product-proof selectors and
+  removes the old flagship rules.
+- Browser reviews against a local preview, at 1440, 768, 390 and 320 and with 200% text:
+  `review-our-work.mjs` 310/310, `review-system-cases.mjs` 388/388 (now including the BytesFX
+  case), `verify-showcase-ui.mjs` 151/151. No runtime errors, and no production requests: every
+  non-local request was answered locally.
+- No new em or en dash in the showcase copy or the built pages.
+- Images loaded up front on `/projects/`: 3,329 KB at 1440 (3,359 KB before) and 2,227 KB at
+  390 (2,239 KB before).
+
+Not yet done: the merge and deployment (owner's yes), and a read-only check of the new pages on
+the live site afterwards (owner's yes).
