@@ -10,11 +10,11 @@ jobs:
     # Pinned: ubuntu-latest moves to Ubuntu 26 from 19 Oct 2026; deploys were last proven on 24.04
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       
       # chatbot-api first: crm-api binds to its LlmService entrypoint
       - name: Deploy Worker (API)
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           # wrangler.jsonc needs Wrangler >= 3.91; the action defaults to 3.90
@@ -22,7 +22,7 @@ jobs:
           workingDirectory: 'chatbot-api'
 
       - name: Deploy CRM API Worker
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           wranglerVersion: '4.149.0'
@@ -37,7 +37,7 @@ jobs:
           npm run build
           
       - name: Deploy Website (Dashboard & Widget)
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           wranglerVersion: '4.149.0'
