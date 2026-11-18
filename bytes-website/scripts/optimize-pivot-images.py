@@ -1,9 +1,12 @@
 """Crop and re-encode the Pivot Parlor showcase images.
 
-Run from the repository root after capture-pivot-shops.mjs, or after copying new
-workspace frames from a Pivot Parlor handoff:
+Run after capture-pivot-shops.mjs, or after copying new workspace frames from a
+Pivot Parlor handoff. It works from any directory: the images folder is found from
+this file's own location.
 
     python -P bytes-website/scripts/optimize-pivot-images.py
+
+Tests: test_optimize_pivot_images.py, beside this file.
 
 Needs Pillow. Idempotent: a second run leaves every file byte-identical.
 - Shop captures are quantised to a 256-colour palette with Floyd-Steinberg dithering.
@@ -16,7 +19,7 @@ from pathlib import Path
 
 from PIL import Image
 
-ROOT = Path('bytes-website/public/projects')
+ROOT = Path(__file__).resolve().parent.parent / 'public' / 'projects'
 SHOPS = ['pivot-parlor', 'pivot-linden-lark']
 FRAMES = ['pivot-bookings', 'pivot-walkin-queue', 'pivot-till', 'pivot-inventory',
           'pivot-staff-today', 'pivot-operator-onboarding']
@@ -41,9 +44,9 @@ def report(path):
         print(f'{path.name} {image.width}x{image.height} {path.stat().st_size}')
 
 
-def main():
+def main(root=ROOT):
     for name in SHOPS:
-        path = ROOT / f'{name}.png'
+        path = root / f'{name}.png'
         with Image.open(path) as image:
             if image.mode != 'P':
                 palette = image.convert('RGB').quantize(
@@ -51,7 +54,7 @@ def main():
                 palette.save(path, optimize=True)
         report(path)
     for name in FRAMES:
-        path = ROOT / f'{name}.png'
+        path = root / f'{name}.png'
         with Image.open(path) as image:
             if image.width == 1440:
                 cropped = image.convert('RGB').crop((SIDEBAR, 0, 1440, image.height))
