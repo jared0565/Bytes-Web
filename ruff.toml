@@ -1,0 +1,6 @@
+# Ruff settings for the repository's Python scripts. aramid runs ruff with its own
+# rule selection; this file only adds exceptions. See ARAMID.md, "Noisy WARN-tier rule".
+
+[lint.per-file-ignores]
+# pytest tests assert by design (S101 is "use of assert").
+"**/test_*.py" = ["S101"]
