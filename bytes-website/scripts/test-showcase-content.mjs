@@ -184,6 +184,25 @@ test('the case hero loads first and other images stay lazy',()=>{
  assert.ok(!projectCardHTML(sample()).includes('fetchpriority'));
 });
 
+test('an image with a WebP version offers it first and keeps the PNG as the fallback',()=>{
+ const p=sample();p.image.webp='/projects/pivot-parlor.webp';
+ for(const html of [projectCardHTML(p),projectCaseHTML(p)]){
+  assert.match(html,/<picture><source srcset="\/projects\/pivot-parlor\.webp" type="image\/webp"><img\b[^>]*src="\/projects\/pivot-parlor\.png"[^>]*><\/picture>/);
+ }
+ delete p.image.webp;
+ assert.ok(!projectCardHTML(p).includes('<picture>'));
+});
+
+test('the Pivot Parlor card ships a WebP version',()=>{
+ assert.equal(projects.find(p=>p.id==='pivot-parlor').image.webp,'/projects/pivot-parlor.webp');
+});
+
+test('an unsafe or mistyped WebP path fails closed',()=>{
+ for(const webp of ['/projects/../secret.webp','/projects/pivot-parlor.png','https://evil.example/x.webp','/projects/x.webp" onerror="x','',null,7]){
+  const p=sample();p.image.webp=webp;assert.throws(()=>publishedProjects([p]),/WebP/,String(webp));
+ }
+});
+
 test('records without screens render no screen grid',()=>{
  const html=projectCaseHTML(projects.find(p=>p.id==='active-paw'));
  assert.ok(html.includes('Our delivery scope'));

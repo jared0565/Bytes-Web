@@ -150,6 +150,7 @@ export const projects = [
     "caseStudyPath": "/projects/pivot-parlor/",
     "image": {
       "src": "/projects/pivot-parlor.png",
+      "webp": "/projects/pivot-parlor.webp",
       "alt": "FerdyM's Barber Shop demo homepage, with a barber at work in a green-tiled shop, the headline Precise Barbering in the Heart of Deptford, booking buttons and the demo notice",
       "width": 1440,
       "height": 1000

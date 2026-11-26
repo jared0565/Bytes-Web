@@ -40,7 +40,7 @@ export function auditShowcase({read=defaultRead,exists=defaultExists,bytes=defau
   check(!/<iframe\b/i.test(html),route+': iframe forbidden');
   check(!/href="https?:\/\/(?:www\.)?github\.com\//i.test(html),route+': public repository link present');
   for(const draft of projects.filter(p=>p.publishState==='draft'))check(!html.toLowerCase().includes(draft.id),route+': draft leaked');
-  for(const m of html.matchAll(/(?:href|src)="(\/[^"]*)"/g)){
+  for(const m of html.matchAll(/(?:href|src|srcset)="(\/[^"]*)"/g)){
    const u=new URL(m[1],'https://web.bytesfx.com');
    const pathname=decodeURIComponent(u.pathname);
    const local=pathname.endsWith('/')?pathname.slice(1)+'index.html':pathname.slice(1);
@@ -87,6 +87,14 @@ export function auditShowcase({read=defaultRead,exists=defaultExists,bytes=defau
    if(!present)continue;
    const data=bytes(local);
    check(data.readUInt32BE(16)===image.width&&data.readUInt32BE(20)===image.height,p.id+': PNG dimensions differ from metadata '+image.src);
+   if(!image.webp)continue;
+   const webpLocal=image.webp.slice(1),webpPresent=exists(webpLocal);
+   check(webpPresent,p.id+': missing image '+image.webp);
+   if(!webpPresent)continue;
+   const webp=bytes(webpLocal);
+   check(webp.toString('latin1',0,4)==='RIFF'&&webp.toString('latin1',8,12)==='WEBP',p.id+': not a WebP file '+image.webp);
+   // The lighter copy exists to save weight: one that is not smaller than the PNG is a mistake.
+   check(webp.length<data.length,p.id+': WebP is not smaller than the PNG '+image.webp);
   }
  }
  return failures;
@@ -106,6 +114,9 @@ if(process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url)){
    chatbotPage(s=>s.replace('href="/onboarding/"','href="/missing-trial/"')),
    // A case image missing from dist must be reported by name, not crash the audit.
    {exists:p=>p!==gone&&defaultExists(p),bytes:p=>{if(p===gone)throw new Error('ENOENT '+p);return defaultBytes(p);},expect:'missing image /'+gone},
+   // The same holds for a WebP copy, and a file that is not WebP must not pass as one.
+   {exists:p=>p!=='projects/pivot-parlor.webp'&&defaultExists(p),expect:'missing image /projects/pivot-parlor.webp'},
+   {bytes:p=>p==='projects/pivot-parlor.webp'?defaultBytes('projects/pivot-parlor.png'):defaultBytes(p),expect:'not a WebP file /projects/pivot-parlor.webp'},
    // The sitemap and the built case directories must match the catalogue exactly.
    sitemapFile(s=>s.replace(/\s*<url><loc>https:\/\/web\.bytesfx\.com\/projects\/bytesfx\/<\/loc><\/url>/,'')),
    {listCases:()=>defaultListCases().filter(id=>id!=='bytesfx')}
