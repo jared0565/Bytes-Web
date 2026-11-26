@@ -6,7 +6,9 @@
     "enabled": true
   },
   "assets": {
-    "directory": "bytes-website/dist"
+    "directory": "bytes-website/dist",
+    // A missing address gets 404.html with status 404 (bytes-website/scripts/check-not-found-page.mjs)
+    "not_found_handling": "404-page"
   },
   "compatibility_flags": [
     "nodejs_compat"

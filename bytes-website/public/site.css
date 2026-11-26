@@ -185,3 +185,8 @@ a:focus-visible, button:focus-visible { outline: 2px solid var(--amber); outline
 .site-nav-links + .site-share { margin-left: 0; }
 .site-footer-brand [data-social-links] { color: var(--text-dim); }
 @media (max-width: 640px) { .site-share { margin-left: auto; padding: 0.6rem; } .site-share { font-size: 0; gap: 0; } .site-share svg { width: 18px; height: 18px; } .site-nav .btn { margin-left: 0; } }
+
+/* BytesFX's own chat widget (the 404 page): the site's amber with dark text on it. The widget's default is indigo with white text. */
+body .chatbot-widget-container { --widget-accent:#ffb547;--widget-accent-hover:#ffa31f;--widget-accent-glow:rgba(255,181,71,.35); }
+body .chatbot-widget-container .chatbot-launcher,body .chatbot-widget-container .user-message,body .chatbot-widget-container .btn-send-chat { color:var(--ink-0); }
+body .chatbot-widget-container .btn-send-chat svg { width:20px;height:20px;fill:currentColor; }
