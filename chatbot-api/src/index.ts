@@ -1,5 +1,5 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
-import { callChosenModel, callGemini, publicCatalog, modelIsPremium, DEFAULT_MODEL } from './llm';
+import { callChosenModel, callGemini, publicCatalog, modelIsPremium, defaultModel, FALLBACK_MODELS } from './llm';
 // Message limits per bot mode come from the shared plan list (same file the website and dashboard show)
 import PLAN_DATA from '../../bytes-website/public/plans.json';
 
@@ -734,17 +734,18 @@ export default {
 			// Client's chosen model (dashboard → Chatbot Behavior); any failure falls through to the Gemini chain
 			let chosenText: string | null = null;
 			// Premium models are for AI Plus only; on AI they quietly use the default model
-			let chosenModel = clientConfig?.llmModel || DEFAULT_MODEL;
-			if (tier !== 'ai_plus' && await modelIsPremium(chosenModel)) chosenModel = DEFAULT_MODEL;
+			let chosenModel = clientConfig?.llmModel || defaultModel(env);
+			if (tier !== 'ai_plus' && await modelIsPremium(chosenModel)) chosenModel = defaultModel(env);
 			try {
-				chosenText = (await callChosenModel(env, chosenModel, clientConfig?.llmEffort, activeSystemPrompt, contents)).text;
+				// No chosen model and no key for the default: the backup models below answer
+				if (chosenModel) chosenText = (await callChosenModel(env, chosenModel, clientConfig?.llmEffort, activeSystemPrompt, contents)).text;
 			} catch (err: any) {
 				console.error(`[LLM] Chosen model ${chosenModel} failed, using default chain:`, err?.message || err);
 			}
 
 			let text = chosenText;
 			let quotaHit = false;
-			for (const model of chosenText ? [] : ['gemini-3.1-flash-lite-preview', 'gemini-2.5-flash']) {
+			for (const model of chosenText ? [] : FALLBACK_MODELS) {
 				try {
 					const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`, {
 						method: 'POST',
@@ -797,10 +798,9 @@ export default {
 // crm-api calls env.LLM.complete(...) to draft follow-up emails and read leads' replies with the
 // model chosen in settings. Only reachable through the binding: it has no public URL.
 export const SALES_DEFAULT_MODEL = 'gpt-6-luna';
-export const SALES_FALLBACK_MODEL = 'gemini-2.5-flash';
 
 export class LlmService extends WorkerEntrypoint<Env> {
-	/** Returns { text, model } from the chosen model, falling back to Gemini. Throws only if every model fails. */
+	/** Returns { text, model } from the chosen model, falling back to the backup models. Throws only if every model fails. */
 	async complete(args: { model?: string; effort?: string; system: string; prompt: string; maxChars?: number }): Promise<{ text: string; model: string }> {
 		const env = this.env;
 		const system = String(args?.system || '').slice(0, 20000);
@@ -808,12 +808,15 @@ export class LlmService extends WorkerEntrypoint<Env> {
 		const contents = [{ role: 'user', parts: [{ text: prompt }] }];
 		// Default: GPT-6 Luna directly with an OpenAI key, else the same model through OpenRouter
 		let wanted = typeof args?.model === 'string' && args.model ? args.model : '';
-		if (!wanted) wanted = env.OPENAI_API_KEY ? SALES_DEFAULT_MODEL : env.OPENROUTER_API_KEY ? `openrouter:openai/${SALES_DEFAULT_MODEL}` : SALES_FALLBACK_MODEL;
-		const tries = [wanted, ...(wanted === SALES_FALLBACK_MODEL ? [] : [SALES_FALLBACK_MODEL])];
+		if (!wanted) wanted = env.OPENAI_API_KEY ? SALES_DEFAULT_MODEL : env.OPENROUTER_API_KEY ? `openrouter:openai/${SALES_DEFAULT_MODEL}` : FALLBACK_MODELS[0];
+		const tries = [wanted, ...FALLBACK_MODELS.filter((m) => m !== wanted)];
 		let lastErr: unknown = null;
 		for (const model of tries) {
-			try { return await callChosenModel(env, model, args?.effort || 'medium', system, contents); }
-			catch (err: any) { lastErr = err; console.error(`[LlmService] ${model} failed:`, err?.message || err); }
+			try {
+				// A backup is called the way the chat's backups are: straight to Google, with no thinking setting
+				if (FALLBACK_MODELS.includes(model)) return { text: await callGemini(env, model, null, system, contents), model };
+				return await callChosenModel(env, model, args?.effort || 'medium', system, contents);
+			} catch (err: any) { lastErr = err; console.error(`[LlmService] ${model} failed:`, err?.message || err); }
 		}
 		throw new Error(`No model could answer: ${(lastErr as any)?.message || 'unknown error'}`);
 	}

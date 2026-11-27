@@ -34,7 +34,21 @@ export const MODEL_CATALOG: ModelInfo[] = [
 	{ id: 'gemini-2.5-flash-lite', provider: 'google', name: 'Gemini 2.5 Flash-Lite', inputPrice: 0.1, outputPrice: 0.4 },
 ];
 
-export const DEFAULT_MODEL = 'gemini-2.5-flash';
+// Default chat model, for a bot with no model chosen: Claude Haiku 5.5. It runs on Anthropic's own
+// API when that key is set, otherwise through OpenRouter. With neither key there is no default and
+// replies go straight to the backup models.
+const DEFAULT_DIRECT = 'claude-haiku-5-5';
+const DEFAULT_ROUTED_SLUG = 'anthropic/claude-haiku-5.5';
+export function defaultModel(env: LlmEnv): string {
+	if (env.ANTHROPIC_API_KEY) return DEFAULT_DIRECT;
+	if (env.OPENROUTER_API_KEY) return OPENROUTER_PREFIX + DEFAULT_ROUTED_SLUG;
+	return '';
+}
+// Backup models, tried in this order when the chosen model fails. Both are called on Google's own API
+// with no thinking setting. Google retires gemini-2.5-flash on 1 December 2026 and has shut down
+// gemini-3.1-flash-lite-preview, the two that were here before. The last one has no shutdown date
+// and is the model the lead reader already calls.
+export const FALLBACK_MODELS = ['gemini-3.5-flash-lite', 'gemini-2.5-flash-lite'];
 // Premium models (output above $15 per 1M tokens) are reserved for the AI Plus bot mode
 export const PREMIUM_OUTPUT_PRICE = 15;
 export const isPremium = (m: { outputPrice: number } | undefined) => !!m && m.outputPrice > PREMIUM_OUTPUT_PRICE;
@@ -167,6 +181,7 @@ export async function openRouterModels(): Promise<OpenRouterModel[]> {
 		if (!res.ok) throw new Error(`HTTP ${res.status}`);
 		const data = ((await res.json()) as any)?.data || [];
 		const newest = new Map<string, any>();
+		let pinned: any = null; // the default model stays in the list when its vendor has a newer one
 		for (const m of data) {
 			const id: string = m?.id || '';
 			const vendor = id.split('/')[0];
@@ -174,19 +189,19 @@ export async function openRouterModels(): Promise<OpenRouterModel[]> {
 			const textOut = (m?.architecture?.output_modalities || ['text']).join() === 'text';
 			if (!OPENROUTER_VENDORS.includes(vendor) || id.includes(':') || OPENROUTER_SKIP.test(id) || !textOut) continue;
 			if (!(prompt > 0) || !(completion > 0)) continue; // skip free/variable-price routes
+			if (id === DEFAULT_ROUTED_SLUG) pinned = m;
 			if (!newest.has(vendor) || (m.created || 0) > (newest.get(vendor).created || 0)) newest.set(vendor, m);
 		}
-		const models = OPENROUTER_VENDORS.filter((v) => newest.has(v)).map((v) => {
-			const m = newest.get(v);
-			return {
-				id: OPENROUTER_PREFIX + m.id,
-				provider: 'openrouter' as const,
-				name: String(m.name || m.id),
-				inputPrice: Math.round(Number(m.pricing.prompt) * 1e6 * 1000) / 1000,
-				outputPrice: Math.round(Number(m.pricing.completion) * 1e6 * 1000) / 1000,
-				reasoning: (m.supported_parameters || []).includes('reasoning'),
-			};
-		});
+		const picked = OPENROUTER_VENDORS.filter((v) => newest.has(v)).map((v) => newest.get(v));
+		if (pinned && !picked.includes(pinned)) picked.push(pinned);
+		const models = picked.map((m) => ({
+			id: OPENROUTER_PREFIX + m.id,
+			provider: 'openrouter' as const,
+			name: String(m.name || m.id),
+			inputPrice: Math.round(Number(m.pricing.prompt) * 1e6 * 1000) / 1000,
+			outputPrice: Math.round(Number(m.pricing.completion) * 1e6 * 1000) / 1000,
+			reasoning: (m.supported_parameters || []).includes('reasoning'),
+		}));
 		orCache = { at: Date.now(), models };
 		return models;
 	} catch (err: any) {
@@ -242,7 +257,7 @@ export async function callChosenModel(env: LlmEnv, modelId: unknown, effortIn: u
 export async function publicCatalog(env: LlmEnv) {
 	const models: ModelInfo[] = [...MODEL_CATALOG, ...(await openRouterModels())];
 	return {
-		defaultModel: DEFAULT_MODEL,
+		defaultModel: defaultModel(env) || FALLBACK_MODELS[0],
 		efforts: EFFORTS,
 		models: models.map((m) => ({ ...m, providerName: PROVIDER_NAMES[m.provider], available: providerAvailable(env, m.provider), premium: isPremium(m) })),
 	};
