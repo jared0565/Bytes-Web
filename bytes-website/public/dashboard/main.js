@@ -1091,6 +1091,7 @@ function mcbRefreshUI() {
     const scripted = mode === 'scripted';
     cbMarkPremium(mcbEl('config-llm-model'), mode);
     document.querySelectorAll('#mc-bot .mc-ai-only').forEach(g => { g.classList.toggle('cb-muted', scripted); g.querySelectorAll('select').forEach(x => { x.disabled = scripted; }); });
+    syncEffortSelect(mcbEl('config-llm-effort'), mcbEl('config-llm-model').value, scripted);
     mcbEl('config-llm-cost').innerHTML = modelCatalog ? modelCostHtml(mcbEl('config-llm-model').value) : '';
     const len = configPrompt.value.length;
     mcbEl('config-prompt-count').textContent = promptCountText(configPrompt.value);
@@ -1260,7 +1261,7 @@ saveConfigBtn.addEventListener('click', async () => {
 });
 
 // Live guidance + unsaved-change tracking
-['config-mode', 'config-llm-model', 'config-campaign-mode'].forEach(id => mcbEl(id)?.addEventListener('change', mcbRefreshUI));
+['config-mode', 'config-llm-model', 'config-llm-effort', 'config-campaign-mode'].forEach(id => mcbEl(id)?.addEventListener('change', mcbRefreshUI));
 ['config-prompt', 'config-domains'].forEach(id => mcbEl(id)?.addEventListener('input', mcbRefreshUI));
 mcbEl('config-domains')?.addEventListener('blur', () => {
     const ta = mcbEl('config-domains');
@@ -1882,6 +1883,30 @@ function populateModelSelect(select, savedValue) {
     }
 }
 
+// The effort levels a model accepts. A saved model the list no longer holds gets all three: the
+// chatbot server still knows it and decides at reply time.
+function modelEfforts(id) {
+    const m = modelCatalog && modelCatalog.models.find(x => x.id === (id || modelCatalog.defaultModel));
+    return m && Array.isArray(m.efforts) ? m.efforts : ['low', 'medium', 'high'];
+}
+
+// Limits an effort <select> to the chosen model's levels and says why under it. The saved level is
+// never changed here: a level the model lacks stays selected, with a note that it is not in use.
+// `off` is the bot mode's own reason to disable the control (a scripted bot uses no model).
+function syncEffortSelect(effortSel, modelId, off = false) {
+    if (!effortSel) return;
+    const levels = modelEfforts(modelId);
+    for (const o of effortSel.options) o.disabled = !levels.includes(o.value);
+    effortSel.disabled = off || !levels.length;
+    const note = document.getElementById(effortSel.id + '-note');
+    if (!note) return;
+    const picked = (effortSel.options[effortSel.selectedIndex]?.textContent || '').split(':')[0];
+    note.textContent = off ? ''
+        : !levels.length ? 'This model has no effort setting.'
+        : !levels.includes(effortSel.value) ? `${picked} is not offered by this model, so it runs at its own default. Choose another level to set one.`
+        : '';
+}
+
 async function loadModelCatalog() {
     const select = document.getElementById('settings-llm-model');
     if (!select || select.dataset.filled) return;
@@ -1914,8 +1939,9 @@ function renderModelCost() {
     const info = document.getElementById('settings-llm-info');
     if (info && modelCatalog) {
         const m = modelCatalog.models.find(x => x.id === (select?.value || modelCatalog.defaultModel));
-        const effort = ({ low: 'Low', medium: 'Medium', high: 'High' })[document.getElementById('settings-llm-effort')?.value] || 'Medium';
-        info.innerHTML = `<strong>${escapeHtml(m ? m.name : 'Default model')}</strong> <span class="cb-hint">· ${effort} effort · assigned by your Bytes account manager</span>`;
+        const level = document.getElementById('settings-llm-effort')?.value || 'medium';
+        const effort = modelEfforts(select?.value).includes(level) ? ` · ${({ low: 'Low', medium: 'Medium', high: 'High' })[level] || 'Medium'} effort` : '';
+        info.innerHTML = `<strong>${escapeHtml(m ? m.name : 'Default model')}</strong> <span class="cb-hint">${effort} · assigned by your Bytes account manager</span>`;
     }
     if (!select || !costEl || !modelCatalog) return;
     costEl.innerHTML = modelCostHtml(select.value);
@@ -2986,7 +3012,9 @@ async function loadSiteSettings() {
 
 document.getElementById('site-llm-model')?.addEventListener('change', (e) => {
     document.getElementById('site-llm-cost').innerHTML = modelCostHtml(e.target.value);
+    siteModeChanged();
 });
+document.getElementById('site-llm-effort')?.addEventListener('change', siteModeChanged);
 
 document.getElementById('site-save-btn')?.addEventListener('click', async () => {
     const status = document.getElementById('site-status');
@@ -3878,6 +3906,7 @@ function siteModeChanged() {
         g.classList.toggle('cb-muted', scripted);
         g.querySelectorAll('select').forEach(x => { x.disabled = scripted; });
     });
+    syncEffortSelect(document.getElementById('site-llm-effort'), document.getElementById('site-llm-model')?.value, scripted);
 }
 
 function siteDomainsCheck() {
