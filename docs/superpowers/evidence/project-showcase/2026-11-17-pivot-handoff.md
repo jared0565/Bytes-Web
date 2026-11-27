@@ -1,6 +1,6 @@
 # Pivot Parlor handoff review, 17 November 2026
 
-Source: the handoff report prepared by Pivot Parlor's own agent at the owner's request, `F:\Projects\Pivot Parlor\pp-showcase\docs\handoff\2026-11-17-bytesfx-handoff-for-bytesfx.md`, with its capture folder `2026-11-17-bytesfx-captures\`. Both were read here at the owner's direction; nothing in Pivot Parlor's repository was changed. Plan: `docs/superpowers/plans/2026-11-17-pivot-case-study-refresh.md`. Spec: `docs/superpowers/specs/2026-11-06-pivot-representative-demo-design.md`.
+Source: the handoff report prepared by Pivot Parlor's own agent at the owner's request, `2026-11-17-bytesfx-handoff-for-bytesfx.md` in the Pivot Parlor handoff folder, with its capture folder `2026-11-17-bytesfx-captures`. Both were read here at the owner's direction; nothing in Pivot Parlor's repository was changed. Plan: `docs/superpowers/plans/2026-11-17-pivot-case-study-refresh.md`. Spec: `docs/superpowers/specs/2026-11-06-pivot-representative-demo-design.md`.
 
 ## Evidence grade
 
@@ -122,6 +122,21 @@ On the case page:
 - **Example heading.** The gap between the example heading and its image is now 20px at every width (previously 0).
 - **Divider.** Only one full-width rule separates the last frame from the workflow, so the earlier double divider is gone.
 - **Image weight.** The case page's initial image transfer was 544 KB at every width (previously 987 KB).
+
+## Production check after the deploy (17 Nov 2026, 09:16 to 09:19 UTC)
+
+Recorded here on 26 Nov 2026 from the session record of the check; it was not repeated that day. The check made GET requests only, to `https://web.bytesfx.com`, with the owner's approval.
+
+- `/projects/pivot-parlor/`, `/projects/` and `/` returned 200. Their HTML equalled the build apart from Cloudflare's edge rewrites and line endings.
+- The 8 Pivot PNGs matched the build by SHA256.
+- At 1440, 768, 390 and 320px: no overflow, one `h1`, no unloaded image, no page errors. The proof sections came before the workflow, and the hero loaded with `eager` and `high`. The initial images were 544 KB.
+- The retired `/projects/pivot-platform.png` was still served from Cloudflare's cache that day. On 26 Nov 2026 at 21:12 UTC the same address returned the site's HTML page (`text/html`, cache `MISS`), so the old image is gone.
+
+## Follow-up, 26 Nov 2026
+
+- The Pivot card and case hero now offer a WebP copy (`pivot-parlor.webp`, 80,034 bytes, quality 85) ahead of the PNG (557,329 bytes), which stays as the fallback.
+- Case-page captions are capped at `46ch`, down from the shared `75ch`.
+- The defects below went to Pivot Parlor's agent as bug report round 354 on the shared agent channel.
 
 ## Pivot-side defects, for the owner to pass to Pivot Parlor
 

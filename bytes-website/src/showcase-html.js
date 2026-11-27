@@ -14,6 +14,8 @@ function validateImage(image) {
   if(!image||!/^\/projects\/[a-z0-9-]+\.png$/.test(image.src))throw new Error('Invalid image path');
   text(image.alt,'image alt');
   for(const dimension of ['width','height'])if(!Number.isInteger(image[dimension])||image[dimension]<1)throw new Error('Invalid image dimension');
+  // Optional lighter copy of the same picture. The PNG stays the fallback and the full-size original.
+  if(image.webp!==undefined&&(typeof image.webp!=='string'||!/^\/projects\/[a-z0-9-]+\.webp$/.test(image.webp)))throw new Error('Invalid WebP image path');
 }
 function validateProject(p) {
   if(!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(p.id))throw new Error('Invalid project id');
@@ -70,7 +72,8 @@ export function publishedProjects(records) {
 export const featuredProjects = records => publishedProjects(records).filter(p=>p.featuredOrder!==null).sort((a,b)=>a.featuredOrder-b.featuredOrder).slice(0,3);
 export function imageHTML(image, className='', priority=false) {
   validateImage(image);
-  return '<img class="'+escapeHTML(className)+'" src="'+escapeHTML(image.src)+'" alt="'+escapeHTML(image.alt)+'" width="'+image.width+'" height="'+image.height+'" '+(priority?'loading="eager" fetchpriority="high"':'loading="lazy"')+' decoding="async">';
+  const img='<img class="'+escapeHTML(className)+'" src="'+escapeHTML(image.src)+'" alt="'+escapeHTML(image.alt)+'" width="'+image.width+'" height="'+image.height+'" '+(priority?'loading="eager" fetchpriority="high"':'loading="lazy"')+' decoding="async">';
+  return image.webp?'<picture><source srcset="'+escapeHTML(image.webp)+'" type="image/webp">'+img+'</picture>':img;
 }
 const listHTML = values => '<ul>'+values.map(v=>'<li>'+escapeHTML(v)+'</li>').join('')+'</ul>';
 export function projectCardHTML(record, headingLevel=3) {

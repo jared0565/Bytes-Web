@@ -4,6 +4,9 @@
 .showcase-pipeline,.showcase-case-image { margin:0; }
 .showcase-pipeline img,.showcase-case-image img { display:block;width:100%;height:auto;border:1px solid var(--line-strong);border-radius:12px; }
 .showcase-proof figcaption,.showcase-case figcaption,.showcase-proof-feature figcaption { color:var(--text-dim);font-size:.88rem;line-height:1.6;margin-top:1rem;max-width:75ch; }
+/* Case-page captions: this face averages about two thirds of 1ch a character, so 75ch ran to about 105 characters a line. */
+.showcase-case figcaption { max-width:46ch; }
+.showcase-preview picture,.showcase-case-image picture { display:block; }
 .showcase-workflow { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2rem;list-style:none;padding:0;margin:2.5rem 0;counter-reset:workflow; }
 .showcase-workflow li { counter-increment:workflow;border-top:1px solid var(--line-strong);padding-top:1.25rem; }
 .showcase-workflow h3 { font:600 1.3rem/1.3 var(--font-display);margin:0 0 .75rem; }
