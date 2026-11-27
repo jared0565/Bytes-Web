@@ -29,7 +29,9 @@ export function auditNotFound({
     check(!/rel="canonical"/.test(html), '404.html must not name a canonical address');
     // A visitor who followed a dead link is still a possible lead: the page must offer the contact form and the chatbot.
     check(/<main>[\s\S]*href="\/#contact"[\s\S]*<\/main>/.test(html), '404.html must offer the contact form');
-    check(/<script src="\/widget\.js" data-client-id="default"><\/script>/.test(html), '404.html must load the BytesFX chatbot');
+    // data-cfasync="false" keeps Cloudflare's Rocket Loader from delaying the widget: delayed, it waits for a
+    // DOMContentLoaded that has already passed and never starts.
+    check(/<script data-cfasync="false" src="\/widget\.js" data-client-id="default"><\/script>/.test(html), '404.html must load the BytesFX chatbot, exempt from Rocket Loader');
     for (const m of html.matchAll(/(?:href|src)="([^"]*)"/g)) {
       const value = m[1];
       if (/^(?:https:\/\/|mailto:)/.test(value)) continue;
@@ -57,7 +59,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === join(process.argv[1]))
       { html: page.replace('href="/site.css"', 'href="site.css"') },
       { html: page.replace('href="/projects/"', 'href="/no-such-page/"') },
       { html: page.replace(/<main>[\s\S]*<\/main>/, '<main><h1>Page not found</h1></main>') },
-      { html: page.replace(/<script src="\/widget\.js"[^>]*><\/script>/, '') },
+      { html: page.replace(/<script[^>]*src="\/widget\.js"[^>]*><\/script>/, '') },
+      { html: page.replace(' data-cfasync="false"', '') },
       { wrangler: '{ "assets": { "directory": "bytes-website/dist" } }' },
     ];
     for (const options of mutants) if (!auditNotFound(options).length) failures.push('checker mutation escaped detection');
