@@ -9,21 +9,23 @@ const realNow = Date.now; let skew = 0; Date.now = () => realNow() + skew;
 const HOUR = 3600e3, DAY = 86400;
 const ago = (days) => Math.floor(realNow() / 1000) - days * DAY;
 const inDays = (days) => new Date(realNow() + days * DAY * 1000).toISOString().slice(0, 10);
-const m = (id, days, extra = {}) => ({ id, name: `${id.split('/')[0].toUpperCase()}: ${id.split('/')[1]}`, created: ago(days), pricing: { prompt: '0.000001', completion: '0.000002' }, supported_parameters: ['reasoning'], ...extra });
+const m = (id, days, extra = {}) => ({ id, name: `${id.split('/')[0].toUpperCase()}: ${id.split('/')[1]}`, created: ago(days), pricing: { prompt: '0.000001', completion: '0.000002' }, supported_parameters: ['reasoning'], reasoning: { supported_efforts: ['max', 'high', 'medium', 'low', 'none'] }, ...extra });
+const ON_OFF = { reasoning: { mandatory: false, default_enabled: false } }; // reasons, but with no levels to choose
+const NO_REASONING = { supported_parameters: [], reasoning: undefined };
 
 const FEED = [
   m('anthropic/claude-haiku-4.5', 400), m('anthropic/claude-haiku-5.5', 50), m('anthropic/claude-fable-5.2', 20, { pricing: { prompt: '0.000008', completion: '0.00004' } }),
   m('anthropic/claude-opus-4.1', 480, { pricing: { prompt: '0.000015', completion: '0.000075' } }), m('anthropic/claude-opus-5.5', 66, { pricing: { prompt: '0.000004', completion: '0.00002' } }),
   m('x-ai/grok-4.20', 240), m('x-ai/grok-4.7', 60),                       // 4.20 reads as the higher number but is the older model
-  m('openai/gpt-5.2-chat', 300), m('openai/gpt-chat-latest', 100),         // an alias with no number never wins its line
+  m('openai/gpt-5.2-chat', 300, NO_REASONING), m('openai/gpt-chat-latest', 100),         // an alias with no number never wins its line
   m('openai/gpt-6-luna', 60), m('openai/gpt-6-luna-pro', 61),              // two lines
   m('openai/gpt-4o', 900), m('openai/gpt-4o-2024-11-20', 730),             // a whole line over 12 months old
   m('meta-llama/llama-4-maverick', 600),
   m('google/gemini-2.5-flash', 500, { expiration_date: inDays(4) }), m('google/gemini-3.8-flash', 80),
   m('google/gemini-3.5-flash-lite', 120), m('google/gemini-3.9-flash-lite', 10, { expiration_date: inDays(10) }), // the newest is being withdrawn
-  m('mistralai/mistral-large', 30), m('mistralai/mistral-large-2512', 360), m('mistralai/mistral-large-4-0', 50),
+  m('mistralai/mistral-large', 30), m('mistralai/mistral-large-2512', 360), m('mistralai/mistral-large-4-0', 50, { reasoning: { supported_efforts: ['high', 'none'] } }),
   m('mistralai/mistral-medium-3-5', 200, { expiration_date: inDays(65) }), // an end date further off does not hide it
-  m('qwen/qwen-plus', 10), m('qwen/qwen3.7-plus', 170), m('qwen/qwen3.5-plus-02-15', 280),
+  m('qwen/qwen-plus', 10), m('qwen/qwen3.7-plus', 170, ON_OFF), m('qwen/qwen3.5-plus-02-15', 280),
   m('cohere/command-x', 20),                                               // a vendor the picker does not offer
   m('openai/gpt-image-2', 5), m('deepseek/deepseek-v4-flash:free', 5, { pricing: { prompt: '0', completion: '0' } }),
 ];
@@ -63,8 +65,22 @@ ok('models are grouped by vendor, newest first inside a vendor', vendorsInOrder.
 const fable = cat.models.find(x => x.id === 'openrouter:anthropic/claude-fable-5.2');
 ok('each model carries its vendor name, price, effort support and premium mark', fable?.vendorName === 'ANTHROPIC' && fable.inputPrice === 8 && fable.outputPrice === 40 && fable.reasoning === true && fable.premium === true && fable.available === true && !('listed' in fable), JSON.stringify(fable));
 
-// ─── A model that left the picker is still known to the server ────────────────
+// ─── Effort levels ────────────────────────────────────────────────────────────
 const service = (mod) => { const s = new mod.LlmService(); s.env = ENV; return s; };
+const levels = (id) => (cat.models.find(x => x.id === id)?.efforts || ['missing']).join();
+ok('a model lists the effort levels it accepts, of low, medium and high', levels('openrouter:anthropic/claude-haiku-5.5') === 'low,medium,high' && levels('openrouter:mistralai/mistral-large-4-0') === 'high', `${levels('openrouter:anthropic/claude-haiku-5.5')} | ${levels('openrouter:mistralai/mistral-large-4-0')}`);
+ok('a model that only reasons on or off, or not at all, lists no levels', levels('openrouter:qwen/qwen3.7-plus') === '' && levels('openrouter:openai/gpt-5.2-chat') === '', `${levels('openrouter:qwen/qwen3.7-plus')} | ${levels('openrouter:openai/gpt-5.2-chat')}`);
+const direct = cat.models.filter(x => x.provider !== 'openrouter');
+ok('every direct model lists low, medium and high, as its supplier documents', direct.length === 10 && direct.every(x => (x.efforts || []).join() === 'low,medium,high'), direct.map(x => `${x.id}=${x.efforts}`).join(' '));
+const sent = async (model, effort) => { asked = []; await service(first).complete({ system: 'One line.', prompt: 'Hello', model: 'openrouter:' + model, effort }); return asked[0]; };
+let call = await sent('mistralai/mistral-large-4-0', 'high');
+ok('a level the model accepts is sent, with the reasoning text kept out of the reply', call?.reasoning?.effort === 'high' && call.reasoning.exclude === true, JSON.stringify(call?.reasoning));
+call = await sent('mistralai/mistral-large-4-0', 'medium');
+ok('a level the model lacks is not sent: the model runs at its own default', call?.model === 'mistralai/mistral-large-4-0' && !('reasoning' in call), JSON.stringify(call?.reasoning));
+call = await sent('qwen/qwen3.7-plus', 'low');
+ok('no effort is sent to a model that has no levels', call?.model === 'qwen/qwen3.7-plus' && !('reasoning' in call), JSON.stringify(call?.reasoning));
+
+// ─── A model that left the picker is still known to the server ────────────────
 asked = [];
 await service(first).complete({ system: 'One line.', prompt: 'Hello', model: 'openrouter:anthropic/claude-haiku-4.5', effort: 'low' });
 ok('a superseded model still gets its effort setting', asked[0]?.model === 'anthropic/claude-haiku-4.5' && asked[0].reasoning?.effort === 'low', JSON.stringify(asked[0]?.reasoning));

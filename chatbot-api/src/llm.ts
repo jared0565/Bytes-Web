@@ -12,7 +12,9 @@ export interface ModelInfo {
 	name: string;
 	inputPrice: number;
 	outputPrice: number;
+	efforts: Effort[]; // the levels the model accepts, of low, medium and high; empty when it has no effort setting
 }
+export const EFFORTS: Effort[] = ['low', 'medium', 'high'];
 
 export const PROVIDER_NAMES: Record<Provider, string> = {
 	anthropic: 'Anthropic',
@@ -21,17 +23,21 @@ export const PROVIDER_NAMES: Record<Provider, string> = {
 	openrouter: 'OpenRouter',
 };
 
+// Effort: each model here accepts low, medium and high on its supplier's own API, read from the
+// suppliers' documentation on 27 November 2026 (Anthropic "Effort": all five levels on Opus 5.5,
+// Sonnet 5.5 and Haiku 5.5; OpenAI's model pages: low to max on GPT-6 Astra and GPT-6.1 Sol, none
+// to max on GPT-6 Luna; Google "Thinking": low, medium, high on Gemini 3.1 Pro and the 2.5 models).
 export const MODEL_CATALOG: ModelInfo[] = [
-	{ id: 'claude-opus-5-5', provider: 'anthropic', name: 'Claude Opus 5.5', inputPrice: 4.0, outputPrice: 20.0 },
-	{ id: 'claude-sonnet-5-5', provider: 'anthropic', name: 'Claude Sonnet 5.5', inputPrice: 2.0, outputPrice: 10.0 },
-	{ id: 'claude-haiku-5-5', provider: 'anthropic', name: 'Claude Haiku 5.5', inputPrice: 0.1, outputPrice: 0.5 },
-	{ id: 'gpt-6-astra', provider: 'openai', name: 'GPT-6 Astra', inputPrice: 10.0, outputPrice: 50.0 },
-	{ id: 'gpt-6.1-sol', provider: 'openai', name: 'GPT-6.1 Sol', inputPrice: 2.0, outputPrice: 10.0 },
-	{ id: 'gpt-6-luna', provider: 'openai', name: 'GPT-6 Luna', inputPrice: 0.1, outputPrice: 0.5 },
-	{ id: 'gemini-3.1-pro-preview', provider: 'google', name: 'Gemini 3.1 Pro (preview)', inputPrice: 2.0, outputPrice: 12.0 },
-	{ id: 'gemini-2.5-pro', provider: 'google', name: 'Gemini 2.5 Pro', inputPrice: 1.25, outputPrice: 10.0 },
-	{ id: 'gemini-2.5-flash', provider: 'google', name: 'Gemini 2.5 Flash', inputPrice: 0.3, outputPrice: 2.5 },
-	{ id: 'gemini-2.5-flash-lite', provider: 'google', name: 'Gemini 2.5 Flash-Lite', inputPrice: 0.1, outputPrice: 0.4 },
+	{ id: 'claude-opus-5-5', provider: 'anthropic', name: 'Claude Opus 5.5', inputPrice: 4.0, outputPrice: 20.0, efforts: EFFORTS },
+	{ id: 'claude-sonnet-5-5', provider: 'anthropic', name: 'Claude Sonnet 5.5', inputPrice: 2.0, outputPrice: 10.0, efforts: EFFORTS },
+	{ id: 'claude-haiku-5-5', provider: 'anthropic', name: 'Claude Haiku 5.5', inputPrice: 0.1, outputPrice: 0.5, efforts: EFFORTS },
+	{ id: 'gpt-6-astra', provider: 'openai', name: 'GPT-6 Astra', inputPrice: 10.0, outputPrice: 50.0, efforts: EFFORTS },
+	{ id: 'gpt-6.1-sol', provider: 'openai', name: 'GPT-6.1 Sol', inputPrice: 2.0, outputPrice: 10.0, efforts: EFFORTS },
+	{ id: 'gpt-6-luna', provider: 'openai', name: 'GPT-6 Luna', inputPrice: 0.1, outputPrice: 0.5, efforts: EFFORTS },
+	{ id: 'gemini-3.1-pro-preview', provider: 'google', name: 'Gemini 3.1 Pro (preview)', inputPrice: 2.0, outputPrice: 12.0, efforts: EFFORTS },
+	{ id: 'gemini-2.5-pro', provider: 'google', name: 'Gemini 2.5 Pro', inputPrice: 1.25, outputPrice: 10.0, efforts: EFFORTS },
+	{ id: 'gemini-2.5-flash', provider: 'google', name: 'Gemini 2.5 Flash', inputPrice: 0.3, outputPrice: 2.5, efforts: EFFORTS },
+	{ id: 'gemini-2.5-flash-lite', provider: 'google', name: 'Gemini 2.5 Flash-Lite', inputPrice: 0.1, outputPrice: 0.4, efforts: EFFORTS },
 ];
 
 // Default chat model, for a bot with no model chosen: Claude Haiku 5.5. It runs on Anthropic's own
@@ -62,7 +68,6 @@ export async function modelIsPremium(id: unknown, env?: LlmEnv): Promise<boolean
 	}
 	return isPremium(findModel(id)); // a direct model outside the catalog cannot be called at all
 }
-export const EFFORTS: Effort[] = ['low', 'medium', 'high'];
 
 export interface LlmEnv {
 	GEMINI_API_KEY?: string;
@@ -106,7 +111,7 @@ function toChatTurns(contents: Turn[]): { role: 'user' | 'assistant'; content: s
 
 const MAX_OUTPUT_TOKENS = 4096;
 
-async function callAnthropic(env: LlmEnv, model: string, effort: Effort, system: string, contents: Turn[]): Promise<string> {
+async function callAnthropic(env: LlmEnv, model: string, effort: Effort | null, system: string, contents: Turn[]): Promise<string> {
 	const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
 	// Opus/Sonnet 5.5 can decline on safety grounds; the server-side default fallback re-runs the turn
 	// on another model instead of returning an empty refusal (not offered for Haiku 5.5).
@@ -116,7 +121,7 @@ async function callAnthropic(env: LlmEnv, model: string, effort: Effort, system:
 		max_tokens: MAX_OUTPUT_TOKENS,
 		system,
 		messages: toChatTurns(contents),
-		output_config: { effort },
+		...(effort ? { output_config: { effort } } : {}),
 		...(withFallback ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' as const } : {}),
 	});
 	if (response.stop_reason === 'refusal') throw new Error(`Anthropic refusal (${response.stop_details?.category ?? 'unknown'})`);
@@ -125,14 +130,14 @@ async function callAnthropic(env: LlmEnv, model: string, effort: Effort, system:
 	return text;
 }
 
-async function callOpenAI(env: LlmEnv, model: string, effort: Effort, system: string, contents: Turn[]): Promise<string> {
+async function callOpenAI(env: LlmEnv, model: string, effort: Effort | null, system: string, contents: Turn[]): Promise<string> {
 	const res = await fetch('https://api.openai.com/v1/chat/completions', {
 		method: 'POST',
 		headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}`, 'Content-Type': 'application/json' },
 		body: JSON.stringify({
 			model,
 			messages: [{ role: 'system', content: system }, ...toChatTurns(contents)],
-			reasoning_effort: effort,
+			...(effort ? { reasoning_effort: effort } : {}),
 			max_completion_tokens: MAX_OUTPUT_TOKENS,
 		}),
 	});
@@ -216,6 +221,21 @@ const versionOrder = (a: number[], b: number[]) => {
 };
 const flagged = new Set<string>(); // date/version disagreements already logged by this isolate
 
+// The effort to send: the saved level when the model accepts it, otherwise none, so the model runs
+// at its own default. Guessing the nearest level would change cost and speed without anyone choosing
+// it. A list stored before levels were recorded falls back to its reasoning flag.
+const skipped = new Set<string>();
+function effortFor(m: { id: string; efforts?: Effort[]; reasoning?: boolean } | undefined, effort: Effort): Effort | null {
+	if (!m) return null;
+	const levels = m.efforts || (m.reasoning ? EFFORTS : []);
+	if (levels.includes(effort)) return effort;
+	if (levels.length && !skipped.has(`${m.id}|${effort}`)) {
+		skipped.add(`${m.id}|${effort}`);
+		console.warn(`[LLM] ${m.id} does not accept effort "${effort}" (it accepts ${levels.join(', ')}); none is sent`);
+	}
+	return null;
+}
+
 // Turns OpenRouter's feed into the server's list. `listed` marks the picker's models, which come
 // first, in vendor order and newest first inside a vendor.
 export function buildRouterList(data: any[], now: number): OpenRouterModel[] {
@@ -261,6 +281,7 @@ export function buildRouterList(data: any[], now: number): OpenRouterModel[] {
 	const vendorNames = new Map<string, string>(); // one name per vendor: the one on its newest listed model
 	return rows.map((r) => {
 		const name = String(r.m.name || r.id);
+		const reasoning = (r.m.supported_parameters || []).includes('reasoning');
 		if (!vendorNames.has(r.vendor)) vendorNames.set(r.vendor, name.includes(': ') ? name.split(': ')[0] : r.vendor);
 		return {
 			id: OPENROUTER_PREFIX + r.id,
@@ -268,7 +289,9 @@ export function buildRouterList(data: any[], now: number): OpenRouterModel[] {
 			name,
 			inputPrice: Math.round(Number(r.m.pricing.prompt) * 1e6 * 1000) / 1000,
 			outputPrice: Math.round(Number(r.m.pricing.completion) * 1e6 * 1000) / 1000,
-			reasoning: (r.m.supported_parameters || []).includes('reasoning'),
+			reasoning,
+			// A model that reasons only on or off has no supported_efforts and so no levels
+			efforts: reasoning ? EFFORTS.filter((l) => (r.m.reasoning?.supported_efforts || []).includes(l)) : [],
 			vendorName: vendorNames.get(r.vendor)!,
 			listed: shown.has(r),
 		};
@@ -305,6 +328,7 @@ export async function openRouterModels(env?: LlmEnv): Promise<OpenRouterModel[]>
 
 async function callOpenRouter(env: LlmEnv, slug: string, effort: Effort, system: string, contents: Turn[]): Promise<string> {
 	const info = (await openRouterModels(env)).find((m) => m.id === OPENROUTER_PREFIX + slug);
+	const sendEffort = effortFor(info, effort);
 	const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
 		method: 'POST',
 		headers: {
@@ -317,8 +341,8 @@ async function callOpenRouter(env: LlmEnv, slug: string, effort: Effort, system:
 			model: slug,
 			messages: [{ role: 'system', content: system }, ...toChatTurns(contents)],
 			max_tokens: MAX_OUTPUT_TOKENS,
-			// Effort only for models that reason; exclude keeps the reasoning text out of the reply
-			...(info?.reasoning ? { reasoning: { effort, exclude: true } } : {}),
+			// Effort only at a level the model accepts; exclude keeps the reasoning text out of the reply
+			...(sendEffort ? { reasoning: { effort: sendEffort, exclude: true } } : {}),
 		}),
 	});
 	const data = (await res.json().catch(() => ({}))) as any;
@@ -341,9 +365,10 @@ export async function callChosenModel(env: LlmEnv, modelId: unknown, effortIn: u
 	if (!info) throw new Error(`Unknown model: ${String(modelId)}`);
 	if (!providerAvailable(env, info.provider)) throw new Error(`No API key configured for ${PROVIDER_NAMES[info.provider]}`);
 
-	if (info.provider === 'anthropic') return { text: await callAnthropic(env, info.id, effort, system, contents), model: info.id };
-	if (info.provider === 'openai') return { text: await callOpenAI(env, info.id, effort, system, contents), model: info.id };
-	return { text: await callGemini(env, info.id, effort, system, contents), model: info.id };
+	const sendEffort = effortFor(info, effort);
+	if (info.provider === 'anthropic') return { text: await callAnthropic(env, info.id, sendEffort, system, contents), model: info.id };
+	if (info.provider === 'openai') return { text: await callOpenAI(env, info.id, sendEffort, system, contents), model: info.id };
+	return { text: await callGemini(env, info.id, sendEffort, system, contents), model: info.id };
 }
 
 // Catalog for the dashboard picker, with whether each provider has a key on this worker

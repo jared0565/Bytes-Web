@@ -442,11 +442,12 @@
                                 </div>
                                 <div class="form-group mc-ai-only">
                                     <label for="config-llm-effort">Effort <span class="site-hint">How hard the model thinks before replying</span></label>
-                                    <select id="config-llm-effort">
+                                    <select id="config-llm-effort" aria-describedby="config-llm-effort-note">
                                         <option value="low">Low: fastest, cheapest replies</option>
                                         <option value="medium" selected>Medium: balanced (recommended)</option>
                                         <option value="high">High: most thorough, slower and costs more</option>
                                     </select>
+                                    <p id="config-llm-effort-note" class="cb-hint" aria-live="polite"></p>
                                 </div>
                                 <div class="form-group">
                                     <label for="config-prompt">System prompt <span class="site-hint">What the bot knows about the business</span></label>
@@ -873,11 +874,12 @@
                     </div>
                     <div class="form-group site-ai-only">
                         <label for="site-llm-effort">Effort <span class="site-hint">How hard the model thinks before replying</span></label>
-                        <select id="site-llm-effort">
+                        <select id="site-llm-effort" aria-describedby="site-llm-effort-note">
                             <option value="low">Low: fastest, cheapest replies</option>
                             <option value="medium" selected>Medium: balanced (recommended)</option>
                             <option value="high">High: most thorough, slower and costs more</option>
                         </select>
+                        <p id="site-llm-effort-note" class="cb-hint" aria-live="polite"></p>
                     </div>
                     <div class="form-group">
                         <label for="site-prompt">System Prompt <span class="site-hint">Leave empty to use the built-in BytesFX sales prompt</span></label>
