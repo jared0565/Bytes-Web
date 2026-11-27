@@ -1142,7 +1142,10 @@ async function mcbLoad(cid) {
         if (MCB.cid !== cid) return; // another client was opened meanwhile
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
         const data = await res.json();
-        const crm = crmRes.ok ? await crmRes.json() : {};
+        // Both must load: the save writes campaign mode and auto-approve too, so defaults shown
+        // after a failed load would replace the stored ones
+        if (!crmRes.ok) throw new Error((await crmRes.json().catch(() => ({}))).error || `HTTP ${crmRes.status}`);
+        const crm = await crmRes.json();
         MCB.plan = data.plan || crm.plan || 'free';
         MCB.inTrial = !!(data.inTrial ?? crm.inTrial);
 
@@ -1205,6 +1208,9 @@ loadConfigBtn.addEventListener('click', () => {
 saveConfigBtn.addEventListener('click', async () => {
     const cid = MCB.cid || configClientId.value.trim();
     if (!cid) { mcbStatus('Open a client first.', 'bad'); return; }
+    // The form saves every field it shows. Until this client's settings have loaded, the fields
+    // are empty or still hold the client that was open before, and a save would store those.
+    if (!MCB.loaded) { mcbStatus('This client\'s settings have not loaded, so nothing was saved. Open the client again.', 'bad'); return; }
     const avatar = configWidgetAvatar.value.trim();
     if (whiteLabelSection.style.display !== 'none') {
         if (configWidgetColor.value.trim() && !/^#[0-9a-fA-F]{6}$/.test(configWidgetColor.value.trim())) { mcbStatus('Accent colour must be a hex value like #6366f1.', 'bad'); configWidgetColor.focus(); return; }
@@ -1787,6 +1793,11 @@ function cbAdminNote() {
     document.getElementById('cb-status').before(el);
 }
 
+// Which of the Chatbot page's forms hold their saved values. A form posts every field it shows, so
+// one that never loaded must not be saved: it would replace the stored values with empty ones.
+const cbFormLoaded = { config: false, campaign: false };
+const FORM_NOT_LOADED = 'Your settings have not loaded, so nothing was saved. Reload the page and try again.';
+
 async function loadChatbotView() {
     loadModelCatalog();
     // Load installations first so we have clientId
@@ -1812,9 +1823,11 @@ async function loadChatbotView() {
         const cfg = await configResult.value.json();
         populateChatbotSettings(cfg);
         salesFill('cb-sales', cfg).then(() => document.getElementById('cb-campaigns')?.classList.remove('cb-dirty'));
+        cbFormLoaded.config = true;
     }
     if (crmResult.status === 'fulfilled' && crmResult.value.ok) {
         populateCampaignSettings(await crmResult.value.json());
+        cbFormLoaded.campaign = true;
     }
     if (mailResult.status === 'fulfilled' && mailResult.value.ok) {
         populateMailSettings(await mailResult.value.json());
@@ -2201,6 +2214,7 @@ document.getElementById('settings-save-chatbot-btn').addEventListener('click', a
     const statusEl = document.getElementById('settings-chatbot-status');
     const cid = installationData.clientId;
     if (!cid) { statusEl.textContent = 'Not connected.'; statusEl.style.color = 'var(--error)'; return; }
+    if (!cbFormLoaded.config) { statusEl.textContent = FORM_NOT_LOADED; statusEl.style.color = 'var(--error)'; return; }
 
     const settings = {
         companyName:  document.getElementById('settings-company-name')?.value.trim() || '',
@@ -2254,6 +2268,8 @@ document.getElementById('settings-save-campaign-btn').addEventListener('click', 
     const statusEl = document.getElementById('settings-campaign-status');
     const cid = installationData.clientId;
     if (!cid) { statusEl.textContent = 'Not connected.'; statusEl.style.color = 'var(--error)'; return; }
+    // This button saves the campaign mode and the follow-up settings, which load separately
+    if (!cbFormLoaded.config || !cbFormLoaded.campaign) { statusEl.textContent = FORM_NOT_LOADED; statusEl.style.color = 'var(--error)'; return; }
 
     const mode = document.getElementById('settings-campaign-mode')?.value || 'ai';
     const autoApprove = document.getElementById('settings-auto-approve')?.checked || false;
@@ -2922,6 +2938,9 @@ function exportVisitorsCsv() {
 // ─── Bytes website settings (admin only) ──────────────────────────────────────
 // Reads/writes /api/site-settings, which only ever touches the house client ("default").
 
+// True once the website form holds its saved values (see the save handler)
+let siteFormLoaded = false;
+
 async function loadSiteSettings() {
     siteHealth();
     loadSiteMail();
@@ -2951,6 +2970,7 @@ async function loadSiteSettings() {
         else modelSel.innerHTML = '<option value="">Default model (could not load the model list)</option>';
         document.getElementById('site-llm-cost').innerHTML = modelCostHtml(modelSel.value);
         await salesFill('site-sales', d);
+        siteFormLoaded = true;
         status.textContent = '';
         siteRefreshUI();
         document.getElementById('site-card')?.classList.remove('cb-dirty');
@@ -2968,6 +2988,9 @@ document.getElementById('site-save-btn')?.addEventListener('click', async () => 
     const status = document.getElementById('site-status');
     const btn = document.getElementById('site-save-btn');
     const modelSel = document.getElementById('site-llm-model');
+    // The form posts every field: saved before it loaded, it would store an empty name, empty
+    // instructions and an empty website list for the Bytes site's own chatbot
+    if (!siteFormLoaded) { status.textContent = 'The website settings have not loaded, so nothing was saved. Reload the page and try again.'; status.style.color = 'var(--error)'; return; }
     const body = {
         companyName: document.getElementById('site-company-name').value.trim(),
         mode: document.getElementById('site-mode').value,
