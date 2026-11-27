@@ -54,8 +54,13 @@ export const PREMIUM_OUTPUT_PRICE = 15;
 export const isPremium = (m: { outputPrice: number } | undefined) => !!m && m.outputPrice > PREMIUM_OUTPUT_PRICE;
 export async function modelIsPremium(id: unknown, env?: LlmEnv): Promise<boolean> {
 	if (typeof id !== 'string' || !id) return false;
-	if (id.startsWith(OPENROUTER_PREFIX)) return isPremium((await openRouterModels(env)).find((m) => m.id === id));
-	return isPremium(findModel(id));
+	if (id.startsWith(OPENROUTER_PREFIX)) {
+		// A model with no known price counts as premium: one OpenRouter does not list, or any model
+		// while the list cannot be loaded. Letting it through would open premium models to every bot.
+		const known = (await openRouterModels(env)).find((m) => m.id === id);
+		return known ? isPremium(known) : true;
+	}
+	return isPremium(findModel(id)); // a direct model outside the catalog cannot be called at all
 }
 export const EFFORTS: Effort[] = ['low', 'medium', 'high'];
 

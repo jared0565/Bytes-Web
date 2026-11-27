@@ -76,16 +76,23 @@ const prep = (sql) => { let a = []; const o = { bind: (...x) => { a = x; return 
 const chatEnv = { ...ENV, ADMIN_API_KEY: 'test-key', DB: { prepare: prep } };
 kv.set('client:old', JSON.stringify({ mode: 'ai', llmModel: 'openrouter:anthropic/claude-opus-4.1' }));
 kv.set('client:cheap', JSON.stringify({ mode: 'ai', llmModel: 'openrouter:anthropic/claude-haiku-4.5' }));
+kv.set('client:ghost', JSON.stringify({ mode: 'ai', llmModel: 'openrouter:acme/made-up-9' }));
+kv.set('client:plus', JSON.stringify({ mode: 'ai_plus', llmModel: 'openrouter:acme/made-up-9' }));
 let ip = 0;
-const chatAs = async (client) => {
+const chatAs = async (client, mod = first, env = chatEnv) => {
   asked = [];
-  const res = await first.default.fetch(new Request('https://ai.bytesfx.com/', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://web.bytesfx.com', 'CF-Connecting-IP': '198.51.100.' + ++ip }, body: JSON.stringify({ message: 'Hello there', clientId: client, sessionId: null }) }), chatEnv, { waitUntil() {} });
+  const res = await mod.default.fetch(new Request('https://ai.bytesfx.com/', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://web.bytesfx.com', 'CF-Connecting-IP': '198.51.100.' + ++ip }, body: JSON.stringify({ message: 'Hello there', clientId: client, sessionId: null }) }), env, { waitUntil() {} });
   return { status: res.status, model: asked[0]?.model };
 };
 let r = await chatAs('cheap');
 ok('a bot on a superseded model that is not premium keeps it', r.status === 200 && r.model === 'anthropic/claude-haiku-4.5', JSON.stringify(r));
 r = await chatAs('old');
 ok('a bot not on AI Plus with a superseded premium model is answered by the default', r.status === 200 && r.model === 'anthropic/claude-haiku-5.5', JSON.stringify(r));
+// A model the server cannot price counts as premium: it may not slip past the AI Plus rule
+r = await chatAs('ghost');
+ok('a bot not on AI Plus with a model OpenRouter does not list is answered by the default', r.status === 200 && r.model === 'anthropic/claude-haiku-5.5', JSON.stringify(r));
+r = await chatAs('plus');
+ok('an AI Plus bot keeps a model OpenRouter does not list', r.status === 200 && r.model === 'acme/made-up-9', JSON.stringify(r));
 
 // ─── The last good list survives a bad fetch ──────────────────────────────────
 const good = routed(await catalogOf(first)).join();
@@ -111,3 +118,12 @@ ids = routed(await catalogOf(second));
 ok('after a restart with OpenRouter down, the stored list is used', ids.includes('anthropic/claude-haiku-6') && ids.includes('x-ai/grok-4.7'), ids.join());
 const third = await load('third');
 ok('with no stored list and OpenRouter down the direct models still show', (cat = await catalogOf(third, { GEMINI_API_KEY: 'test', OPENROUTER_API_KEY: 'test' }), routed(cat).length === 0 && cat.models.some(x => x.provider === 'google')), String(cat.models.length));
+
+// No list at all (OpenRouter down, nothing stored): no price is known, so only AI Plus keeps its model
+const bare = new Map([...kv].filter(([k]) => k.startsWith('client:')));
+const bareEnv = { ...chatEnv, CLIENT_SETTINGS: { get: async k => bare.get(k) ?? null, put: async (k, v) => { bare.set(k, v); } } };
+const fourth = await load('fourth');
+r = await chatAs('cheap', fourth, bareEnv);
+ok('with no model list a bot not on AI Plus is answered by the default, not by its unpriced model', r.status === 200 && r.model === 'anthropic/claude-haiku-5.5', JSON.stringify(r));
+r = await chatAs('plus', fourth, bareEnv);
+ok('with no model list an AI Plus bot keeps its model', r.status === 200 && r.model === 'acme/made-up-9', JSON.stringify(r));
