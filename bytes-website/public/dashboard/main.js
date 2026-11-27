@@ -1856,7 +1856,13 @@ function populateModelSelect(select, savedValue) {
     }
     select.dataset.filled = '1';
     select.value = savedValue || '';
-    if (select.value !== (savedValue || '')) select.value = ''; // saved model no longer offered
+    if (select.value !== (savedValue || '')) {
+        // The list only offers each vendor's newest model, so a saved one drops out of it over time. Keep it
+        // as its own entry: falling back to "Default" here made the next save of the form, for any reason,
+        // replace the saved model with the default.
+        select.appendChild(new Option(`${savedValue} (no longer listed)`, savedValue));
+        select.value = savedValue;
+    }
 }
 
 async function loadModelCatalog() {
