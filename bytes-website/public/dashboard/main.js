@@ -1849,28 +1849,32 @@ async function ensureModelCatalog() {
     return modelCatalog;
 }
 
-// Fills a model <select> with "Default" + one optgroup per provider, in catalog order
+// Fills a model <select> with "Default" + one optgroup per provider, in catalog order. OpenRouter's
+// models get one group per vendor ("OpenRouter: Anthropic"), since it lists every vendor's current lines.
 function populateModelSelect(select, savedValue) {
     const def = modelCatalog.models.find(m => m.id === modelCatalog.defaultModel);
     select.innerHTML = '';
     select.appendChild(new Option(`Default: ${def ? def.name : modelCatalog.defaultModel}`, ''));
     const groups = new Map();
     for (const m of modelCatalog.models) {
-        if (!groups.has(m.providerName)) {
+        const group = m.vendorName ? `${m.providerName}: ${m.vendorName}` : m.providerName;
+        if (!groups.has(group)) {
             const og = document.createElement('optgroup');
-            og.label = m.providerName;
-            groups.set(m.providerName, og);
+            og.label = group;
+            groups.set(group, og);
             select.appendChild(og);
         }
-        const label = `${m.name}: ${formatPrice(m.inputPrice)} in / ${formatPrice(m.outputPrice)} out per 1M tokens${m.available ? '' : ' (no API key)'}`;
+        // The group already names the vendor, so "Anthropic: Claude Haiku 5.5" is shown as "Claude Haiku 5.5"
+        const name = m.vendorName && m.name.startsWith(m.vendorName + ': ') ? m.name.slice(m.vendorName.length + 2) : m.name;
+        const label = `${name}: ${formatPrice(m.inputPrice)} in / ${formatPrice(m.outputPrice)} out per 1M tokens${m.available ? '' : ' (no API key)'}`;
         const opt = new Option(label, m.id);
         opt.disabled = !m.available;
-        groups.get(m.providerName).appendChild(opt);
+        groups.get(group).appendChild(opt);
     }
     select.dataset.filled = '1';
     select.value = savedValue || '';
     if (select.value !== (savedValue || '')) {
-        // The list only offers each vendor's newest model, so a saved one drops out of it over time. Keep it
+        // The list only offers the newest model of each line, so a saved one drops out of it over time. Keep it
         // as its own entry: falling back to "Default" here made the next save of the form, for any reason,
         // replace the saved model with the default.
         select.appendChild(new Option(`${savedValue} (no longer listed)`, savedValue));

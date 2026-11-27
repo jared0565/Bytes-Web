@@ -735,7 +735,7 @@ export default {
 			let chosenText: string | null = null;
 			// Premium models are for AI Plus only; on AI they quietly use the default model
 			let chosenModel = clientConfig?.llmModel || defaultModel(env);
-			if (tier !== 'ai_plus' && await modelIsPremium(chosenModel)) chosenModel = defaultModel(env);
+			if (tier !== 'ai_plus' && await modelIsPremium(chosenModel, env)) chosenModel = defaultModel(env);
 			try {
 				// No chosen model and no key for the default: the backup models below answer
 				if (chosenModel) chosenText = (await callChosenModel(env, chosenModel, clientConfig?.llmEffort, activeSystemPrompt, contents)).text;
