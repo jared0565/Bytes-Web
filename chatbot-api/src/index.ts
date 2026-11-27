@@ -1,5 +1,5 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
-import { callChosenModel, callGemini, publicCatalog, modelIsPremium, DEFAULT_MODEL, FALLBACK_MODELS } from './llm';
+import { callChosenModel, callGemini, publicCatalog, modelIsPremium, defaultModel, FALLBACK_MODELS } from './llm';
 // Message limits per bot mode come from the shared plan list (same file the website and dashboard show)
 import PLAN_DATA from '../../bytes-website/public/plans.json';
 
@@ -734,10 +734,11 @@ export default {
 			// Client's chosen model (dashboard → Chatbot Behavior); any failure falls through to the Gemini chain
 			let chosenText: string | null = null;
 			// Premium models are for AI Plus only; on AI they quietly use the default model
-			let chosenModel = clientConfig?.llmModel || DEFAULT_MODEL;
-			if (tier !== 'ai_plus' && await modelIsPremium(chosenModel)) chosenModel = DEFAULT_MODEL;
+			let chosenModel = clientConfig?.llmModel || defaultModel(env);
+			if (tier !== 'ai_plus' && await modelIsPremium(chosenModel)) chosenModel = defaultModel(env);
 			try {
-				chosenText = (await callChosenModel(env, chosenModel, clientConfig?.llmEffort, activeSystemPrompt, contents)).text;
+				// No chosen model and no key for the default: the backup models below answer
+				if (chosenModel) chosenText = (await callChosenModel(env, chosenModel, clientConfig?.llmEffort, activeSystemPrompt, contents)).text;
 			} catch (err: any) {
 				console.error(`[LLM] Chosen model ${chosenModel} failed, using default chain:`, err?.message || err);
 			}

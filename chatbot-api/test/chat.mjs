@@ -20,7 +20,7 @@ kv.set('client:script', JSON.stringify({ mode: 'scripted', companyName: 'Script 
 kv.set('client:tiny', JSON.stringify({ mode: 'scripted', companyName: 'Tiny', allowedDomains: ['tiny.test'] }));
 
 // The AI: `brain` writes the chat reply (or returns { status } to fail), `facts` is what the lead reader finds
-const seen = { chat: [], facts: [], hooks: [] };
+const seen = { chat: [], facts: [], hooks: [], router: [] };
 let brain = () => '[business] Happy to help.';
 let facts = () => ({ name: '', need: '', budget: '', timeline: '', summary: '' });
 let hold = null; // a promise here makes the lead reader wait until it resolves
@@ -31,6 +31,7 @@ globalThis.fetch = async (u, o) => {
   if (url.includes('/webhooks/new-lead')) { seen.hooks.push(body); return new Response('{}'); }
   // The lead reader is told apart by its instruction, not its model: the backup chat models are flash-lite models too
   if (url.includes('generativelanguage') && (body.system_instruction?.parts?.[0]?.text || '').startsWith('You extract facts')) { seen.facts.push(body); if (hold) await hold; return gem(JSON.stringify(facts())); }
+  if (url.includes('openrouter.ai/api/v1/chat/completions')) { seen.router.push(body.model); return new Response(JSON.stringify({ choices: [{ message: { content: '[business] From the default model.' } }] })); }
   if (url.includes('generativelanguage')) {
     const call = { sys: body.system_instruction?.parts?.[0]?.text || '', contents: body.contents, model: (url.match(/models\/([^:]+):/) || [])[1] };
     seen.chat.push(call);
@@ -151,11 +152,17 @@ ok('the label is also removed when the backup model answers', r.text === 'I can 
 // Google retires gemini-2.5-flash on 1 December 2026 and has shut down gemini-3.1-flash-lite-preview
 calls = 0;
 const backupFrom = seen.chat.length;
-brain = () => (++calls <= 2 ? { status: 500 } : '[business] Still here.');
+brain = () => (++calls <= 1 ? { status: 500 } : '[business] Still here.');
 c = chat();
 r = await send(c, 'do you build online shops?');
 const backupsAsked = seen.chat.slice(backupFrom).map(x => x.model).join(' > ');
-ok('when the chosen model fails, the two backup models are tried in order', r.text === 'Still here.' && backupsAsked === 'gemini-2.5-flash > gemini-3.5-flash-lite > gemini-2.5-flash-lite', backupsAsked);
+ok('with no key for the default model, the two backup models are tried in order', r.text === 'Still here.' && backupsAsked === 'gemini-3.5-flash-lite > gemini-2.5-flash-lite', backupsAsked);
+
+// The default chat model is Claude Haiku 5.5, through OpenRouter when Anthropic's own key is not set
+const routedBefore = seen.chat.length;
+c = chat();
+r = await send(c, 'what does a website cost?', { ...env, OPENROUTER_API_KEY: 'test' });
+ok('a bot with no chosen model is answered by Haiku 5.5 through OpenRouter, with no backup call', r.text === 'From the default model.' && seen.router.at(-1) === 'anthropic/claude-haiku-5.5' && seen.chat.length === routedBefore, `${r.text} | ${seen.router.at(-1)}`);
 
 // ─── Leads ────────────────────────────────────────────────────────────────────
 c = chat();

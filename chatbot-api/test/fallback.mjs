@@ -3,12 +3,18 @@ const { LlmService } = await import('./bundle.mjs');
 const ok = (l, c, x = '') => console.log(c ? 'PASS' : 'FAIL', l, x);
 console.error = () => {}; // the service logs the model failures these checks cause on purpose
 
+// OpenRouter's model list: a newer Anthropic model sits above Haiku 5.5, as it does on the live list
+const ROUTER_LIST = [
+  { id: 'anthropic/claude-fable-5.2', name: 'Anthropic: Claude Fable 5.2', created: 300, pricing: { prompt: '0.000008', completion: '0.00004' }, supported_parameters: ['reasoning'] },
+  { id: 'anthropic/claude-haiku-5.5', name: 'Anthropic: Claude Haiku 5.5', created: 200, pricing: { prompt: '0.0000001', completion: '0.0000005' }, supported_parameters: ['reasoning'] },
+];
+
 // `answers` decides, per model, whether a call succeeds: a string is the reply, anything else is a failure
 let answers = {};
 let asked = [];
 globalThis.fetch = async (u, o) => {
   const url = String(u), body = o?.body ? JSON.parse(o.body) : {};
-  if (url.includes('openrouter.ai/api/v1/models')) return new Response(JSON.stringify({ data: [] }));
+  if (url.includes('openrouter.ai/api/v1/models')) return new Response(JSON.stringify({ data: ROUTER_LIST }));
   const model = url.includes('openrouter.ai') ? `openrouter:${body.model}` : (url.match(/models\/([^:]+):/) || [])[1];
   asked.push({ model, body });
   const out = answers[model];
@@ -44,3 +50,21 @@ r = await run({ GEMINI_API_KEY: 'test' }, {}, { [LAST]: 'Only Google is set up.'
 ok('with only a Google key the backups are the whole chain, each tried once', r.text === 'Only Google is set up.' && r.order === `${FIRST} > ${LAST}`, JSON.stringify(r));
 
 ok('no retired model is ever asked', !/gemini-2\.5-flash(?!-lite)|gemini-3\.1-flash-lite-preview/.test(r.order));
+
+// ─── The default chat model ───────────────────────────────────────────────────
+// Claude Haiku 5.5: on Anthropic's own API when that key is set, otherwise through OpenRouter.
+const worker = (await import('./bundle.mjs')).default;
+const catalog = async (env) => (await worker.fetch(new Request('https://ai.bytesfx.com/public/models'), env, { waitUntil() {} })).json();
+const HAIKU_ROUTED = 'openrouter:anthropic/claude-haiku-5.5';
+
+let cat = await catalog(BOTH);
+let entry = cat.models.find(m => m.id === HAIKU_ROUTED);
+ok('with OpenRouter and Google keys the default is Haiku 5.5 through OpenRouter', cat.defaultModel === HAIKU_ROUTED, cat.defaultModel);
+ok('the default is in the model list with its live price, though a newer Anthropic model exists', !!entry && entry.inputPrice === 0.1 && entry.outputPrice === 0.5 && entry.available === true && cat.models.some(m => m.id === 'openrouter:anthropic/claude-fable-5.2'), JSON.stringify(entry));
+
+cat = await catalog({ ...BOTH, ANTHROPIC_API_KEY: 'test' });
+entry = cat.models.find(m => m.id === 'claude-haiku-5-5');
+ok('with an Anthropic key the default is Haiku 5.5 on Anthropic directly', cat.defaultModel === 'claude-haiku-5-5' && !!entry && entry.available === true, cat.defaultModel);
+
+cat = await catalog({ GEMINI_API_KEY: 'test' });
+ok('with only a Google key the default is the first backup model', cat.defaultModel === FIRST, cat.defaultModel);
