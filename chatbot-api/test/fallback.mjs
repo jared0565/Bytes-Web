@@ -4,9 +4,10 @@ const ok = (l, c, x = '') => console.log(c ? 'PASS' : 'FAIL', l, x);
 console.error = () => {}; // the service logs the model failures these checks cause on purpose
 
 // OpenRouter's model list: a newer Anthropic model sits above Haiku 5.5, as it does on the live list
+const RECENT = Math.floor(Date.now() / 1000) - 30 * 86400; // listed a month ago: the picker leaves out lines over 12 months old
 const ROUTER_LIST = [
-  { id: 'anthropic/claude-fable-5.2', name: 'Anthropic: Claude Fable 5.2', created: 300, pricing: { prompt: '0.000008', completion: '0.00004' }, supported_parameters: ['reasoning'] },
-  { id: 'anthropic/claude-haiku-5.5', name: 'Anthropic: Claude Haiku 5.5', created: 200, pricing: { prompt: '0.0000001', completion: '0.0000005' }, supported_parameters: ['reasoning'] },
+  { id: 'anthropic/claude-fable-5.2', name: 'Anthropic: Claude Fable 5.2', created: RECENT + 86400, pricing: { prompt: '0.000008', completion: '0.00004' }, supported_parameters: ['reasoning'] },
+  { id: 'anthropic/claude-haiku-5.5', name: 'Anthropic: Claude Haiku 5.5', created: RECENT, pricing: { prompt: '0.0000001', completion: '0.0000005' }, supported_parameters: ['reasoning'] },
 ];
 
 // `answers` decides, per model, whether a call succeeds: a string is the reply, anything else is a failure

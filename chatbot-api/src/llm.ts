@@ -52,9 +52,9 @@ export const FALLBACK_MODELS = ['gemini-3.5-flash-lite', 'gemini-2.5-flash-lite'
 // Premium models (output above $15 per 1M tokens) are reserved for the AI Plus bot mode
 export const PREMIUM_OUTPUT_PRICE = 15;
 export const isPremium = (m: { outputPrice: number } | undefined) => !!m && m.outputPrice > PREMIUM_OUTPUT_PRICE;
-export async function modelIsPremium(id: unknown): Promise<boolean> {
+export async function modelIsPremium(id: unknown, env?: LlmEnv): Promise<boolean> {
 	if (typeof id !== 'string' || !id) return false;
-	if (id.startsWith(OPENROUTER_PREFIX)) return isPremium((await openRouterModels()).find((m) => m.id === id));
+	if (id.startsWith(OPENROUTER_PREFIX)) return isPremium((await openRouterModels(env)).find((m) => m.id === id));
 	return isPremium(findModel(id));
 }
 export const EFFORTS: Effort[] = ['low', 'medium', 'high'];
@@ -64,6 +64,8 @@ export interface LlmEnv {
 	ANTHROPIC_API_KEY?: string;
 	OPENAI_API_KEY?: string;
 	OPENROUTER_API_KEY?: string;
+	// Holds the last good copy of OpenRouter's model list (key "cache:openrouter-models")
+	CLIENT_SETTINGS?: { get(key: string): Promise<string | null>; put(key: string, value: string): Promise<unknown> };
 }
 
 export function providerAvailable(env: LlmEnv, provider: Provider): boolean {
@@ -161,57 +163,143 @@ export async function callGemini(env: LlmEnv, model: string, effort: Effort | nu
 
 // ─── OpenRouter ──────────────────────────────────────────────────────────────
 // Model ids and prices change too often to hardcode, so they come live from OpenRouter's public
-// /models endpoint (no key needed), cached per isolate for an hour. The picker shows the newest
-// text model from each vendor below; ids are stored as "openrouter:<vendor>/<model>".
+// /models endpoint (no key needed), cached per isolate for an hour; ids are stored as
+// "openrouter:<vendor>/<model>". The server keeps every priced model, for effort and the premium
+// check of a model a bot already uses. The picker gets the `listed` ones: from the vendors below,
+// the newest model of each line (claude-haiku, gpt-luna, gpt-luna-pro ...).
 export const OPENROUTER_PREFIX = 'openrouter:';
 const OPENROUTER_VENDORS = ['anthropic', 'openai', 'google', 'x-ai', 'deepseek', 'meta-llama', 'mistralai', 'qwen', 'moonshotai', 'z-ai'];
 const OPENROUTER_SKIP = /(embed|image|audio|tts|guard|moderation|search|realtime|transcribe)/i;
 const OPENROUTER_TTL_MS = 60 * 60 * 1000;
+const OPENROUTER_RETRY_MS = 5 * 60 * 1000; // after a failed fetch
+const OPENROUTER_STORE_KEY = 'cache:openrouter-models';
+const DAY_MS = 24 * 60 * 60 * 1000;
+const LINE_MAX_AGE_MS = 365 * DAY_MS; // a line with nothing newer than this is left out of the picker
+const WITHDRAWAL_NOTICE_MS = 30 * DAY_MS; // a model with an end date this close is left out too
 
 export interface OpenRouterModel extends ModelInfo {
 	reasoning: boolean;
+	vendorName: string;
+	listed: boolean; // offered in the picker
 }
 
-let orCache: { at: number; models: OpenRouterModel[] } | null = null;
+// Splits "vendor/name" into its line and version: the name without its version number, snapshot
+// tag and preview markers is the line, so claude-haiku-4.5 and claude-haiku-5.5 share one and
+// gpt-6-luna-pro has its own. Sizes (70b, 16k) are part of the line. An alias is a name with no
+// version or snapshot tag (qwen-plus) or one ending in "latest".
+export function modelLine(id: string): { line: string; version: number[]; alias: boolean } {
+	const [vendor, name = ''] = id.toLowerCase().split('/');
+	const words: string[] = [];
+	let version: number[] | null = null, tagged = false, latest = false;
+	for (const t of name.split('-')) {
+		let m: RegExpMatchArray | null;
+		if (t === 'latest') { latest = true; continue; }
+		if (/^(preview|exp|beta)$/.test(t)) continue;
+		if (/^\d{4,}$/.test(t)) { tagged = true; continue; } // snapshot tag: 2512, 0905, 20260420
+		if (/^\d+$/.test(t) && (version || tagged)) continue; // the rest of a version or date written with hyphens
+		if (!version && (m = t.match(/^v?(\d+(?:\.\d+)*)$/))) { version = m[1].split('.').map(Number); continue; } // 5.5, v3
+		if (!version && (m = t.match(/^(\d+(?:\.\d+)*)([ac-jln-su-z])$/))) { version = m[1].split('.').map(Number); words.push(m[2]); continue; } // 4o, 4.5v (not the sizes b, k, m, t)
+		if (!version && (m = t.match(/^([a-z]+?)(\d+(?:\.\d+)*)$/))) { words.push(m[1]); version = m[2].split('.').map(Number); continue; } // qwen3.7, k3, o3
+		words.push(t);
+	}
+	return { line: `${vendor}/${words.join('-')}`, version: version || [], alias: latest || (!version && !tagged) };
+}
 
-export async function openRouterModels(): Promise<OpenRouterModel[]> {
-	if (orCache && Date.now() - orCache.at < OPENROUTER_TTL_MS) return orCache.models;
+const versionOrder = (a: number[], b: number[]) => {
+	for (let i = 0; i < Math.max(a.length, b.length); i++) { const d = (a[i] || 0) - (b[i] || 0); if (d) return d; }
+	return 0;
+};
+const flagged = new Set<string>(); // date/version disagreements already logged by this isolate
+
+// Turns OpenRouter's feed into the server's list. `listed` marks the picker's models, which come
+// first, in vendor order and newest first inside a vendor.
+export function buildRouterList(data: any[], now: number): OpenRouterModel[] {
+	type Row = { m: any; id: string; vendor: string; createdMs: number; line: string; version: number[]; alias: boolean };
+	const rows: Row[] = [];
+	for (const m of data) {
+		const id: string = typeof m?.id === 'string' ? m.id : '';
+		const prompt = Number(m?.pricing?.prompt), completion = Number(m?.pricing?.completion);
+		if (!id.includes('/') || !(prompt >= 0) || !(completion >= 0)) continue; // no usable price: variable-price routes
+		rows.push({ m, id, vendor: id.split('/')[0], createdMs: (Number(m.created) || 0) * 1000, ...modelLine(id) });
+	}
+	// The picker's candidates: priced text models from the chosen vendors, not about to be withdrawn
+	const lines = new Map<string, Row[]>();
+	for (const r of rows) {
+		const { m, id } = r;
+		const textOut = (m?.architecture?.output_modalities || ['text']).join() === 'text';
+		if (!OPENROUTER_VENDORS.includes(r.vendor) || id.includes(':') || OPENROUTER_SKIP.test(id) || !textOut) continue;
+		if (!(Number(m.pricing.prompt) > 0) || !(Number(m.pricing.completion) > 0)) continue; // free routes
+		const ends = m.expiration_date ? Date.parse(m.expiration_date) : NaN;
+		if (ends - now < WITHDRAWAL_NOTICE_MS) continue;
+		lines.set(r.line, [...(lines.get(r.line) || []), r]);
+	}
+	const shown = new Set<Row>();
+	for (const [line, all] of lines) {
+		// An alias only stands when its line has no numbered model
+		const pool = all.some((r) => !r.alias) ? all.filter((r) => !r.alias) : all;
+		// Newest by OpenRouter's listing date. Version numbers alone mislead (grok-4.20 is older than
+		// grok-4.7), so they only break a tie, and a disagreement is logged for a person to look at.
+		const top = pool.reduce((a, b) => ((b.createdMs - a.createdMs || versionOrder(b.version, a.version)) > 0 ? b : a));
+		const highest = pool.reduce((a, b) => (versionOrder(b.version, a.version) > 0 ? b : a));
+		if (versionOrder(highest.version, top.version) > 0 && !flagged.has(`${top.id}|${highest.id}`)) {
+			flagged.add(`${top.id}|${highest.id}`);
+			console.warn(`[LLM] OpenRouter line ${line}: newest by listing date is ${top.id}, highest version is ${highest.id}`);
+		}
+		if (now - top.createdMs <= LINE_MAX_AGE_MS) shown.add(top);
+	}
+	// The default model stays in the picker whatever replaces it, so its name and price can be shown
+	const pinned = rows.find((r) => r.id === DEFAULT_ROUTED_SLUG);
+	if (pinned) shown.add(pinned);
+
+	const vendorRank = (r: Row) => { const i = OPENROUTER_VENDORS.indexOf(r.vendor); return i < 0 ? OPENROUTER_VENDORS.length : i; };
+	rows.sort((a, b) => Number(shown.has(b)) - Number(shown.has(a)) || vendorRank(a) - vendorRank(b) || b.createdMs - a.createdMs);
+	const vendorNames = new Map<string, string>(); // one name per vendor: the one on its newest listed model
+	return rows.map((r) => {
+		const name = String(r.m.name || r.id);
+		if (!vendorNames.has(r.vendor)) vendorNames.set(r.vendor, name.includes(': ') ? name.split(': ')[0] : r.vendor);
+		return {
+			id: OPENROUTER_PREFIX + r.id,
+			provider: 'openrouter' as const,
+			name,
+			inputPrice: Math.round(Number(r.m.pricing.prompt) * 1e6 * 1000) / 1000,
+			outputPrice: Math.round(Number(r.m.pricing.completion) * 1e6 * 1000) / 1000,
+			reasoning: (r.m.supported_parameters || []).includes('reasoning'),
+			vendorName: vendorNames.get(r.vendor)!,
+			listed: shown.has(r),
+		};
+	});
+}
+
+let orCache: { until: number; models: OpenRouterModel[] } | null = null;
+
+// Every priced OpenRouter model, the picker's ones first. A failed or empty fetch keeps the last
+// good list: this isolate's, or the copy stored in KV when the isolate is new. An empty answer is
+// never read as every model having been withdrawn.
+export async function openRouterModels(env?: LlmEnv): Promise<OpenRouterModel[]> {
+	const now = Date.now();
+	if (orCache && now < orCache.until) return orCache.models;
 	try {
 		const res = await fetch('https://openrouter.ai/api/v1/models', { headers: { Accept: 'application/json' } });
 		if (!res.ok) throw new Error(`HTTP ${res.status}`);
-		const data = ((await res.json()) as any)?.data || [];
-		const newest = new Map<string, any>();
-		let pinned: any = null; // the default model stays in the list when its vendor has a newer one
-		for (const m of data) {
-			const id: string = m?.id || '';
-			const vendor = id.split('/')[0];
-			const prompt = Number(m?.pricing?.prompt), completion = Number(m?.pricing?.completion);
-			const textOut = (m?.architecture?.output_modalities || ['text']).join() === 'text';
-			if (!OPENROUTER_VENDORS.includes(vendor) || id.includes(':') || OPENROUTER_SKIP.test(id) || !textOut) continue;
-			if (!(prompt > 0) || !(completion > 0)) continue; // skip free/variable-price routes
-			if (id === DEFAULT_ROUTED_SLUG) pinned = m;
-			if (!newest.has(vendor) || (m.created || 0) > (newest.get(vendor).created || 0)) newest.set(vendor, m);
-		}
-		const picked = OPENROUTER_VENDORS.filter((v) => newest.has(v)).map((v) => newest.get(v));
-		if (pinned && !picked.includes(pinned)) picked.push(pinned);
-		const models = picked.map((m) => ({
-			id: OPENROUTER_PREFIX + m.id,
-			provider: 'openrouter' as const,
-			name: String(m.name || m.id),
-			inputPrice: Math.round(Number(m.pricing.prompt) * 1e6 * 1000) / 1000,
-			outputPrice: Math.round(Number(m.pricing.completion) * 1e6 * 1000) / 1000,
-			reasoning: (m.supported_parameters || []).includes('reasoning'),
-		}));
-		orCache = { at: Date.now(), models };
+		const data = ((await res.json()) as any)?.data;
+		const models = buildRouterList(Array.isArray(data) ? data : [], now);
+		if (!models.some((m) => m.listed)) throw new Error('the list came back empty');
+		orCache = { until: now + OPENROUTER_TTL_MS, models };
+		try { await env?.CLIENT_SETTINGS?.put(OPENROUTER_STORE_KEY, JSON.stringify({ at: now, models })); } catch (e: any) { console.error('[LLM] OpenRouter model list not stored:', e?.message || e); }
 		return models;
 	} catch (err: any) {
-		console.error('[LLM] OpenRouter model list failed:', err?.message || err);
-		return orCache?.models || [];
+		console.error('[LLM] OpenRouter model list failed, keeping the last good one:', err?.message || err);
+		let models = orCache?.models;
+		if (!models?.length) {
+			try { const stored = JSON.parse((await env?.CLIENT_SETTINGS?.get(OPENROUTER_STORE_KEY)) || 'null'); if (Array.isArray(stored?.models)) models = stored.models; } catch { /* no stored copy */ }
+		}
+		orCache = { until: now + OPENROUTER_RETRY_MS, models: models || [] };
+		return orCache.models;
 	}
 }
 
 async function callOpenRouter(env: LlmEnv, slug: string, effort: Effort, system: string, contents: Turn[]): Promise<string> {
-	const info = (await openRouterModels()).find((m) => m.id === OPENROUTER_PREFIX + slug);
+	const info = (await openRouterModels(env)).find((m) => m.id === OPENROUTER_PREFIX + slug);
 	const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
 		method: 'POST',
 		headers: {
@@ -255,7 +343,9 @@ export async function callChosenModel(env: LlmEnv, modelId: unknown, effortIn: u
 
 // Catalog for the dashboard picker, with whether each provider has a key on this worker
 export async function publicCatalog(env: LlmEnv) {
-	const models: ModelInfo[] = [...MODEL_CATALOG, ...(await openRouterModels())];
+	// The picker gets the listed OpenRouter models only; the rest stay known to the server
+	const routed = (await openRouterModels(env)).filter((m) => m.listed).map(({ listed, ...m }) => m);
+	const models: ModelInfo[] = [...MODEL_CATALOG, ...routed];
 	return {
 		defaultModel: defaultModel(env) || FALLBACK_MODELS[0],
 		efforts: EFFORTS,
