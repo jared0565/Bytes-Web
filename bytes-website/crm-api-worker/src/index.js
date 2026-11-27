@@ -726,6 +726,8 @@ app.post('/api/installations', requireAuth, async (c) => {
     const clean = allowedDomains
         .filter(d => typeof d === 'string' && domainRe.test(d.trim()))
         .map(d => d.trim().toLowerCase())
+        // "*.com" would let the chatbot run on every .com site: a wildcard needs a real domain after it
+        .filter(d => !d.startsWith('*.') || d.slice(2).includes('.'))
         .slice(0, 50); // hard cap to prevent abuse
 
     const ps = await getPlanStatus(c.env, clientId);
@@ -1024,7 +1026,10 @@ app.post('/api/auth/logout', async (c) => {
             try {
                 const payload = await verifyJWT(token, c.env.JWT_SECRET);
                 const sessionKey = payload.userId ? `active_session:${payload.userId}` : 'active_session:admin';
-                await c.env.OAUTH_TOKENS.delete(sessionKey);
+                // Only the session that is still the active one may end it: a session that another
+                // sign-in already replaced must not sign that newer one out
+                const activeId = payload.sessionId ? await c.env.OAUTH_TOKENS.get(sessionKey) : null;
+                if (!payload.sessionId || activeId === payload.sessionId) await c.env.OAUTH_TOKENS.delete(sessionKey);
             } catch { /* ignore expired/invalid tokens */ }
         }
         const deviceToken = getCookie(c, 'device_token');
@@ -2630,8 +2635,14 @@ app.post('/api/sequences/approve', requireAuth, async (c) => {
             return c.json({ error: 'Approving and sending campaigns is included from the Starter plan. Upgrade to unlock it.', planLimited: true }, 403);
         }
 
+        // Drafts carry send times counted from the day they were written. If the first of them has
+        // already passed, move them all forward by the same amount: the first is due now and the
+        // others keep their spacing, so a late approval does not send every email in the same minute.
+        const first = await c.env.DB.prepare("SELECT MIN(scheduled_for) AS t FROM email_sequences WHERE lead_id = ? AND status = 'draft'").bind(leadId).first();
+        const late = first && typeof first.t === 'number' ? Math.max(0, Date.now() - first.t) : 0;
+
         await c.env.DB.batch([
-            c.env.DB.prepare("UPDATE email_sequences SET status = 'approved' WHERE lead_id = ? AND status = 'draft'").bind(leadId),
+            c.env.DB.prepare("UPDATE email_sequences SET status = 'approved', scheduled_for = scheduled_for + ? WHERE lead_id = ? AND status = 'draft'").bind(late, leadId),
             c.env.DB.prepare("UPDATE leads SET pipeline_stage = 'active' WHERE id = ?").bind(leadId)
         ]);
         return c.json({ success: true });
@@ -3029,7 +3040,8 @@ app.post('/api/mail-settings/test', requireAuth, async (c) => {
     if (!s?.provider) return c.json({ error: 'No mail settings saved. Configure and save your settings first.' }, 400);
 
     // Send to the authenticated user's registered email
-    const userRow = await c.env.DB.prepare('SELECT email FROM users WHERE id = ?').bind(user.userId).first().catch(() => null);
+    // The admin access key has no user account, and the database refuses to bind a missing id
+    const userRow = user.userId ? await c.env.DB.prepare('SELECT email FROM users WHERE id = ?').bind(user.userId).first().catch(() => null) : null;
     const toEmail = userRow?.email || s.fromEmail;
 
     const subject = 'BytesFX: Email Sender Test ✅';
