@@ -979,6 +979,40 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Default models: the platform's four choices, for bots and emails with no model of their own -->
+                <div class="glass-panel site-settings-card" id="pm-card">
+                    <p class="site-settings-kicker">Platform · bots and emails with no model of their own</p>
+                    <h3 style="margin:0 0 0.2rem;">Default models</h3>
+                    <p style="color:var(--text-secondary);font-size:0.82rem;margin:0 0 1rem;">The models used when a bot or a client's emails have no model chosen, and the backups that step in when a model fails. A model chosen for a client in Manage Clients is not affected.</p>
+
+                    <h4 class="site-section">Chat replies</h4>
+                    <div class="form-group">
+                        <label for="pm-chat-default">Default model <span class="site-hint">Answers every bot with no model chosen</span></label>
+                        <select id="pm-chat-default"><option value="">Loading…</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="pm-chat-fallback">Fallback <span class="site-hint">Steps in when a bot's model fails, and reads lead details out of chats</span></label>
+                        <select id="pm-chat-fallback"><option value="">Loading…</option></select>
+                    </div>
+
+                    <h4 class="site-section">Sales emails</h4>
+                    <div class="form-group">
+                        <label for="pm-email-default">Default model <span class="site-hint">Drafts and reads emails for a client with no email model chosen</span></label>
+                        <select id="pm-email-default"><option value="">Loading…</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="pm-email-fallback">Fallback <span class="site-hint">Steps in when the email model fails</span></label>
+                        <select id="pm-email-fallback"><option value="">Loading…</option></select>
+                    </div>
+                    <p class="cb-hint">A fallback is called on its supplier's own API, so it keeps working when OpenRouter does not. Gemini 2.5 Flash-Lite always stays behind it as the last backup.</p>
+                    <p class="cb-hint" id="pm-saved"></p>
+
+                    <div class="site-savebar">
+                        <p id="pm-status" role="status" style="font-size:0.82rem;margin:0;min-height:1em;"></p>
+                        <button type="button" id="pm-save-btn" class="btn btn-primary">Save default models</button>
+                    </div>
+                </div>
             </section>
 
             <section id="analytics-view" class="view hidden">

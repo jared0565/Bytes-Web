@@ -308,6 +308,14 @@ async function saveMailSettings(env, clientId, prev, next, by) {
     await env.OAUTH_TOKENS.put(`mail:${clientId}`, JSON.stringify(next));
     await recordChanges(env, clientId, 'mail', prev, next, by);
 }
+// The platform's default models (KV platform:models). Its history is kept under the id "platform".
+const PLATFORM_MODELS_KEY = 'platform:models';
+const PLATFORM_MODEL_FIELDS = ['chatDefault', 'chatFallback', 'emailDefault', 'emailFallback'];
+async function savePlatformModels(env, prev, next, by) {
+    await env.CLIENT_SETTINGS.put(PLATFORM_MODELS_KEY, JSON.stringify(next));
+    const pick = (o) => Object.fromEntries(PLATFORM_MODEL_FIELDS.map(f => [f, o[f]]));
+    await recordChanges(env, 'platform', 'chatbot', pick(prev), pick(next), by);
+}
 // Plan and campaign settings (D1 crm_settings). Writes only the columns given; a new row gets campaign mode
 // 'ai', no auto-approve and the table's defaults for the rest, as the routes did before.
 // mode: 'upsert' (create or update), 'insert' (create only: sign-up claims the client ID with it, so a second
@@ -922,6 +930,50 @@ app.get('/api/admin/clients/:id/history', requireAuth, async (c) => {
         historyReady = false;
         console.error('[History] Read error:', err);
         return c.json({ error: 'Failed to load the history' }, 500);
+    }
+});
+
+// The platform's default models: the chat default, the chat fallback, the email default and the email
+// fallback, for every bot and email that has no model of its own. Stored as one KV entry that the chatbot
+// worker reads. Its key does not start with "client:", so it is never listed as a client. '' = built-in model.
+async function readPlatformModels(env) {
+    let stored = null;
+    try { stored = JSON.parse((await env.CLIENT_SETTINGS.get(PLATFORM_MODELS_KEY)) || 'null'); } catch (_) { /* unreadable: treated as nothing chosen */ }
+    const out = {};
+    for (const f of PLATFORM_MODEL_FIELDS) out[f] = stored && typeof stored[f] === 'string' ? stored[f] : '';
+    return { ...out, updatedAt: stored?.updatedAt || 0, updatedBy: stored?.updatedBy || '' };
+}
+
+// GET /api/admin/models — the four choices, and who last saved them
+app.get('/api/admin/models', requireAuth, async (c) => {
+    if ((c.get('user') || {}).role !== 'admin') return c.json({ error: 'Admins only' }, 403);
+    return c.json(await readPlatformModels(c.env));
+});
+
+// POST /api/admin/models — { chatDefault, chatFallback, emailDefault, emailFallback }. The chatbot worker
+// checks the set (each model is in its list, has a key, a fallback is a direct supplier model); a refused
+// set is not stored.
+app.post('/api/admin/models', requireAuth, async (c) => {
+    if ((c.get('user') || {}).role !== 'admin') return c.json({ error: 'Admins only' }, 403);
+    let body;
+    try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid JSON' }, 400); }
+    if (!c.env.LLM || typeof c.env.LLM.checkDefaults !== 'function') return c.json({ error: 'The chatbot server cannot be reached to check the models. Nothing was saved.' }, 503);
+    const wanted = {};
+    for (const f of PLATFORM_MODEL_FIELDS) wanted[f] = body?.[f] ?? '';
+    try {
+        const checked = await c.env.LLM.checkDefaults(wanted);
+        if (!checked?.ok) return c.json({ error: checked?.error || 'These models cannot be used.' }, 400);
+        const before = await readPlatformModels(c.env);
+        const by = await changedBy(c);
+        const who = by.email || by.actor;
+        const entry = { ...checked.value, updatedAt: Date.now(), updatedBy: who };
+        await savePlatformModels(c.env, before, entry, by);
+        const pick = (o) => Object.fromEntries(PLATFORM_MODEL_FIELDS.map(f => [f, o[f]]));
+        console.log({ kind: 'platform-models', by: who, from: pick(before), to: pick(entry) });
+        return c.json({ success: true, ...entry });
+    } catch (err) {
+        console.error('[Platform models] Error:', err);
+        return c.json({ error: 'Failed to save the default models' }, 500);
     }
 });
 
