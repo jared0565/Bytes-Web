@@ -371,13 +371,114 @@ export async function callChosenModel(env: LlmEnv, modelId: unknown, effortIn: u
 	return { text: await callGemini(env, info.id, sendEffort, system, contents), model: info.id };
 }
 
+// ─── Platform choices ────────────────────────────────────────────────────────
+// An admin sets four models for the whole platform in the dashboard; crm-api stores them in KV
+// under "platform:models" after checkPlatformModels has passed them. An empty choice, a missing
+// entry or one that cannot be used leaves the built-in model in place.
+export interface PlatformModels { chatDefault: string; chatFallback: string; emailDefault: string; emailFallback: string }
+const PLATFORM_KEY = 'platform:models';
+const PLATFORM_FIELDS = ['chatDefault', 'chatFallback', 'emailDefault', 'emailFallback'] as const;
+const PLATFORM_TTL_MS = 60 * 1000;
+const NO_CHOICES: PlatformModels = { chatDefault: '', chatFallback: '', emailDefault: '', emailFallback: '' };
+const LAST_RESORT = FALLBACK_MODELS[FALLBACK_MODELS.length - 1]; // always the final backup, whatever is chosen
+const EMAIL_DEFAULT_DIRECT = 'gpt-6-luna';
+
+let platformCache: { until: number; value: PlatformModels } | null = null;
+export async function platformModels(env: LlmEnv): Promise<PlatformModels> {
+	const now = Date.now();
+	if (platformCache && now < platformCache.until) return platformCache.value;
+	let value = NO_CHOICES;
+	try {
+		const stored = JSON.parse((await env.CLIENT_SETTINGS?.get(PLATFORM_KEY)) || 'null');
+		if (stored && typeof stored === 'object') value = Object.fromEntries(PLATFORM_FIELDS.map((f) => [f, typeof stored[f] === 'string' ? stored[f] : ''])) as unknown as PlatformModels;
+	} catch (e: any) { console.error('[LLM] Platform model choices could not be read, using the built-in models:', e?.message || e); }
+	platformCache = { until: now + PLATFORM_TTL_MS, value };
+	return value;
+}
+
+// Models that may serve as a fallback. Each is called on its supplier's own API, so a fallback does
+// not share OpenRouter's failures. Premium models are left out (a fallback answers every bot), and
+// so are the two Google retires on 1 December 2026. The first is the built-in first backup; its
+// price is Google's published one on 27 November 2026.
+const FALLBACK_ONLY: ModelInfo = { id: FALLBACK_MODELS[0], provider: 'google', name: 'Gemini 3.5 Flash-Lite', inputPrice: 0.3, outputPrice: 2.5, efforts: [] };
+const RETIRING = ['gemini-2.5-flash', 'gemini-2.5-pro'];
+export function fallbackChoices(env: LlmEnv) {
+	return [FALLBACK_ONLY, ...MODEL_CATALOG.filter((m) => !isPremium(m) && !RETIRING.includes(m.id))]
+		.map((m) => ({ ...m, providerName: PROVIDER_NAMES[m.provider], available: providerAvailable(env, m.provider) }));
+}
+const usableFallback = (env: LlmEnv, id: string) => fallbackChoices(env).some((m) => m.id === id && m.available);
+
+// The chat default: the admin's choice unless it is premium (it answers bots that are not on AI Plus)
+export async function chatDefaultModel(env: LlmEnv): Promise<string> {
+	const chosen = (await platformModels(env)).chatDefault;
+	if (chosen && !(await modelIsPremium(chosen, env))) return chosen;
+	return defaultModel(env);
+}
+// The email default: the admin's choice, else GPT-6 Luna directly with an OpenAI key or through OpenRouter
+export async function emailDefaultModel(env: LlmEnv): Promise<string> {
+	const chosen = (await platformModels(env)).emailDefault;
+	if (chosen) return chosen;
+	return env.OPENAI_API_KEY ? EMAIL_DEFAULT_DIRECT : env.OPENROUTER_API_KEY ? `${OPENROUTER_PREFIX}openai/${EMAIL_DEFAULT_DIRECT}` : FALLBACK_MODELS[0];
+}
+// The backups for chat or email, in order: the chosen fallback and then the last resort, or the built-in pair
+export async function fallbackChain(env: LlmEnv, kind: 'chat' | 'email'): Promise<string[]> {
+	const p = await platformModels(env);
+	const chosen = kind === 'chat' ? p.chatFallback : p.emailFallback;
+	if (!chosen || !usableFallback(env, chosen)) return FALLBACK_MODELS;
+	return chosen === LAST_RESORT ? [LAST_RESORT] : [chosen, LAST_RESORT];
+}
+// The model that reads a lead's details out of a chat: the chosen chat fallback, else the last resort
+export async function leadReaderModel(env: LlmEnv): Promise<string> {
+	const chosen = (await platformModels(env)).chatFallback;
+	return chosen && usableFallback(env, chosen) ? chosen : LAST_RESORT;
+}
+export const isGoogleModel = (id: string) => id.startsWith('gemini-');
+// Calls a backup: a Google model with no thinking setting, as before; another supplier's at low effort
+export async function callFallback(env: LlmEnv, model: string, system: string, contents: Turn[]): Promise<string> {
+	if (isGoogleModel(model)) return callGemini(env, model, null, system, contents);
+	return (await callChosenModel(env, model, 'low', system, contents)).text;
+}
+
+// Checks a set of choices before crm-api stores it. '' means "use the built-in model".
+export async function checkPlatformModels(env: LlmEnv, input: unknown): Promise<{ ok: true; value: PlatformModels } | { ok: false; error: string }> {
+	const src = (input && typeof input === 'object' ? input : {}) as Record<string, unknown>;
+	const value = { ...NO_CHOICES };
+	for (const f of PLATFORM_FIELDS) {
+		if (src[f] === undefined || src[f] === null) continue;
+		if (typeof src[f] !== 'string' || (src[f] as string).length > 120) return { ok: false, error: 'Each choice must be a model from the list.' };
+		value[f] = src[f] as string;
+	}
+	const routed = await openRouterModels(env);
+	const labels = { chatDefault: 'chat default', emailDefault: 'email default', chatFallback: 'chat fallback', emailFallback: 'email fallback' };
+	for (const f of ['chatDefault', 'emailDefault'] as const) {
+		const id = value[f];
+		if (!id) continue;
+		const m: ModelInfo | undefined = id.startsWith(OPENROUTER_PREFIX) ? routed.find((x) => x.id === id && x.listed) : findModel(id);
+		if (!m) return { ok: false, error: `The ${labels[f]} is not in the model list.` };
+		if (!providerAvailable(env, m.provider)) return { ok: false, error: `The ${labels[f]} needs a ${PROVIDER_NAMES[m.provider]} API key, and none is set.` };
+		if (f === 'chatDefault' && isPremium(m)) return { ok: false, error: 'The chat default cannot be a premium model: it also answers bots that are not on AI Plus.' };
+	}
+	for (const f of ['chatFallback', 'emailFallback'] as const) {
+		const id = value[f];
+		if (!id) continue;
+		const m = fallbackChoices(env).find((x) => x.id === id);
+		if (!m) return { ok: false, error: `The ${labels[f]} must be a direct supplier model from the fallback list.` };
+		if (!m.available) return { ok: false, error: `The ${labels[f]} needs a ${m.providerName} API key, and none is set.` };
+	}
+	return { ok: true, value };
+}
+
 // Catalog for the dashboard picker, with whether each provider has a key on this worker
 export async function publicCatalog(env: LlmEnv) {
 	// The picker gets the listed OpenRouter models only; the rest stay known to the server
 	const routed = (await openRouterModels(env)).filter((m) => m.listed).map(({ listed, ...m }) => m);
 	const models: ModelInfo[] = [...MODEL_CATALOG, ...routed];
 	return {
-		defaultModel: defaultModel(env) || FALLBACK_MODELS[0],
+		defaultModel: (await chatDefaultModel(env)) || FALLBACK_MODELS[0],
+		emailDefaultModel: await emailDefaultModel(env),
+		chatFallbackModel: (await fallbackChain(env, 'chat'))[0],
+		emailFallbackModel: (await fallbackChain(env, 'email'))[0],
+		fallbackModels: fallbackChoices(env),
 		efforts: EFFORTS,
 		models: models.map((m) => ({ ...m, providerName: PROVIDER_NAMES[m.provider], available: providerAvailable(env, m.provider), premium: isPremium(m) })),
 	};

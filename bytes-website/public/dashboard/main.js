@@ -1842,9 +1842,10 @@ let savedLlmModel = '';
 
 const formatPrice = (n) => `$${Number(n) > 0 && Number(n) < 0.1 ? Number(n).toFixed(3) : Number(n).toFixed(2)}`;
 
-async function ensureModelCatalog() {
-    if (modelCatalog) return modelCatalog;
-    const res = await fetch(`${CHATBOT_API}/public/models`);
+// `fresh` skips the browser's copy: the list is cached for five minutes, too long right after a save
+async function ensureModelCatalog(fresh = false) {
+    if (modelCatalog && !fresh) return modelCatalog;
+    const res = await fetch(`${CHATBOT_API}/public/models`, fresh ? { cache: 'reload' } : undefined);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     modelCatalog = await res.json();
     return modelCatalog;
@@ -2971,7 +2972,76 @@ function exportVisitorsCsv() {
 // True once the website form holds its saved values (see the save handler)
 let siteFormLoaded = false;
 
+// ─── Default models: the platform's four choices (admins) ─────────────────────
+const PM = (id) => document.getElementById(id);
+const PM_SELECTS = { chatDefault: 'pm-chat-default', chatFallback: 'pm-chat-fallback', emailDefault: 'pm-email-default', emailFallback: 'pm-email-fallback' };
+// The empty choice leaves the model built into the chatbot server in place
+const PM_BUILT_IN = { chatDefault: 'Built-in: Claude Haiku 5.5', chatFallback: 'Built-in: Gemini 3.5 Flash-Lite', emailDefault: 'Built-in: GPT-6 Luna', emailFallback: 'Built-in: Gemini 3.5 Flash-Lite' };
+
+// A fallback picker offers only direct supplier models; one whose supplier has no key is shown but cannot be picked
+function pmFillFallback(select, saved, builtIn) {
+    select.innerHTML = '';
+    select.appendChild(new Option(builtIn, ''));
+    for (const m of modelCatalog.fallbackModels || []) {
+        const opt = new Option(`${m.providerName}: ${m.name}${m.available ? '' : ' (no API key)'}`, m.id);
+        opt.disabled = !m.available;
+        select.appendChild(opt);
+    }
+    select.value = saved || '';
+    if (select.value !== (saved || '')) { select.appendChild(new Option(`${saved} (no longer offered)`, saved)); select.value = saved; }
+}
+
+async function loadPlatformModels(fresh = false) {
+    const st = PM('pm-status');
+    if (!st) return;
+    try {
+        await ensureModelCatalog(fresh);
+        const res = await apiFetch(`${API_BASE}/api/admin/models`);
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+        const d = await res.json();
+        for (const key of ['chatDefault', 'emailDefault']) {
+            const sel = PM(PM_SELECTS[key]);
+            populateModelSelect(sel, d[key] || '');
+            sel.options[0].textContent = PM_BUILT_IN[key];
+        }
+        // The chat default also answers bots that are not on AI Plus, so it cannot be a premium model
+        for (const opt of PM(PM_SELECTS.chatDefault).options) {
+            const m = modelCatalog.models.find(x => x.id === opt.value);
+            if (m && m.premium) { opt.disabled = true; opt.textContent += ' (premium: cannot be the default)'; }
+        }
+        for (const key of ['chatFallback', 'emailFallback']) pmFillFallback(PM(PM_SELECTS[key]), d[key] || '', PM_BUILT_IN[key]);
+        PM('pm-saved').textContent = d.updatedAt
+            ? `Last saved by ${d.updatedBy || 'an admin'} on ${new Date(d.updatedAt).toLocaleString()}.`
+            : 'Nothing is saved yet: the built-in models are in use.';
+        PM('pm-card').classList.remove('cb-dirty');
+        st.textContent = '';
+    } catch (e) {
+        st.textContent = `Could not load the default models: ${e.message}`;
+        st.style.color = 'var(--error)';
+    }
+}
+
+['input', 'change'].forEach(ev => PM('pm-card')?.addEventListener(ev, (e) => { if (e.isTrusted && !e.target.closest('button')) PM('pm-card').classList.add('cb-dirty'); }));
+
+PM('pm-save-btn')?.addEventListener('click', async () => {
+    const st = PM('pm-status'), btn = PM('pm-save-btn');
+    const body = Object.fromEntries(Object.entries(PM_SELECTS).map(([key, id]) => [key, PM(id).value]));
+    btn.disabled = true;
+    st.textContent = 'Checking and saving…'; st.style.color = 'var(--text-secondary)';
+    try {
+        const res = await apiFetch(`${API_BASE}/api/admin/models`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+        await loadPlatformModels(true);
+        st.textContent = '✓ Default models saved. Bots and emails follow them within a minute.';
+        st.style.color = 'var(--success)';
+    } catch (e) {
+        st.textContent = `Not saved: ${e.message}`;
+        st.style.color = 'var(--error)';
+    } finally { btn.disabled = false; }
+});
+
 async function loadSiteSettings() {
+    loadPlatformModels();
     siteHealth();
     loadSiteMail();
     const status = document.getElementById('site-status');
@@ -3973,6 +4043,12 @@ document.getElementById('site-prompt-template')?.addEventListener('click', () =>
 // ─── Sales follow-up settings (website Settings, client drawer, client Chatbot page) ───
 // Same fields everywhere: ask questions, booking link, alerts email, drafting + reading models.
 const SALES_DEFAULT_LABEL = 'Default: GPT-6 Luna (falls back to Gemini 3.5 Flash-Lite)';
+// The same label from the live model list, which knows the platform's chosen email default and fallback
+function salesDefaultLabel() {
+    if (!modelCatalog || !modelCatalog.emailDefaultModel) return SALES_DEFAULT_LABEL;
+    const name = (id) => ([...modelCatalog.models, ...(modelCatalog.fallbackModels || [])].find(m => m.id === id) || {}).name || id;
+    return `Default: ${name(modelCatalog.emailDefaultModel)} (falls back to ${name(modelCatalog.emailFallbackModel)})`;
+}
 function salesFieldsHtml(p) {
     return `
         <div class="sett-toggle-row">
@@ -4062,7 +4138,7 @@ async function salesFill(p, d = {}) {
     try { await ensureModelCatalog(); } catch (_) {}
     for (const [key, id] of [['draftModel', 'draft-model'], ['readModel', 'read-model']]) {
         const sel = q(id);
-        if (modelCatalog) { populateModelSelect(sel, d[key] || ''); sel.options[0].textContent = SALES_DEFAULT_LABEL; }
+        if (modelCatalog) { populateModelSelect(sel, d[key] || ''); sel.options[0].textContent = salesDefaultLabel(); }
         else { sel.innerHTML = `<option value="">${SALES_DEFAULT_LABEL}</option>`; delete sel.dataset.filled; }
     }
     salesTrackingNote(p);
