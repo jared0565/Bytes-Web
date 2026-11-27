@@ -2630,8 +2630,14 @@ app.post('/api/sequences/approve', requireAuth, async (c) => {
             return c.json({ error: 'Approving and sending campaigns is included from the Starter plan. Upgrade to unlock it.', planLimited: true }, 403);
         }
 
+        // Drafts carry send times counted from the day they were written. If the first of them has
+        // already passed, move them all forward by the same amount: the first is due now and the
+        // others keep their spacing, so a late approval does not send every email in the same minute.
+        const first = await c.env.DB.prepare("SELECT MIN(scheduled_for) AS t FROM email_sequences WHERE lead_id = ? AND status = 'draft'").bind(leadId).first();
+        const late = first && typeof first.t === 'number' ? Math.max(0, Date.now() - first.t) : 0;
+
         await c.env.DB.batch([
-            c.env.DB.prepare("UPDATE email_sequences SET status = 'approved' WHERE lead_id = ? AND status = 'draft'").bind(leadId),
+            c.env.DB.prepare("UPDATE email_sequences SET status = 'approved', scheduled_for = scheduled_for + ? WHERE lead_id = ? AND status = 'draft'").bind(late, leadId),
             c.env.DB.prepare("UPDATE leads SET pipeline_stage = 'active' WHERE id = ?").bind(leadId)
         ]);
         return c.json({ success: true });
