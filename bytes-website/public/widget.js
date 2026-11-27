@@ -232,6 +232,13 @@
             cursor: pointer;
         }
 
+        /* Sized and coloured here, so the icon does not depend on the host page's styles */
+        .btn-send-chat svg {
+            width: 20px;
+            height: 20px;
+            fill: currentColor;
+        }
+
         .btn-send-chat:disabled { opacity: 0.5; }
 
         /* Characters left, shown only near the limit; lines up with the text being typed */
@@ -684,10 +691,14 @@
     }
 
 
-    // Start
-    if (document.readyState === 'loading') {
-        window.addEventListener('DOMContentLoaded', init);
+    // Start. The widget only needs the page's <body>. A site that runs its scripts late (a
+    // script-delaying loader, a tag manager) can still report "loading" after the DOMContentLoaded
+    // event has gone by, so waiting on that event alone would never start the widget there.
+    let started = false;
+    const start = () => { if (started) return; started = true; init(); };
+    if (document.body) {
+        start();
     } else {
-        init();
+        window.addEventListener('DOMContentLoaded', start);
     }
 })();
