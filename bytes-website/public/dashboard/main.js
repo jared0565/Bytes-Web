@@ -3939,7 +3939,7 @@ document.getElementById('site-prompt-template')?.addEventListener('click', () =>
 
 // ─── Sales follow-up settings (website Settings, client drawer, client Chatbot page) ───
 // Same fields everywhere: ask questions, booking link, alerts email, drafting + reading models.
-const SALES_DEFAULT_LABEL = 'Default: GPT-6 Luna (falls back to Gemini 2.5 Flash)';
+const SALES_DEFAULT_LABEL = 'Default: GPT-6 Luna (falls back to Gemini 3.5 Flash-Lite)';
 function salesFieldsHtml(p) {
     return `
         <div class="sett-toggle-row">

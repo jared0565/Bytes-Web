@@ -29,9 +29,10 @@ globalThis.fetch = async (u, o) => {
   const url = String(u), body = o?.body ? JSON.parse(o.body) : {};
   await new Promise(res => setImmediate(res)); // a real network call lets other requests run meanwhile
   if (url.includes('/webhooks/new-lead')) { seen.hooks.push(body); return new Response('{}'); }
-  if (url.includes('flash-lite:generateContent')) { seen.facts.push(body); if (hold) await hold; return gem(JSON.stringify(facts())); }
+  // The lead reader is told apart by its instruction, not its model: the backup chat models are flash-lite models too
+  if (url.includes('generativelanguage') && (body.system_instruction?.parts?.[0]?.text || '').startsWith('You extract facts')) { seen.facts.push(body); if (hold) await hold; return gem(JSON.stringify(facts())); }
   if (url.includes('generativelanguage')) {
-    const call = { sys: body.system_instruction?.parts?.[0]?.text || '', contents: body.contents };
+    const call = { sys: body.system_instruction?.parts?.[0]?.text || '', contents: body.contents, model: (url.match(/models\/([^:]+):/) || [])[1] };
     seen.chat.push(call);
     const out = brain(call);
     return typeof out === 'string' ? gem(out) : new Response(JSON.stringify({ error: 'down' }), { status: out.status });
@@ -146,6 +147,15 @@ brain = () => (++calls === 1 ? { status: 500 } : '[offtopic] I can only help wit
 c = chat();
 r = await send(c, 'tell me a joke');
 ok('the label is also removed when the backup model answers', r.text === 'I can only help with BytesFX.' && logs(c)[0]?.flag === 'offtopic', r.text);
+
+// Google retires gemini-2.5-flash on 1 December 2026 and has shut down gemini-3.1-flash-lite-preview
+calls = 0;
+const backupFrom = seen.chat.length;
+brain = () => (++calls <= 2 ? { status: 500 } : '[business] Still here.');
+c = chat();
+r = await send(c, 'do you build online shops?');
+const backupsAsked = seen.chat.slice(backupFrom).map(x => x.model).join(' > ');
+ok('when the chosen model fails, the two backup models are tried in order', r.text === 'Still here.' && backupsAsked === 'gemini-2.5-flash > gemini-3.5-flash-lite > gemini-2.5-flash-lite', backupsAsked);
 
 // ─── Leads ────────────────────────────────────────────────────────────────────
 c = chat();

@@ -35,6 +35,11 @@ export const MODEL_CATALOG: ModelInfo[] = [
 ];
 
 export const DEFAULT_MODEL = 'gemini-2.5-flash';
+// Backup models, tried in this order when the chosen model fails. Both are called on Google's own API
+// with no thinking setting. Google retires gemini-2.5-flash on 1 December 2026 and has shut down
+// gemini-3.1-flash-lite-preview, the two that were here before. The last one has no shutdown date
+// and is the model the lead reader already calls.
+export const FALLBACK_MODELS = ['gemini-3.5-flash-lite', 'gemini-2.5-flash-lite'];
 // Premium models (output above $15 per 1M tokens) are reserved for the AI Plus bot mode
 export const PREMIUM_OUTPUT_PRICE = 15;
 export const isPremium = (m: { outputPrice: number } | undefined) => !!m && m.outputPrice > PREMIUM_OUTPUT_PRICE;
