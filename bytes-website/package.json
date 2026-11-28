@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/check-consent.mjs && node scripts/test-consent.mjs && node --test scripts/test-navigation.mjs && node --test scripts/test-showcase-content.mjs && node --test scripts/test-showcase-editorial.mjs && node --test scripts/test-dashboard-models.mjs && node --test scripts/test-dashboard-saves.mjs && node --test scripts/test-widget-start.mjs && vite build && node scripts/check-chatbot-page.mjs && node scripts/check-showcase-pages.mjs && node scripts/check-not-found-page.mjs",
+    "build": "node scripts/check-consent.mjs && node scripts/test-consent.mjs && node --test scripts/test-navigation.mjs && node --test scripts/test-showcase-content.mjs && node --test scripts/test-showcase-editorial.mjs && node --test scripts/test-dashboard-models.mjs && node --test scripts/test-dashboard-prices.mjs && node --test scripts/test-dashboard-saves.mjs && node --test scripts/test-widget-start.mjs && vite build && node scripts/check-chatbot-page.mjs && node scripts/check-showcase-pages.mjs && node scripts/check-not-found-page.mjs",
     "preview": "vite preview"
   },
   "devDependencies": {
