@@ -1,5 +1,5 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
-import { callChosenModel, callGemini, publicCatalog, modelIsPremium, chatDefaultModel, emailDefaultModel, fallbackChain, leadReaderModel, callFallback, isGoogleModel, checkPlatformModels } from './llm';
+import { testModel, MAX_MODEL_TESTS, callChosenModel, callGemini, publicCatalog, modelIsPremium, chatDefaultModel, emailDefaultModel, fallbackChain, leadReaderModel, callFallback, isGoogleModel, checkPlatformModels } from './llm';
 // Message limits per bot mode come from the shared plan list (same file the website and dashboard show)
 import PLAN_DATA from '../../bytes-website/public/plans.json';
 
@@ -831,5 +831,12 @@ export class LlmService extends WorkerEntrypoint<Env> {
 	/** Checks the platform's four model choices before crm-api stores them. Returns { ok, value } or { ok: false, error }. */
 	async checkDefaults(input: unknown) {
 		return checkPlatformModels(this.env, input);
+	}
+
+	/** Tests each { model, effort, fallback? } with one real call before crm-api saves it. Returns one { model, effort, ok, ms, error? } per item, in order. */
+	async testModels(items: unknown) {
+		if (!Array.isArray(items)) throw new Error('testModels takes a list of models.');
+		if (items.length > MAX_MODEL_TESTS) throw new Error(`At most ${MAX_MODEL_TESTS} models can be tested in one request.`);
+		return Promise.all(items.map((item) => testModel(this.env, item)));
 	}
 }
