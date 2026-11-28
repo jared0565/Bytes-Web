@@ -1843,7 +1843,8 @@ async function loadChatbotView() {
 let modelCatalog = null;
 let savedLlmModel = '';
 
-const formatPrice = (n) => `$${Number(n) > 0 && Number(n) < 0.1 ? Number(n).toFixed(3) : Number(n).toFixed(2)}`;
+// Two decimals, or three where the price has a third (OpenRouter lists $0.825): rounding it away showed a price nobody charges
+const formatPrice = (n) => `$${(Number(n) > 0 && Number(n) < 0.1) || Math.abs(Number(n) * 100 - Math.round(Number(n) * 100)) > 1e-6 ? Number(n).toFixed(3) : Number(n).toFixed(2)}`;
 
 // `fresh` skips the browser's copy: the list is cached for five minutes, too long right after a save
 async function ensureModelCatalog(fresh = false) {
@@ -1871,7 +1872,7 @@ function populateModelSelect(select, savedValue) {
         }
         // The group already names the vendor, so "Anthropic: Claude Haiku 5.5" is shown as "Claude Haiku 5.5"
         const name = m.vendorName && m.name.startsWith(m.vendorName + ': ') ? m.name.slice(m.vendorName.length + 2) : m.name;
-        const label = `${name}: ${formatPrice(m.inputPrice)} in / ${formatPrice(m.outputPrice)} out per 1M tokens${m.available ? '' : ' (no API key)'}`;
+        const label = `${name}: ${formatPrice(m.inputPrice)} in / ${formatPrice(m.outputPrice)} out per 1M tokens${m.priceStale ? ' (price not checked recently)' : ''}${m.available ? '' : ' (no API key)'}`;
         const opt = new Option(label, m.id);
         opt.disabled = !m.available;
         groups.get(group).appendChild(opt);
@@ -1936,12 +1937,36 @@ async function loadModelCatalog() {
 }
 
 // Cost line under a model picker (shared by Chatbot and Bytes website settings)
+// What is worth knowing about a model's price before choosing it, one line each: where the price came
+// from (a direct price is read by hand from the supplier's pricing page; `priceStale` means that was
+// over 90 days ago), a change the supplier has announced, the dearer price for a very long prompt, and
+// OpenRouter's price where it differs. `warn` lines are shown in the warning colour.
+function modelPriceNotes(m) {
+    if (!m) return [];
+    if (m.provider === 'openrouter') return [{ text: 'Live OpenRouter price.' }];
+    const day = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+    const pair = (p) => `${formatPrice(p.inputPrice)} in / ${formatPrice(p.outputPrice)} out`;
+    const notes = [];
+    if (m.priceRead) {
+        notes.push(m.priceStale
+            ? { warn: true, text: `Price not checked since ${day(m.priceRead)}. It may have changed on ${m.providerName}'s pricing page.` }
+            : { text: `Price from ${m.providerName}'s pricing page, read ${day(m.priceRead)}.` });
+    }
+    if (m.priceChange) {
+        const rises = m.priceChange.outputPrice > m.outputPrice || m.priceChange.inputPrice > m.inputPrice;
+        notes.push({ warn: true, text: `${rises ? 'Rises' : 'Changes'} to ${pair(m.priceChange)} on ${day(m.priceChange.from)}${m.priceChange.premium && !m.premium ? ', and becomes an AI Plus model' : ''}.` });
+    }
+    if (m.longPrompt) notes.push({ text: `Prompts over ${Number(m.longPrompt.over).toLocaleString('en-GB')} tokens cost ${pair(m.longPrompt)}.` });
+    if (m.routedPrice) notes.push({ text: `OpenRouter lists ${pair(m.routedPrice)} for this model.` });
+    return notes;
+}
+
 function modelCostHtml(id) {
     const m = modelCatalog && modelCatalog.models.find(x => x.id === (id || modelCatalog.defaultModel));
     if (!m) return '';
     return `Provider: <strong>${escapeHtml(m.providerName)}</strong> · Model: <code>${escapeHtml(m.id)}</code><br>`
         + `Cost: <strong>${formatPrice(m.inputPrice)}</strong> per 1M input tokens · <strong>${formatPrice(m.outputPrice)}</strong> per 1M output tokens`
-        + (m.provider === 'openrouter' ? ' <span style="color:var(--text-secondary);">(live OpenRouter price)</span>' : '')
+        + modelPriceNotes(m).map(n => `<br><span${n.warn ? ' style="color:var(--warning, #f59e0b);"' : ''}>${escapeHtml(n.text)}</span>`).join('')
         + (m.available ? '' : `<br><span style="color:var(--warning, #f59e0b);">No ${escapeHtml(m.providerName)} API key is set on the chatbot server, so replies will use the default model.</span>`);
 }
 

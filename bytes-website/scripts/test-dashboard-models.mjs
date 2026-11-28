@@ -69,6 +69,14 @@ test('the default entry stays first, whatever is saved', () => {
   for (const saved of ['', 'route:vendor/newest', 'route:vendor/older']) assert.equal(fill(saved).options[0].value, '');
 });
 
+test('a price that is due a check is marked in the list', () => {
+  catalog.models.push({ id: 'house-old-price', name: 'Old Price', providerName: 'House', inputPrice: 1, outputPrice: 2, available: true, priceStale: true });
+  const options = fill('').options;
+  catalog.models.pop();
+  assert.match(options.find(o => o.value === 'house-old-price').text, /price not checked recently/);
+  assert.doesNotMatch(options.find(o => o.value === 'house-default').text, /not checked/);
+});
+
 test('a listed model is never added twice', () => {
   const select = fill('route:other/no-key');
   assert.equal(select.options.filter(o => o.value === 'route:other/no-key').length, 1);

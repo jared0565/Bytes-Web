@@ -28,6 +28,7 @@ export interface DirectModel extends ModelInfo {
 	retires?: string; // the supplier's shutdown date; left out of the picker from 30 days before it
 	superseded?: boolean; // a newer model of its line is in the table: kept so a bot already on it still works
 	priceChange?: { from: string; inputPrice: number; outputPrice: number }; // a price the supplier has announced
+	longPrompt?: { over: number; inputPrice: number; outputPrice: number }; // the dearer price for a prompt over this many tokens
 }
 // Read on 28 November 2026 from platform.claude.com/docs/en/about-claude/pricing,
 // developers.openai.com/api/docs/pricing, and ai.google.dev/gemini-api/docs/pricing and /deprecations.
@@ -36,27 +37,31 @@ export interface DirectModel extends ModelInfo {
 const READ = '2026-11-28';
 const row = (provider: Provider, id: string, name: string, inputPrice: number, outputPrice: number, extra: Partial<DirectModel> = {}): DirectModel =>
 	({ id, provider, name, inputPrice, outputPrice, efforts: EFFORTS, priceRead: READ, ...extra });
+// Long-prompt prices, from the same pages: Anthropic prices Haiku 5.5 higher over 100,000 tokens,
+// OpenAI every model here over 272,000 ("long context"), Google the Pro models over 200,000.
+const long = (over: number, inputPrice: number, outputPrice: number) => ({ longPrompt: { over, inputPrice, outputPrice } });
+const OPENAI_LONG = 272000;
 export const MODEL_CATALOG: DirectModel[] = [
 	row('anthropic', 'claude-fable-5-2', 'Claude Fable 5.2', 8.0, 40.0),
 	row('anthropic', 'claude-opus-5-5', 'Claude Opus 5.5', 4.0, 20.0),
 	row('anthropic', 'claude-sonnet-5-5', 'Claude Sonnet 5.5', 2.0, 10.0),
-	row('anthropic', 'claude-haiku-5-5', 'Claude Haiku 5.5', 0.1, 0.5), // prompts up to 100,000 tokens
-	row('openai', 'gpt-6.2-astra', 'GPT-6.2 Astra', 8.0, 40.0),
-	row('openai', 'gpt-6.2-sol', 'GPT-6.2 Sol', 2.0, 10.0),
-	row('openai', 'gpt-6.1-terra', 'GPT-6.1 Terra', 1.0, 5.0),
-	row('openai', 'gpt-6-luna', 'GPT-6 Luna', 0.1, 0.5),
-	row('openai', 'gpt-6-astra', 'GPT-6 Astra', 10.0, 50.0, { superseded: true }),
-	row('openai', 'gpt-6.1-sol', 'GPT-6.1 Sol', 2.0, 10.0, { superseded: true }),
+	row('anthropic', 'claude-haiku-5-5', 'Claude Haiku 5.5', 0.1, 0.5, long(100000, 0.5, 2.5)),
+	row('openai', 'gpt-6.2-astra', 'GPT-6.2 Astra', 8.0, 40.0, long(OPENAI_LONG, 16.0, 60.0)),
+	row('openai', 'gpt-6.2-sol', 'GPT-6.2 Sol', 2.0, 10.0, long(OPENAI_LONG, 4.0, 15.0)),
+	row('openai', 'gpt-6.1-terra', 'GPT-6.1 Terra', 1.0, 5.0, long(OPENAI_LONG, 2.0, 7.5)),
+	row('openai', 'gpt-6-luna', 'GPT-6 Luna', 0.1, 0.5, long(OPENAI_LONG, 0.2, 0.75)),
+	row('openai', 'gpt-6-astra', 'GPT-6 Astra', 10.0, 50.0, { superseded: true, ...long(OPENAI_LONG, 20.0, 75.0) }),
+	row('openai', 'gpt-6.1-sol', 'GPT-6.1 Sol', 2.0, 10.0, { superseded: true, ...long(OPENAI_LONG, 4.0, 15.0) }),
 	row('google', 'gemini-4-neon', 'Gemini 4 Neon', 3.0, 15.0),
 	row('google', 'gemini-4-hydrogen', 'Gemini 4 Hydrogen', 1.5, 7.5),
 	row('google', 'gemini-4-carbon', 'Gemini 4 Carbon', 2.0, 10.0, { priceChange: { from: '2026-12-01', inputPrice: 4.0, outputPrice: 20.0 } }),
 	row('google', 'gemini-4-argon', 'Gemini 4 Argon', 2.0, 10.0, { priceChange: { from: '2026-12-01', inputPrice: 4.0, outputPrice: 20.0 } }),
 	row('google', 'gemini-3.8-flash', 'Gemini 3.8 Flash', 0.75, 3.75, { priceChange: { from: '2027-01-01', inputPrice: 1.5, outputPrice: 7.5 } }),
 	row('google', 'gemini-3.5-flash-lite', 'Gemini 3.5 Flash-Lite', 0.3, 2.5),
-	row('google', 'gemini-3.1-pro-preview', 'Gemini 3.1 Pro (preview)', 2.0, 12.0), // prompts up to 200,000 tokens
+	row('google', 'gemini-3.1-pro-preview', 'Gemini 3.1 Pro (preview)', 2.0, 12.0, long(200000, 4.0, 18.0)),
 	row('google', 'gemini-2.5-flash-lite', 'Gemini 2.5 Flash-Lite', 0.1, 0.4),
 	// Google routes calls for these two to newer models from 1 December 2026
-	row('google', 'gemini-2.5-pro', 'Gemini 2.5 Pro', 1.25, 10.0, { retires: '2026-12-01' }),
+	row('google', 'gemini-2.5-pro', 'Gemini 2.5 Pro', 1.25, 10.0, { retires: '2026-12-01', ...long(200000, 2.5, 15.0) }),
 	row('google', 'gemini-2.5-flash', 'Gemini 2.5 Flash', 0.3, 2.5, { retires: '2026-12-01' }),
 ];
 // A model with the price in force on the day: an announced change applies from its date
@@ -429,7 +434,7 @@ export async function platformModels(env: LlmEnv): Promise<PlatformModels> {
 // OpenRouter's failures.
 export function fallbackChoices(env: LlmEnv, now = Date.now()) {
 	return MODEL_CATALOG.filter((m) => offered(m, now)).map((m) => priced(m, now)).filter((m) => !isPremium(m))
-		.map(({ priceChange, superseded, ...m }) => ({ ...m, providerName: PROVIDER_NAMES[m.provider], available: providerAvailable(env, m.provider) }));
+		.map(({ priceChange, superseded, retires, ...m }) => ({ ...m, providerName: PROVIDER_NAMES[m.provider], available: providerAvailable(env, m.provider) }));
 }
 
 // ─── The suppliers' own model lists ──────────────────────────────────────────
@@ -493,18 +498,39 @@ export async function listedDirectModels(env: LlmEnv, now = Date.now()): Promise
 	}).map((m) => priced(m, now));
 }
 
-// A direct model's price is cross-checked against OpenRouter's for the same model; a difference is logged
+// A direct model's price is cross-checked against OpenRouter's for the same model; a difference is
+// logged once and returned, so the picker can show OpenRouter's price beside the table's
 const priceFlags = new Set<string>();
-function crossCheckPrices(direct: DirectModel[], routed: OpenRouterModel[]) {
+type Price = { inputPrice: number; outputPrice: number };
+function crossCheckPrices(direct: DirectModel[], routed: OpenRouterModel[]): Map<string, Price> {
+	const differs = new Map<string, Price>();
 	for (const m of direct) {
 		const slug = `${m.provider}/${m.provider === 'anthropic' ? m.id.replace(/-(\d+)-(\d+)$/, '-$1.$2') : m.id}`;
 		const r = routed.find((x) => x.id === OPENROUTER_PREFIX + slug);
 		if (!r || (r.inputPrice === m.inputPrice && r.outputPrice === m.outputPrice)) continue;
+		differs.set(m.id, { inputPrice: r.inputPrice, outputPrice: r.outputPrice });
 		const key = `${m.id}|${r.inputPrice}|${r.outputPrice}`;
 		if (priceFlags.has(key)) continue;
 		priceFlags.add(key);
 		console.warn(`[LLM] Price check: ${m.id} is $${m.inputPrice} in / $${m.outputPrice} out in the table (read ${m.priceRead}), OpenRouter lists $${r.inputPrice} / $${r.outputPrice}`);
 	}
+	return differs;
+}
+
+// A direct price is read by hand. Past this age the picker marks it as not checked.
+const PRICE_STALE_MS = 90 * 24 * 60 * 60 * 1000;
+// A direct model as the picker gets it: the price in force, when it was read and whether that is too
+// long ago, a change the supplier has announced and not yet made, a long-prompt price, and
+// OpenRouter's price where it differs
+function withPriceNotes(m: DirectModel, now: number, routedPrice?: Price) {
+	const { priceChange, superseded, retires, ...rest } = m;
+	const pending = priceChange && now < Date.parse(priceChange.from) ? priceChange : undefined;
+	return {
+		...rest,
+		priceStale: now - Date.parse(m.priceRead) > PRICE_STALE_MS,
+		...(pending ? { priceChange: { ...pending, premium: isPremium({ outputPrice: pending.outputPrice }) } } : {}),
+		...(routedPrice ? { routedPrice } : {}),
+	};
 }
 
 const usableFallback = (env: LlmEnv, id: string) => fallbackChoices(env).some((m) => m.id === id && m.available);
@@ -628,9 +654,10 @@ export async function publicCatalog(env: LlmEnv) {
 	// The picker gets the listed OpenRouter models only; the rest stay known to the server
 	const all = await openRouterModels(env);
 	const routed = all.filter((m) => m.listed).map(({ listed, ...m }) => m);
-	const directNow = await listedDirectModels(env);
-	crossCheckPrices(directNow, all);
-	const direct = directNow.map(({ priceChange, superseded, ...m }) => m);
+	const now = Date.now();
+	const directNow = await listedDirectModels(env, now);
+	const differs = crossCheckPrices(directNow, all);
+	const direct = directNow.map((m) => withPriceNotes(m, now, differs.get(m.id)));
 	const models: ModelInfo[] = [...direct, ...routed];
 	return {
 		defaultModel: (await chatDefaultModel(env)) || FALLBACK_MODELS[0],
