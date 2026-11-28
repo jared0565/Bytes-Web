@@ -594,15 +594,26 @@ export async function proveNewModels(env: LlmEnv, now = Date.now()): Promise<voi
 	// The table models a bot could be moved to: each needs one passed test call first
 	const known = knownDirect(store, now);
 	const targets = (await listedDirectModels(env, now)).filter((t) => known.some((o) => succeeds(t, o)));
-	for (const t of targets) if (!store.tested![t.id] && retry(t.id)) due.push({ id: t.id, provider: t.provider, efforts: t.efforts || [] });
-	for (const id of Object.keys(store.failed)) if (!candidates.has(id) && !targets.some((t) => t.id === id)) { delete store.failed[id]; changed = true; }
+	for (const t of targets) if (providerAvailable(env, t.provider) && !store.tested![t.id] && retry(t.id)) due.push({ id: t.id, provider: t.provider, efforts: t.efforts || [] });
+	// The OpenRouter models a reply has asked for (movedModel): tested while the picker still offers them.
+	// With OpenRouter's list unreadable nothing is known about them, so the wishes are left as they are.
+	const routedListed = (await openRouterModels(env)).filter((m) => m.listed);
+	const wishes = routedListed.length && env.OPENROUTER_API_KEY ? await readWishes(env) : null;
+	const wished = Object.keys(wishes || {}).filter((id) => routedListed.some((m) => m.id === id));
+	for (const id of wished) if (!store.tested![id] && retry(id)) due.push({ id, provider: 'openrouter', efforts: [] });
+	for (const id of Object.keys(store.failed)) {
+		if (candidates.has(id) || targets.some((t) => t.id === id) || (id.startsWith(OPENROUTER_PREFIX) && (!wishes || wished.includes(id)))) continue;
+		delete store.failed[id]; changed = true;
+	}
 	await Promise.all(due.slice(0, AUTO_TESTS_PER_RUN).map(async ({ id, provider, efforts, c }) => {
-		const effort = efforts.includes('medium') ? 'medium' : efforts[0] || null;
+		const routed = provider === 'openrouter';
+		const effort = routed || efforts.includes('medium') ? 'medium' : efforts[0] || null;
 		const started = Date.now();
 		let timer: ReturnType<typeof setTimeout> | undefined;
 		let error = '';
 		try {
-			const call = callDirect(env, { provider, id }, effort, TEST_SYSTEM, TEST_TURNS);
+			// An OpenRouter model is sent medium effort only if it accepts it (callOpenRouter)
+			const call = routed ? callOpenRouter(env, id.slice(OPENROUTER_PREFIX.length), 'medium', TEST_SYSTEM, TEST_TURNS) : callDirect(env, { provider, id }, effort, TEST_SYSTEM, TEST_TURNS);
 			call.catch(() => {}); // a failure after the limit has already been reported as a timeout
 			await Promise.race([call, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('It did not answer within 20 seconds.')), TEST_LIMIT_MS); })]);
 		} catch (err: any) {
@@ -618,6 +629,11 @@ export async function proveNewModels(env: LlmEnv, now = Date.now()): Promise<voi
 	autoCache = { until: Date.now() + AUTO_TTL_MS, store }; // the picker below reads the store through it
 	const moves = movesFor(await pickerDirectModels(env, now), knownDirect(store, now), store);
 	if (JSON.stringify(moves) !== JSON.stringify(store.moves)) { store.moves = moves; changed = true; }
+	// A wish is dropped once its model has passed, or the picker no longer offers it
+	if (wishes) {
+		const keep = Object.fromEntries(Object.entries(wishes).filter(([id]) => wished.includes(id) && !store.tested![id]));
+		if (Object.keys(keep).length !== Object.keys(wishes).length) { try { await env.CLIENT_SETTINGS?.put(WISH_KEY, JSON.stringify(keep)); } catch { /* tried again next hour */ } }
+	}
 	if (changed) {
 		try { await env.CLIENT_SETTINGS?.put(AUTO_STORE_KEY, JSON.stringify({ at: now, ...store })); } catch (e: any) { console.error('[LLM] Proven model list not stored:', e?.message || e); }
 	}
@@ -655,6 +671,40 @@ function succeeds(t: DirectModel, o: DirectModel): boolean {
 	const within = (next: number, old: number) => next <= old * MOVE_PRICE_CAP + 1e-9;
 	return n.line === p.line && versionOrder(n.version, p.version) > 0 && within(t.inputPrice, o.inputPrice) && within(t.outputPrice, o.outputPrice);
 }
+
+// OpenRouter models move the same way, with two differences. The newer version is the one the picker
+// offers for the line (the newest by listing date), and it must also carry a higher version number,
+// so a model about to be withdrawn is never moved back to an older one. And it is tested only once a
+// bot needs it: a reply that finds an untested newer version notes the wish in KV and is answered by
+// the saved model; the hourly job makes the test call. An alias (qwen-plus) follows the newest model
+// by itself and a variant (":free") is its own thing, so neither moves.
+const WISH_KEY = 'cache:move-wishes';
+const wishedHere = new Set<string>(); // wishes this isolate has already noted
+const PINNED_ROUTED = OPENROUTER_PREFIX + DEFAULT_ROUTED_SLUG;
+function routedSuccessor(all: OpenRouterModel[], id: string): { old: OpenRouterModel; next: OpenRouterModel } | undefined {
+	const old = all.find((m) => m.id === id);
+	const slug = id.slice(OPENROUTER_PREFIX.length);
+	if (!old || slug.includes(':')) return;
+	const mine = modelLine(slug);
+	// A listed model is the newest of its line, except the default, which is listed whatever replaces it
+	if (mine.alias || (old.listed && id !== PINNED_ROUTED)) return;
+	const others = all.filter((m) => m.listed && m.id !== id && modelLine(m.id.slice(OPENROUTER_PREFIX.length)).line === mine.line);
+	const next = others.find((m) => m.id !== PINNED_ROUTED) || others[0];
+	if (!next || versionOrder(modelLine(next.id.slice(OPENROUTER_PREFIX.length)).version, mine.version) <= 0) return;
+	const within = (a: number, b: number) => a <= b * MOVE_PRICE_CAP + 1e-9;
+	return within(next.inputPrice, old.inputPrice) && within(next.outputPrice, old.outputPrice) ? { old, next } : undefined;
+}
+async function readWishes(env: LlmEnv): Promise<Record<string, number>> {
+	try { const w = JSON.parse((await env.CLIENT_SETTINGS?.get(WISH_KEY)) || '{}'); return w && typeof w === 'object' ? w : {}; } catch { return {}; }
+}
+async function noteWish(env: LlmEnv, id: string, now: number): Promise<void> {
+	if (wishedHere.has(id)) return;
+	wishedHere.add(id);
+	try {
+		const wishes = await readWishes(env);
+		if (!wishes[id]) await env.CLIENT_SETTINGS?.put(WISH_KEY, JSON.stringify({ ...wishes, [id]: now }));
+	} catch (e: any) { console.error('[LLM] Model test wish not stored:', e?.message || e); }
+}
 // Every direct model that can be called, at today's price
 const knownDirect = (store: AutoStore, now: number): DirectModel[] => [
 	...MODEL_CATALOG.map((m) => priced(m, now)),
@@ -671,14 +721,22 @@ function movesFor(offeredNow: DirectModel[], known: DirectModel[], store: AutoSt
 // The model that answers for a saved one: its newer version when the rule above allows, else itself
 const movesLogged = new Set<string>();
 export async function movedModel(env: LlmEnv, id: string, premiumAllowed: boolean, now = Date.now()): Promise<string> {
-	if (!id || id.startsWith(OPENROUTER_PREFIX)) return id;
+	if (!id) return id;
+	const said = (to: string) => { if (!movesLogged.has(`${id}|${to}`)) { movesLogged.add(`${id}|${to}`); console.log({ kind: 'model-move', from: id, to }); } return to; };
+	if (id.startsWith(OPENROUTER_PREFIX)) {
+		if (!env.OPENROUTER_API_KEY) return id;
+		const pair = routedSuccessor(await openRouterModels(env), id);
+		if (!pair || (isPremium(pair.next) && !premiumAllowed && !isPremium(pair.old))) return id;
+		if ((await autoStore(env)).tested?.[pair.next.id]) return said(pair.next.id);
+		await noteWish(env, pair.next.id, now);
+		return id;
+	}
 	const to = (await autoStore(env)).moves?.[id];
 	if (!to) return id;
 	const [old, next] = [await knownModel(env, id, now), await knownModel(env, to, now)];
 	if (!old || !next || !succeeds(next, old) || !providerAvailable(env, next.provider)) return id;
 	if (isPremium(next) && !premiumAllowed && !isPremium(old)) return id;
-	if (!movesLogged.has(`${id}|${to}`)) { movesLogged.add(`${id}|${to}`); console.log({ kind: 'model-move', from: id, to }); }
-	return to;
+	return said(to);
 }
 
 // A direct model's price is cross-checked against OpenRouter's for the same model; a difference is
@@ -842,6 +900,14 @@ async function publicMoves(env: LlmEnv, now: number) {
 		const [old, next] = [await knownModel(env, from, now), await knownModel(env, to, now)];
 		if (!old || !next || !succeeds(next, old) || !providerAvailable(env, next.provider) || (isPremium(next) && !isPremium(old))) continue;
 		out.push({ from, to, name: next.name, inputPrice: next.inputPrice, outputPrice: next.outputPrice });
+	}
+	// OpenRouter: every model whose newer version has passed its test
+	const routed = await openRouterModels(env);
+	const passed = Object.keys((await autoStore(env)).tested || {}).filter((id) => id.startsWith(OPENROUTER_PREFIX));
+	for (const m of passed.length ? routed : []) {
+		const pair = routedSuccessor(routed, m.id);
+		if (!pair || !passed.includes(pair.next.id) || (isPremium(pair.next) && !isPremium(pair.old))) continue;
+		out.push({ from: m.id, to: pair.next.id, name: pair.next.name, inputPrice: pair.next.inputPrice, outputPrice: pair.next.outputPrice });
 	}
 	return out;
 }
