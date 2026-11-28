@@ -834,6 +834,18 @@ export async function checkPlatformModels(env: LlmEnv, input: unknown): Promise<
 	return { ok: true, value };
 }
 
+// The moves the dashboard shows under a picker: a saved model, and the newer version that answers in
+// its place. A move only an AI Plus bot gets is left out: the line would be wrong for every other bot.
+async function publicMoves(env: LlmEnv, now: number) {
+	const out: { from: string; to: string; name: string; inputPrice: number; outputPrice: number }[] = [];
+	for (const [from, to] of Object.entries((await autoStore(env)).moves || {})) {
+		const [old, next] = [await knownModel(env, from, now), await knownModel(env, to, now)];
+		if (!old || !next || !succeeds(next, old) || !providerAvailable(env, next.provider) || (isPremium(next) && !isPremium(old))) continue;
+		out.push({ from, to, name: next.name, inputPrice: next.inputPrice, outputPrice: next.outputPrice });
+	}
+	return out;
+}
+
 // Catalog for the dashboard picker, with whether each provider has a key on this worker
 export async function publicCatalog(env: LlmEnv) {
 	// The picker gets the listed OpenRouter models only; the rest stay known to the server
@@ -851,6 +863,7 @@ export async function publicCatalog(env: LlmEnv) {
 		emailFallbackModel: (await fallbackChain(env, 'email'))[0],
 		fallbackModels: fallbackChoices(env),
 		efforts: EFFORTS,
+		moves: await publicMoves(env, now),
 		models: models.map((m) => ({ ...m, providerName: PROVIDER_NAMES[m.provider], available: providerAvailable(env, m.provider), premium: isPremium(m) })),
 	};
 }

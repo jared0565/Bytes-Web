@@ -1965,10 +1965,20 @@ function modelPriceNotes(m) {
     return notes;
 }
 
+// A saved model the chatbot server now answers with the newer version of its line (the catalog's
+// `moves`). The saved setting itself is not changed.
+function modelMoveNote(moves, id) {
+    const mv = id && (moves || []).find(x => x.from === id);
+    return mv ? { text: `The newer version of this model, ${mv.name}, now answers in its place: ${formatPrice(mv.inputPrice)} in / ${formatPrice(mv.outputPrice)} out per 1M tokens.` } : null;
+}
+
 function modelCostHtml(id) {
     const m = modelCatalog && modelCatalog.models.find(x => x.id === (id || modelCatalog.defaultModel));
-    if (!m) return '';
-    return `Provider: <strong>${escapeHtml(m.providerName)}</strong> · Model: <code>${escapeHtml(m.id)}</code><br>`
+    const note = modelCatalog && modelMoveNote(modelCatalog.moves, id);
+    const moved = note ? `<span>${escapeHtml(note.text)}</span>` : '';
+    // A saved model the list no longer holds has no price to show, but its move is still worth saying
+    if (!m) return moved;
+    return (moved ? moved + '<br>' : '') + `Provider: <strong>${escapeHtml(m.providerName)}</strong> · Model: <code>${escapeHtml(m.id)}</code><br>`
         + `Cost: <strong>${formatPrice(m.inputPrice)}</strong> per 1M input tokens · <strong>${formatPrice(m.outputPrice)}</strong> per 1M output tokens`
         + modelPriceNotes(m).map(n => `<br><span${n.warn ? ' style="color:var(--warning, #f59e0b);"' : ''}>${escapeHtml(n.text)}</span>`).join('')
         + (m.available ? '' : `<br><span style="color:var(--warning, #f59e0b);">No ${escapeHtml(m.providerName)} API key is set on the chatbot server, so replies will use the default model.</span>`);

@@ -69,6 +69,7 @@ const load = async (tag) => {
   const svc = new mod.LlmService(); svc.env = ALL;
   return {
     svc,
+    catalog: async () => (await mod.default.fetch(new Request('https://ai.bytesfx.com/public/models'), ALL, { waitUntil() {} })).json(),
     hourly: () => capture(async () => { const pending = []; await mod.default.scheduled({}, ALL, { waitUntil: (p) => pending.push(p) }); await Promise.all(pending); }),
     // The model that answered a chat with this bot
     chat: (client) => capture(async () => {
@@ -85,6 +86,7 @@ const saved = new Map(kv);
 // ─── Before the hourly job has run ───────────────────────────────────────────
 let m = await a.chat('astra');
 ok('nothing moves before the hourly job has proven a newer version', m === 'gpt-6-astra', String(m));
+ok('and the model list names no move', JSON.stringify((await a.catalog()).moves) === '[]', JSON.stringify((await a.catalog()).moves));
 
 // ─── The hourly job tests the newer versions ─────────────────────────────────
 asked = [];
@@ -143,3 +145,11 @@ m = await a.chat('astra');
 ok('when the newer version leaves the picker, the bot is answered by its saved model again', m === 'gpt-6-astra', String(m));
 m = await a.chat('sol');
 ok('and other moves are unchanged', m === 'gpt-6.2-sol', String(m));
+
+// ─── What the dashboard is told ──────────────────────────────────────────────
+const told = (await a.catalog()).moves || [];
+const move = (from) => told.find(x => x.from === from);
+ok('the model list names each move with the newer model\'s name and price', move('gpt-6.1-sol')?.to === 'gpt-6.2-sol' && move('gpt-6.1-sol').name === 'GPT-6.2 Sol' && move('gpt-6.1-sol').inputPrice === 2 && move('gpt-6.1-sol').outputPrice === 10 && move('claude-haiku-5-5')?.to === 'claude-haiku-5-6', JSON.stringify(told));
+ok('a move that has ended is not named', !move('gpt-6-astra'), JSON.stringify(told));
+ok('a move only an AI Plus bot gets is not named', !move('gemini-4-neon'), JSON.stringify(told));
+ok('a model with no move is not named', !move('gpt-6.1-terra') && !move('gemini-2.5-flash'), JSON.stringify(told));
