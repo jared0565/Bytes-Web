@@ -14,10 +14,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const source = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'dashboard', 'main.js'), 'utf8');
-const match = source.match(/^function populateModelSelect\(select, savedValue\) \{\r?\n[\s\S]*?^\}/m);
+const match = source.match(/^function populateModelSelect\(select, savedValue[^)]*\) \{\r?\n[\s\S]*?^\}/m);
 assert.ok(match, 'populateModelSelect was not found in dashboard/main.js');
+const fallbackMatch = source.match(/^function pmFillFallback\(select, saved, builtIn\) \{\r?\n[\s\S]*?^\}/m);
+assert.ok(fallbackMatch, 'pmFillFallback was not found in dashboard/main.js');
 
-class FakeOption { constructor(text, value) { this.text = text; this.value = value; this.disabled = false; } }
+class FakeOption { constructor(text, value) { this.text = text; this.value = value; this.disabled = false; } get textContent() { return this.text; } set textContent(t) { this.text = t; } }
 class FakeGroup { constructor() { this.label = ''; this.children = []; } appendChild(o) { this.children.push(o); } }
 class FakeSelect {
   constructor() { this.children = []; this.dataset = {}; this.selected = null; }
@@ -38,11 +40,18 @@ const catalog = {
   ],
 };
 
-function fill(savedValue) {
-  const populate = new Function('modelCatalog', 'document', 'Option', 'formatPrice', `${match[0]}; return populateModelSelect;`)(
+function lift() {
+  return new Function('modelCatalog', 'document', 'Option', 'formatPrice', `${match[0]}\n${fallbackMatch[0]}; return { populate: populateModelSelect, fillFallback: pmFillFallback };`)(
     catalog, { createElement: () => new FakeGroup() }, FakeOption, (n) => `$${n}`);
+}
+function fill(savedValue, ...rest) {
   const select = new FakeSelect();
-  populate(select, savedValue);
+  lift().populate(select, savedValue, ...rest);
+  return select;
+}
+function fillFallback(saved) {
+  const select = new FakeSelect();
+  lift().fillFallback(select, saved, 'Built-in: House Backup');
   return select;
 }
 
@@ -81,4 +90,48 @@ test('a listed model is never added twice', () => {
   const select = fill('route:other/no-key');
   assert.equal(select.options.filter(o => o.value === 'route:other/no-key').length, 1);
   assert.equal(select.value, 'route:other/no-key');
+});
+
+// One format for every picker. A fallback picker lists fewer models (direct supplier models that are
+// not premium), and nothing else about it differs.
+test('a picker given its own list shows only those models, in the same format', () => {
+  const select = fill('', [catalog.models[0]]);
+  assert.deepEqual(select.options.map(o => o.value), ['', 'house-default']);
+  assert.equal(select.options[1].text, 'House Default: $1 in / $2 out per 1M tokens');
+});
+
+test('a fallback picker lists only the fallback models, grouped and priced like every other picker', () => {
+  catalog.fallbackModels = [{ id: 'house-default', name: 'House Default', providerName: 'House', inputPrice: 1, outputPrice: 2, available: true }];
+  const select = fillFallback('');
+  assert.deepEqual(select.options.map(o => o.value), ['', 'house-default']);
+  assert.equal(select.options[0].text, 'Built-in: House Backup');
+  assert.equal(select.options[1].text, 'House Default: $1 in / $2 out per 1M tokens');
+  assert.deepEqual(select.children.filter(n => n instanceof FakeGroup).map(g => g.label), ['House']);
+  assert.equal(select.value, '');
+});
+
+test('a fallback picker carries the same marks as the main list', () => {
+  catalog.models.push({ id: 'house-old-price', name: 'Old Price', providerName: 'House', inputPrice: 1, outputPrice: 2, available: false, priceStale: true });
+  catalog.fallbackModels = [{ id: 'house-old-price', name: 'Old Price', providerName: 'House', inputPrice: 1, outputPrice: 2, available: false }];
+  const opt = fillFallback('').options[1];
+  catalog.models.pop();
+  assert.match(opt.text, /price not checked recently/);
+  assert.match(opt.text, /no API key/);
+  assert.equal(opt.disabled, true);
+});
+
+test('a saved fallback that has left the list stays selected, worded like every other picker', () => {
+  catalog.fallbackModels = [{ id: 'house-default', name: 'House Default', providerName: 'House', inputPrice: 1, outputPrice: 2, available: true }];
+  const select = fillFallback('house-gone');
+  assert.equal(select.value, 'house-gone');
+  assert.match(select.options.find(o => o.value === 'house-gone').text, /no longer listed/);
+  assert.equal(select.dataset.saved, 'house-gone');
+});
+
+test('every model picker has a cost line under it', () => {
+  const page = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'dashboard', 'index.html'), 'utf8');
+  for (const id of ['config-llm-model', 'settings-llm-model', 'site-llm-model', 'pm-chat-default', 'pm-chat-fallback', 'pm-email-default', 'pm-email-fallback']) {
+    assert.ok(page.includes(`id="${id.replace(/-model$/, '')}-cost"`) || page.includes(`id="${id}-cost"`), `${id} has no cost line`);
+  }
+  for (const id of ['draft-model', 'read-model']) assert.ok(source.includes('id="${p}-' + id + '-cost"'), `the ${id} picker has no cost line`);
 });

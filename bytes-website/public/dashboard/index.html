@@ -990,22 +990,26 @@
                     <div class="form-group">
                         <label for="pm-chat-default">Default model <span class="site-hint">Answers every bot with no model chosen</span></label>
                         <select id="pm-chat-default"><option value="">Loading…</option></select>
+                        <p id="pm-chat-default-cost" class="site-cost"></p>
                     </div>
                     <div class="form-group">
                         <label for="pm-chat-fallback">Fallback <span class="site-hint">Steps in when a bot's model fails, and reads lead details out of chats</span></label>
                         <select id="pm-chat-fallback"><option value="">Loading…</option></select>
+                        <p id="pm-chat-fallback-cost" class="site-cost"></p>
                     </div>
 
                     <h4 class="site-section">Sales emails</h4>
                     <div class="form-group">
                         <label for="pm-email-default">Default model <span class="site-hint">Drafts and reads emails for a client with no email model chosen</span></label>
                         <select id="pm-email-default"><option value="">Loading…</option></select>
+                        <p id="pm-email-default-cost" class="site-cost"></p>
                     </div>
                     <div class="form-group">
                         <label for="pm-email-fallback">Fallback <span class="site-hint">Steps in when the email model fails</span></label>
                         <select id="pm-email-fallback"><option value="">Loading…</option></select>
+                        <p id="pm-email-fallback-cost" class="site-cost"></p>
                     </div>
-                    <p class="cb-hint">A fallback is called on its supplier's own API, so it keeps working when OpenRouter does not. Gemini 2.5 Flash-Lite always stays behind it as the last backup.</p>
+                    <p class="cb-hint">A fallback is called on its supplier's own API, so it keeps working when OpenRouter does not. That is why the two fallback lists are shorter: they hold only the direct supplier models, and none that needs AI Plus. Gemini 2.5 Flash-Lite always stays behind a fallback as the last backup.</p>
                     <p class="cb-hint" id="pm-saved"></p>
 
                     <div class="site-savebar">
