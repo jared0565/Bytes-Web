@@ -519,6 +519,11 @@ const AUTO_STORE_KEY = 'cache:auto-models';
 const AUTO_TTL_MS = 5 * 60 * 1000; // how long an isolate trusts its copy of the proven list
 const AUTO_RETRY_MS = DAY_MS; // a model that failed its test call is tried again after this
 const AUTO_TESTS_PER_RUN = 6;
+// Not listed by itself: a tool-calling variant of a model that is already listed
+const AUTO_SKIP = /customtools/i;
+// OpenAI's refusal of a model the chat endpoint cannot run (a completions or responses model). Another
+// test call would be refused the same way, so such a model is not tested again.
+const NOT_CHAT = /not a chat model|not supported in the v1\/chat\/completions endpoint/i;
 let autoCache: { until: number; store: AutoStore } | null = null;
 
 // OpenRouter's name for a direct model: Anthropic's ids write the version with a hyphen
@@ -556,7 +561,7 @@ async function autoCandidates(env: LlmEnv): Promise<Map<string, Candidate>> {
 	for (const r of (await openRouterModels(env)).filter((m) => m.listed)) {
 		const [vendor, name] = r.id.slice(OPENROUTER_PREFIX.length).split('/');
 		const provider = vendor as Provider;
-		if (!SUPPLIERS.includes(provider) || !name) continue;
+		if (!SUPPLIERS.includes(provider) || !name || AUTO_SKIP.test(name)) continue;
 		const id = provider === 'anthropic' ? name.replace(/-(\d+)\.(\d+)$/, '-$1-$2') : name;
 		if (MODEL_CATALOG.some((m) => m.id === id)) continue;
 		const list = providerAvailable(env, provider) ? lists[provider] : undefined;
@@ -570,7 +575,7 @@ async function autoCandidates(env: LlmEnv): Promise<Map<string, Candidate>> {
 
 // The hourly job: tests each new candidate once, then each table model that is a newer version of
 // another model (at most six calls a run in all), keeps a proven model's details current, tries a
-// failed one again after a day, and works out the moves. Nothing here removes a proven model.
+// failed one again after a day (unless the supplier said it is not a chat model), and works out the moves. Nothing here removes a proven model.
 export async function proveNewModels(env: LlmEnv, now = Date.now()): Promise<void> {
 	const candidates = await autoCandidates(env);
 	autoCache = null; // read the stored copy afresh: another isolate may have written it
@@ -578,7 +583,7 @@ export async function proveNewModels(env: LlmEnv, now = Date.now()): Promise<voi
 	const store: AutoStore = { models: { ...prev.models }, failed: { ...prev.failed }, tested: { ...prev.tested }, moves: prev.moves || {} };
 	let changed = false;
 	const due: { id: string; provider: Provider; efforts: Effort[]; c?: Candidate }[] = [];
-	const retry = (id: string) => !store.failed[id] || now - store.failed[id].at >= AUTO_RETRY_MS;
+	const retry = (id: string) => !store.failed[id] || (now - store.failed[id].at >= AUTO_RETRY_MS && !NOT_CHAT.test(store.failed[id].error));
 	for (const [id, c] of candidates) {
 		const have = store.models[id];
 		if (have) {
