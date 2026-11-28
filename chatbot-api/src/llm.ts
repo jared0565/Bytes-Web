@@ -512,7 +512,9 @@ export async function listedDirectModels(env: LlmEnv, now = Date.now()): Promise
 // and the price is shown as not verified until the model is added to the table by hand. A proven
 // model stays callable after it stops being offered, so a bot already on it keeps its answers.
 type Candidate = { provider: Provider; slug: string; name: string; inputPrice: number; outputPrice: number; efforts: Effort[] };
-interface AutoStore { models: Record<string, Candidate & { provenAt: number }>; failed: Record<string, { at: number; error: string }> }
+// `tested` holds the table models that passed a test call as the newer version of another model,
+// and `moves` which model stands in for which (see "Moving to the newer version of a line")
+interface AutoStore { models: Record<string, Candidate & { provenAt: number }>; failed: Record<string, { at: number; error: string }>; tested?: Record<string, number>; moves?: Record<string, string> }
 const AUTO_STORE_KEY = 'cache:auto-models';
 const AUTO_TTL_MS = 5 * 60 * 1000; // how long an isolate trusts its copy of the proven list
 const AUTO_RETRY_MS = DAY_MS; // a model that failed its test call is tried again after this
@@ -532,7 +534,8 @@ async function autoStore(env: LlmEnv): Promise<AutoStore> {
 	let store: AutoStore = autoCache?.store || { models: {}, failed: {} };
 	try {
 		const s = JSON.parse((await env.CLIENT_SETTINGS?.get(AUTO_STORE_KEY)) || 'null');
-		if (s?.models && typeof s.models === 'object') store = { models: s.models, failed: s.failed && typeof s.failed === 'object' ? s.failed : {} };
+		const part = (v: unknown) => (v && typeof v === 'object' ? v : {}) as any;
+		if (s?.models && typeof s.models === 'object') store = { models: s.models, failed: part(s.failed), tested: part(s.tested), moves: part(s.moves) };
 	} catch { /* no stored copy: keep what this isolate has */ }
 	autoCache = { until: now + AUTO_TTL_MS, store };
 	return store;
@@ -565,30 +568,36 @@ async function autoCandidates(env: LlmEnv): Promise<Map<string, Candidate>> {
 	return out;
 }
 
-// The hourly job: tests each new candidate once (at most six a run), keeps a proven model's details
-// current, and tries a failed one again after a day. Nothing here removes a proven model.
+// The hourly job: tests each new candidate once, then each table model that is a newer version of
+// another model (at most six calls a run in all), keeps a proven model's details current, tries a
+// failed one again after a day, and works out the moves. Nothing here removes a proven model.
 export async function proveNewModels(env: LlmEnv, now = Date.now()): Promise<void> {
 	const candidates = await autoCandidates(env);
 	autoCache = null; // read the stored copy afresh: another isolate may have written it
 	const prev = await autoStore(env);
-	const store: AutoStore = { models: { ...prev.models }, failed: { ...prev.failed } };
+	const store: AutoStore = { models: { ...prev.models }, failed: { ...prev.failed }, tested: { ...prev.tested }, moves: prev.moves || {} };
 	let changed = false;
-	const due: [string, Candidate][] = [];
+	const due: { id: string; provider: Provider; efforts: Effort[]; c?: Candidate }[] = [];
+	const retry = (id: string) => !store.failed[id] || now - store.failed[id].at >= AUTO_RETRY_MS;
 	for (const [id, c] of candidates) {
 		const have = store.models[id];
 		if (have) {
 			const next = { ...c, provenAt: have.provenAt };
 			if (JSON.stringify(next) !== JSON.stringify(have)) { store.models[id] = next; changed = true; }
-		} else if (!store.failed[id] || now - store.failed[id].at >= AUTO_RETRY_MS) due.push([id, c]);
+		} else if (retry(id)) due.push({ id, provider: c.provider, efforts: c.efforts, c });
 	}
-	for (const id of Object.keys(store.failed)) if (!candidates.has(id)) { delete store.failed[id]; changed = true; }
-	await Promise.all(due.slice(0, AUTO_TESTS_PER_RUN).map(async ([id, c]) => {
-		const effort = c.efforts.includes('medium') ? 'medium' : c.efforts[0] || null;
+	// The table models a bot could be moved to: each needs one passed test call first
+	const known = knownDirect(store, now);
+	const targets = (await listedDirectModels(env, now)).filter((t) => known.some((o) => succeeds(t, o)));
+	for (const t of targets) if (!store.tested![t.id] && retry(t.id)) due.push({ id: t.id, provider: t.provider, efforts: t.efforts || [] });
+	for (const id of Object.keys(store.failed)) if (!candidates.has(id) && !targets.some((t) => t.id === id)) { delete store.failed[id]; changed = true; }
+	await Promise.all(due.slice(0, AUTO_TESTS_PER_RUN).map(async ({ id, provider, efforts, c }) => {
+		const effort = efforts.includes('medium') ? 'medium' : efforts[0] || null;
 		const started = Date.now();
 		let timer: ReturnType<typeof setTimeout> | undefined;
 		let error = '';
 		try {
-			const call = callDirect(env, { provider: c.provider, id }, effort, TEST_SYSTEM, TEST_TURNS);
+			const call = callDirect(env, { provider, id }, effort, TEST_SYSTEM, TEST_TURNS);
 			call.catch(() => {}); // a failure after the limit has already been reported as a timeout
 			await Promise.race([call, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('It did not answer within 20 seconds.')), TEST_LIMIT_MS); })]);
 		} catch (err: any) {
@@ -597,10 +606,13 @@ export async function proveNewModels(env: LlmEnv, now = Date.now()): Promise<voi
 			if (timer) clearTimeout(timer);
 		}
 		if (error) store.failed[id] = { at: now, error };
-		else { store.models[id] = { ...c, provenAt: now }; delete store.failed[id]; }
+		else { if (c) store.models[id] = { ...c, provenAt: now }; else store.tested![id] = now; delete store.failed[id]; }
 		changed = true;
-		console.log({ kind: 'auto-model', model: id, effort: effort || 'none', ok: !error, ms: Date.now() - started, ...(error ? { error } : {}) });
+		console.log({ kind: c ? 'auto-model' : 'successor-test', model: id, effort: effort || 'none', ok: !error, ms: Date.now() - started, ...(error ? { error } : {}) });
 	}));
+	autoCache = { until: Date.now() + AUTO_TTL_MS, store }; // the picker below reads the store through it
+	const moves = movesFor(await pickerDirectModels(env, now), knownDirect(store, now), store);
+	if (JSON.stringify(moves) !== JSON.stringify(store.moves)) { store.moves = moves; changed = true; }
 	if (changed) {
 		try { await env.CLIENT_SETTINGS?.put(AUTO_STORE_KEY, JSON.stringify({ at: now, ...store })); } catch (e: any) { console.error('[LLM] Proven model list not stored:', e?.message || e); }
 	}
@@ -616,12 +628,52 @@ export async function pickerDirectModels(env: LlmEnv, now = Date.now()): Promise
 	const [candidates, store] = [await autoCandidates(env), await autoStore(env)];
 	const autos = [...candidates].filter(([id]) => store.models[id]).map(([id, c]) => asDirect(id, c));
 	if (!autos.length) return table;
-	const lineOf = (m: DirectModel) => modelLine(routedSlug(m));
 	const replaced = (t: DirectModel) => !BUILT_IN().includes(t.id) && autos.some((x) => {
 		const [n, o] = [lineOf(x), lineOf(t)];
 		return x.provider === t.provider && n.line === o.line && versionOrder(n.version, o.version) > 0;
 	});
 	return [...table.filter((t) => !replaced(t)), ...autos];
+}
+
+// ─── Moving to the newer version of a line ───────────────────────────────────
+// A bot saved on a model is answered by the newest version of that model's line when the picker offers
+// one, its input and output prices are each at most 25% higher, and it has passed a test call (an
+// automatic model's proof, or the hourly job's test of a table model). The hourly job stores which
+// model stands in for which; a reply looks that up and checks the rule again, so the saved setting is
+// never rewritten and a move ends when the newer model stops being offered. A premium newer version
+// is only for an AI Plus bot or a model that is already premium.
+const MOVE_PRICE_CAP = 1.25;
+const lineOf = (m: { provider: Provider; id: string }) => modelLine(routedSlug(m));
+function succeeds(t: DirectModel, o: DirectModel): boolean {
+	if (t.id === o.id || t.provider !== o.provider) return false;
+	const [n, p] = [lineOf(t), lineOf(o)];
+	const within = (next: number, old: number) => next <= old * MOVE_PRICE_CAP + 1e-9;
+	return n.line === p.line && versionOrder(n.version, p.version) > 0 && within(t.inputPrice, o.inputPrice) && within(t.outputPrice, o.outputPrice);
+}
+// Every direct model that can be called, at today's price
+const knownDirect = (store: AutoStore, now: number): DirectModel[] => [
+	...MODEL_CATALOG.map((m) => priced(m, now)),
+	...Object.entries(store.models).filter(([id]) => !MODEL_CATALOG.some((m) => m.id === id)).map(([id, c]) => asDirect(id, c)),
+];
+function movesFor(offeredNow: DirectModel[], known: DirectModel[], store: AutoStore): Record<string, string> {
+	const out: Record<string, string> = {};
+	for (const o of known) {
+		const proven = offeredNow.filter((t) => succeeds(t, o) && (t.auto || store.tested?.[t.id]));
+		if (proven.length) out[o.id] = proven.reduce((a, b) => (versionOrder(lineOf(b).version, lineOf(a).version) > 0 ? b : a)).id;
+	}
+	return out;
+}
+// The model that answers for a saved one: its newer version when the rule above allows, else itself
+const movesLogged = new Set<string>();
+export async function movedModel(env: LlmEnv, id: string, premiumAllowed: boolean, now = Date.now()): Promise<string> {
+	if (!id || id.startsWith(OPENROUTER_PREFIX)) return id;
+	const to = (await autoStore(env)).moves?.[id];
+	if (!to) return id;
+	const [old, next] = [await knownModel(env, id, now), await knownModel(env, to, now)];
+	if (!old || !next || !succeeds(next, old) || !providerAvailable(env, next.provider)) return id;
+	if (isPremium(next) && !premiumAllowed && !isPremium(old)) return id;
+	if (!movesLogged.has(`${id}|${to}`)) { movesLogged.add(`${id}|${to}`); console.log({ kind: 'model-move', from: id, to }); }
+	return to;
 }
 
 // A direct model's price is cross-checked against OpenRouter's for the same model; a difference is
