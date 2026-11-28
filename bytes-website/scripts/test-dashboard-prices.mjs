@@ -85,3 +85,17 @@ test('no note carries an em dash', () => {
   const all = texts({ ...base, priceStale: true, priceChange: { from: '2026-12-01', inputPrice: 4, outputPrice: 20, premium: true }, longPrompt: { over: 200000, inputPrice: 4, outputPrice: 18 }, routedPrice: { inputPrice: 3, outputPrice: 15 } }).join(' ');
   assert.ok(!all.includes('—'));
 });
+
+// A model that listed itself has OpenRouter's price, which nobody has checked on the supplier's page
+const unverified = { id: 'gpt-7-nova', provider: 'openai', providerName: 'OpenAI', inputPrice: 3, outputPrice: 9, premium: false, priceStale: false, priceUnverified: true };
+
+test('an unverified price says where it came from and that it is not checked, as a warning', () => {
+  const n = notes(unverified);
+  assert.equal(n.length, 1);
+  assert.equal(n[0].text, "Price from OpenRouter. Not yet checked on OpenAI's pricing page.");
+  assert.equal(n[0].warn, true);
+});
+
+test('a verified price is not called unverified', () => {
+  assert.doesNotMatch(texts(base).join(' '), /Not yet checked/);
+});

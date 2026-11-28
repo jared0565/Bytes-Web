@@ -135,3 +135,11 @@ test('every model picker has a cost line under it', () => {
   }
   for (const id of ['draft-model', 'read-model']) assert.ok(source.includes('id="${p}-' + id + '-cost"'), `the ${id} picker has no cost line`);
 });
+
+test('a price nobody has verified is marked in the list', () => {
+  catalog.models.push({ id: 'house-new', name: 'New One', providerName: 'House', inputPrice: 1, outputPrice: 2, available: true, priceUnverified: true });
+  const options = fill('').options;
+  catalog.models.pop();
+  assert.match(options.find(o => o.value === 'house-new').text, /price not verified/);
+  assert.doesNotMatch(options.find(o => o.value === 'house-default').text, /not verified/);
+});

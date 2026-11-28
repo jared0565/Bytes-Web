@@ -23,8 +23,10 @@ export const PROVIDER_NAMES: Record<Provider, string> = {
 
 // A direct model. Prices are USD per 1M tokens (standard tier, short prompts) from the supplier's own
 // pricing page, read on `priceRead`. The table is kept by hand: a supplier's model list has no prices.
+// A model that listed itself (`auto`) has OpenRouter's price instead, and no read date.
 export interface DirectModel extends ModelInfo {
-	priceRead: string; // the day the price was read
+	priceRead?: string; // the day the price was read
+	auto?: boolean; // found on the supplier's list and proven by a test call, not yet in the table
 	retires?: string; // the supplier's shutdown date; left out of the picker from 30 days before it
 	superseded?: boolean; // a newer model of its line is in the table: kept so a bot already on it still works
 	priceChange?: { from: string; inputPrice: number; outputPrice: number }; // a price the supplier has announced
@@ -97,7 +99,8 @@ export async function modelIsPremium(id: unknown, env?: LlmEnv): Promise<boolean
 		const known = (await openRouterModels(env)).find((m) => m.id === id);
 		return known ? isPremium(known) : true;
 	}
-	return isPremium(findModel(id)); // a direct model outside the catalog cannot be called at all
+	// A direct model neither the table nor the proven list knows cannot be called at all
+	return isPremium(env ? await knownModel(env, id) : findModel(id));
 }
 
 export interface LlmEnv {
@@ -394,14 +397,17 @@ export async function callChosenModel(env: LlmEnv, modelId: unknown, effortIn: u
 		if (!env.OPENROUTER_API_KEY) throw new Error('No API key configured for OpenRouter');
 		return { text: await callOpenRouter(env, slug, effort, system, contents), model: modelId };
 	}
-	const info = findModel(modelId);
+	const info = await knownModel(env, modelId);
 	if (!info) throw new Error(`Unknown model: ${String(modelId)}`);
 	if (!providerAvailable(env, info.provider)) throw new Error(`No API key configured for ${PROVIDER_NAMES[info.provider]}`);
+	return { text: await callDirect(env, info, effortFor(info, effort), system, contents), model: info.id };
+}
 
-	const sendEffort = effortFor(info, effort);
-	if (info.provider === 'anthropic') return { text: await callAnthropic(env, info.id, sendEffort, system, contents), model: info.id };
-	if (info.provider === 'openai') return { text: await callOpenAI(env, info.id, sendEffort, system, contents), model: info.id };
-	return { text: await callGemini(env, info.id, sendEffort, system, contents), model: info.id };
+// One call to a direct model on its supplier's own API
+function callDirect(env: LlmEnv, info: { provider: Provider; id: string }, sendEffort: Effort | null, system: string, contents: Turn[]): Promise<string> {
+	if (info.provider === 'anthropic') return callAnthropic(env, info.id, sendEffort, system, contents);
+	if (info.provider === 'openai') return callOpenAI(env, info.id, sendEffort, system, contents);
+	return callGemini(env, info.id, sendEffort, system, contents);
 }
 
 // ─── Platform choices ────────────────────────────────────────────────────────
@@ -498,6 +504,126 @@ export async function listedDirectModels(env: LlmEnv, now = Date.now()): Promise
 	}).map((m) => priced(m, now));
 }
 
+// ─── Direct models that list themselves ──────────────────────────────────────
+// A model is a candidate when OpenRouter's picker offers it for one of the three suppliers (so it has
+// passed the line rules: the newest of its line, and not over 12 months old), that supplier's own list
+// names it, and the table does not hold it. The hourly job proves a candidate with one real call on
+// the supplier's API; only then is it offered. Its name, price and effort levels are OpenRouter's,
+// and the price is shown as not verified until the model is added to the table by hand. A proven
+// model stays callable after it stops being offered, so a bot already on it keeps its answers.
+type Candidate = { provider: Provider; slug: string; name: string; inputPrice: number; outputPrice: number; efforts: Effort[] };
+interface AutoStore { models: Record<string, Candidate & { provenAt: number }>; failed: Record<string, { at: number; error: string }> }
+const AUTO_STORE_KEY = 'cache:auto-models';
+const AUTO_TTL_MS = 5 * 60 * 1000; // how long an isolate trusts its copy of the proven list
+const AUTO_RETRY_MS = DAY_MS; // a model that failed its test call is tried again after this
+const AUTO_TESTS_PER_RUN = 6;
+let autoCache: { until: number; store: AutoStore } | null = null;
+
+// OpenRouter's name for a direct model: Anthropic's ids write the version with a hyphen
+const routedSlug = (m: { provider: Provider; id: string }) => `${m.provider}/${m.provider === 'anthropic' ? m.id.replace(/-(\d+)-(\d+)$/, '-$1.$2') : m.id}`;
+// A supplier's list names a model by its id, or by its id with a date (claude-haiku-5-5-20261007).
+// Any other suffix is another model: gpt-5.5-pro does not name gpt-5.5.
+const DATED = /^-\d{4,}(-\d{2}){0,2}$/;
+const namesModel = (list: string[], id: string) => list.some((x) => x === id || (x.startsWith(id) && DATED.test(x.slice(id.length))));
+
+async function autoStore(env: LlmEnv): Promise<AutoStore> {
+	const now = Date.now();
+	if (autoCache && now < autoCache.until) return autoCache.store;
+	let store: AutoStore = autoCache?.store || { models: {}, failed: {} };
+	try {
+		const s = JSON.parse((await env.CLIENT_SETTINGS?.get(AUTO_STORE_KEY)) || 'null');
+		if (s?.models && typeof s.models === 'object') store = { models: s.models, failed: s.failed && typeof s.failed === 'object' ? s.failed : {} };
+	} catch { /* no stored copy: keep what this isolate has */ }
+	autoCache = { until: now + AUTO_TTL_MS, store };
+	return store;
+}
+const asDirect = (id: string, c: Candidate): DirectModel => ({ id, provider: c.provider, name: c.name, inputPrice: c.inputPrice, outputPrice: c.outputPrice, efforts: c.efforts, auto: true });
+
+// Any direct model that can be called: one in the table, or one proven by the hourly job
+export async function knownModel(env: LlmEnv, id: unknown, now = Date.now()): Promise<DirectModel | undefined> {
+	const table = findModel(id, now);
+	if (table || typeof id !== 'string' || !id || id.startsWith(OPENROUTER_PREFIX)) return table;
+	const proven = (await autoStore(env)).models[id];
+	return proven && asDirect(id, proven);
+}
+
+async function autoCandidates(env: LlmEnv): Promise<Map<string, Candidate>> {
+	const out = new Map<string, Candidate>();
+	const lists = await supplierModelIds(env);
+	for (const r of (await openRouterModels(env)).filter((m) => m.listed)) {
+		const [vendor, name] = r.id.slice(OPENROUTER_PREFIX.length).split('/');
+		const provider = vendor as Provider;
+		if (!SUPPLIERS.includes(provider) || !name) continue;
+		const id = provider === 'anthropic' ? name.replace(/-(\d+)\.(\d+)$/, '-$1-$2') : name;
+		if (MODEL_CATALOG.some((m) => m.id === id)) continue;
+		const list = providerAvailable(env, provider) ? lists[provider] : undefined;
+		if (!list?.length || !namesModel(list, id)) continue;
+		// A list naming none of the supplier's table models is not trusted: its ids may have changed shape
+		if (!MODEL_CATALOG.some((m) => m.provider === provider && namesModel(list, m.id))) continue;
+		out.set(id, { provider, slug: `${vendor}/${name}`, name: r.name.startsWith(r.vendorName + ': ') ? r.name.slice(r.vendorName.length + 2) : r.name, inputPrice: r.inputPrice, outputPrice: r.outputPrice, efforts: r.efforts });
+	}
+	return out;
+}
+
+// The hourly job: tests each new candidate once (at most six a run), keeps a proven model's details
+// current, and tries a failed one again after a day. Nothing here removes a proven model.
+export async function proveNewModels(env: LlmEnv, now = Date.now()): Promise<void> {
+	const candidates = await autoCandidates(env);
+	autoCache = null; // read the stored copy afresh: another isolate may have written it
+	const prev = await autoStore(env);
+	const store: AutoStore = { models: { ...prev.models }, failed: { ...prev.failed } };
+	let changed = false;
+	const due: [string, Candidate][] = [];
+	for (const [id, c] of candidates) {
+		const have = store.models[id];
+		if (have) {
+			const next = { ...c, provenAt: have.provenAt };
+			if (JSON.stringify(next) !== JSON.stringify(have)) { store.models[id] = next; changed = true; }
+		} else if (!store.failed[id] || now - store.failed[id].at >= AUTO_RETRY_MS) due.push([id, c]);
+	}
+	for (const id of Object.keys(store.failed)) if (!candidates.has(id)) { delete store.failed[id]; changed = true; }
+	await Promise.all(due.slice(0, AUTO_TESTS_PER_RUN).map(async ([id, c]) => {
+		const effort = c.efforts.includes('medium') ? 'medium' : c.efforts[0] || null;
+		const started = Date.now();
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		let error = '';
+		try {
+			const call = callDirect(env, { provider: c.provider, id }, effort, TEST_SYSTEM, TEST_TURNS);
+			call.catch(() => {}); // a failure after the limit has already been reported as a timeout
+			await Promise.race([call, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('It did not answer within 20 seconds.')), TEST_LIMIT_MS); })]);
+		} catch (err: any) {
+			error = testFailureReason(err);
+		} finally {
+			if (timer) clearTimeout(timer);
+		}
+		if (error) store.failed[id] = { at: now, error };
+		else { store.models[id] = { ...c, provenAt: now }; delete store.failed[id]; }
+		changed = true;
+		console.log({ kind: 'auto-model', model: id, effort: effort || 'none', ok: !error, ms: Date.now() - started, ...(error ? { error } : {}) });
+	}));
+	if (changed) {
+		try { await env.CLIENT_SETTINGS?.put(AUTO_STORE_KEY, JSON.stringify({ at: now, ...store })); } catch (e: any) { console.error('[LLM] Proven model list not stored:', e?.message || e); }
+	}
+	autoCache = { until: Date.now() + AUTO_TTL_MS, store };
+}
+
+// The picker's direct models: the table's, and the proven models that are still candidates. A proven
+// newer version takes the place of a table model of the same line, except the built-in models, which
+// stay so their names and prices can be shown.
+const BUILT_IN = () => [DEFAULT_DIRECT, EMAIL_DEFAULT_DIRECT, ...FALLBACK_MODELS];
+export async function pickerDirectModels(env: LlmEnv, now = Date.now()): Promise<DirectModel[]> {
+	const table = await listedDirectModels(env, now);
+	const [candidates, store] = [await autoCandidates(env), await autoStore(env)];
+	const autos = [...candidates].filter(([id]) => store.models[id]).map(([id, c]) => asDirect(id, c));
+	if (!autos.length) return table;
+	const lineOf = (m: DirectModel) => modelLine(routedSlug(m));
+	const replaced = (t: DirectModel) => !BUILT_IN().includes(t.id) && autos.some((x) => {
+		const [n, o] = [lineOf(x), lineOf(t)];
+		return x.provider === t.provider && n.line === o.line && versionOrder(n.version, o.version) > 0;
+	});
+	return [...table.filter((t) => !replaced(t)), ...autos];
+}
+
 // A direct model's price is cross-checked against OpenRouter's for the same model; a difference is
 // logged once and returned, so the picker can show OpenRouter's price beside the table's
 const priceFlags = new Set<string>();
@@ -505,8 +631,8 @@ type Price = { inputPrice: number; outputPrice: number };
 function crossCheckPrices(direct: DirectModel[], routed: OpenRouterModel[]): Map<string, Price> {
 	const differs = new Map<string, Price>();
 	for (const m of direct) {
-		const slug = `${m.provider}/${m.provider === 'anthropic' ? m.id.replace(/-(\d+)-(\d+)$/, '-$1.$2') : m.id}`;
-		const r = routed.find((x) => x.id === OPENROUTER_PREFIX + slug);
+		if (m.auto) continue; // its price is OpenRouter's already
+		const r = routed.find((x) => x.id === OPENROUTER_PREFIX + routedSlug(m));
 		if (!r || (r.inputPrice === m.inputPrice && r.outputPrice === m.outputPrice)) continue;
 		differs.set(m.id, { inputPrice: r.inputPrice, outputPrice: r.outputPrice });
 		const key = `${m.id}|${r.inputPrice}|${r.outputPrice}`;
@@ -521,13 +647,15 @@ function crossCheckPrices(direct: DirectModel[], routed: OpenRouterModel[]): Map
 const PRICE_STALE_MS = 90 * 24 * 60 * 60 * 1000;
 // A direct model as the picker gets it: the price in force, when it was read and whether that is too
 // long ago, a change the supplier has announced and not yet made, a long-prompt price, and
-// OpenRouter's price where it differs
+// OpenRouter's price where it differs. A model that listed itself has OpenRouter's price, which
+// nobody has checked against the supplier's pricing page.
 function withPriceNotes(m: DirectModel, now: number, routedPrice?: Price) {
-	const { priceChange, superseded, retires, ...rest } = m;
+	const { priceChange, superseded, retires, auto, ...rest } = m;
 	const pending = priceChange && now < Date.parse(priceChange.from) ? priceChange : undefined;
 	return {
 		...rest,
-		priceStale: now - Date.parse(m.priceRead) > PRICE_STALE_MS,
+		priceStale: !!m.priceRead && now - Date.parse(m.priceRead) > PRICE_STALE_MS,
+		...(auto ? { priceUnverified: true } : {}),
 		...(pending ? { priceChange: { ...pending, premium: isPremium({ outputPrice: pending.outputPrice }) } } : {}),
 		...(routedPrice ? { routedPrice } : {}),
 	};
@@ -629,12 +757,12 @@ export async function checkPlatformModels(env: LlmEnv, input: unknown): Promise<
 		value[f] = src[f] as string;
 	}
 	const routed = await openRouterModels(env);
+	const direct = await pickerDirectModels(env);
 	const labels = { chatDefault: 'chat default', emailDefault: 'email default', chatFallback: 'chat fallback', emailFallback: 'email fallback' };
 	for (const f of ['chatDefault', 'emailDefault'] as const) {
 		const id = value[f];
 		if (!id) continue;
-		const table = findModel(id);
-		const m: ModelInfo | undefined = id.startsWith(OPENROUTER_PREFIX) ? routed.find((x) => x.id === id && x.listed) : table && offered(table, Date.now()) ? table : undefined;
+		const m: ModelInfo | undefined = id.startsWith(OPENROUTER_PREFIX) ? routed.find((x) => x.id === id && x.listed) : direct.find((x) => x.id === id);
 		if (!m) return { ok: false, error: `The ${labels[f]} is not in the model list.` };
 		if (!providerAvailable(env, m.provider)) return { ok: false, error: `The ${labels[f]} needs a ${PROVIDER_NAMES[m.provider]} API key, and none is set.` };
 		if (f === 'chatDefault' && isPremium(m)) return { ok: false, error: 'The chat default cannot be a premium model: it also answers bots that are not on AI Plus.' };
@@ -655,7 +783,7 @@ export async function publicCatalog(env: LlmEnv) {
 	const all = await openRouterModels(env);
 	const routed = all.filter((m) => m.listed).map(({ listed, ...m }) => m);
 	const now = Date.now();
-	const directNow = await listedDirectModels(env, now);
+	const directNow = await pickerDirectModels(env, now);
 	const differs = crossCheckPrices(directNow, all);
 	const direct = directNow.map((m) => withPriceNotes(m, now, differs.get(m.id)));
 	const models: ModelInfo[] = [...direct, ...routed];

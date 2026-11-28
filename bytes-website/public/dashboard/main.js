@@ -1874,7 +1874,7 @@ function populateModelSelect(select, savedValue, models = modelCatalog.models) {
         }
         // The group already names the vendor, so "Anthropic: Claude Haiku 5.5" is shown as "Claude Haiku 5.5"
         const name = m.vendorName && m.name.startsWith(m.vendorName + ': ') ? m.name.slice(m.vendorName.length + 2) : m.name;
-        const label = `${name}: ${formatPrice(m.inputPrice)} in / ${formatPrice(m.outputPrice)} out per 1M tokens${m.priceStale ? ' (price not checked recently)' : ''}${m.available ? '' : ' (no API key)'}`;
+        const label = `${name}: ${formatPrice(m.inputPrice)} in / ${formatPrice(m.outputPrice)} out per 1M tokens${m.priceUnverified ? ' (price not verified)' : m.priceStale ? ' (price not checked recently)' : ''}${m.available ? '' : ' (no API key)'}`;
         const opt = new Option(label, m.id);
         opt.disabled = !m.available;
         groups.get(group).appendChild(opt);
@@ -1942,10 +1942,12 @@ async function loadModelCatalog() {
 // What is worth knowing about a model's price before choosing it, one line each: where the price came
 // from (a direct price is read by hand from the supplier's pricing page; `priceStale` means that was
 // over 90 days ago), a change the supplier has announced, the dearer price for a very long prompt, and
-// OpenRouter's price where it differs. `warn` lines are shown in the warning colour.
+// OpenRouter's price where it differs. A model that listed itself (`priceUnverified`) has OpenRouter's
+// price until someone reads the supplier's page. `warn` lines are shown in the warning colour.
 function modelPriceNotes(m) {
     if (!m) return [];
     if (m.provider === 'openrouter') return [{ text: 'Live OpenRouter price.' }];
+    if (m.priceUnverified) return [{ warn: true, text: `Price from OpenRouter. Not yet checked on ${m.providerName}'s pricing page.` }];
     const day = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
     const pair = (p) => `${formatPrice(p.inputPrice)} in / ${formatPrice(p.outputPrice)} out`;
     const notes = [];

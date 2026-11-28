@@ -1,5 +1,5 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
-import { testModel, MAX_MODEL_TESTS, callChosenModel, callGemini, publicCatalog, modelIsPremium, chatDefaultModel, emailDefaultModel, fallbackChain, leadReaderModel, callFallback, isGoogleModel, checkPlatformModels } from './llm';
+import { testModel, MAX_MODEL_TESTS, proveNewModels, callChosenModel, callGemini, publicCatalog, modelIsPremium, chatDefaultModel, emailDefaultModel, fallbackChain, leadReaderModel, callFallback, isGoogleModel, checkPlatformModels } from './llm';
 // Message limits per bot mode come from the shared plan list (same file the website and dashboard show)
 import PLAN_DATA from '../../bytes-website/public/plans.json';
 
@@ -797,9 +797,12 @@ export default {
 		}
 	},
 
-	// Drip emails are sent by crm-api's cron (it holds the mail settings). Kept as a no-op so this
-	// worker's cron trigger doesn't error, and so the two workers never both process a sequence.
-	async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {}
+	// Hourly: a model a supplier has newly listed is proven with one test call before the picker offers
+	// it (see proveNewModels). Drip emails are sent by crm-api's cron, which holds the mail settings, so
+	// the two workers never both process a sequence.
+	async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext) {
+		ctx.waitUntil(proveNewModels(env).catch((e: any) => console.error('[LLM] New model check failed:', e?.message || e)));
+	},
 };
 // Verification Push: CI/CD stabilized via GitHub Actions.
 
