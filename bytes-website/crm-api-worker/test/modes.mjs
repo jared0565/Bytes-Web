@@ -13,7 +13,7 @@ const kv = new Map([['client:acme', JSON.stringify({ mode: 'elite', companyName:
 const KV = { get: async k => kv.get(k) ?? null, put: async (k, v) => kv.set(k, v), delete: async k => kv.delete(k), list: async ({ prefix }) => ({ keys: [...kv.keys()].filter(k => k.startsWith(prefix)).map(name => ({ name })), list_complete: true }) };
 db.exec(`INSERT INTO crm_settings VALUES ('beta','ai',0,'business',0,0); INSERT INTO crm_settings VALUES ('gamma','ai',0,'free',0,0);`);
 // acme is 'pro' plan from flow header
-const env = { DB: { prepare: prep, batch: async s => { for (const x of s) await x.run(); } }, JWT_SECRET: 'x', OAUTH_TOKENS: KV, CLIENT_SETTINGS: KV };
+const env = { DB: { prepare: prep, batch: async s => { for (const x of s) await x.run(); } }, JWT_SECRET: 'x', OAUTH_TOKENS: KV, CLIENT_SETTINGS: KV, LLM: { testModels: async (items) => items.map(i => ({ model: i.model, effort: i.effort, ok: true, ms: 1 })) } };
 const ctx = { waitUntil: p => p };
 const ok = (l, c, x = '') => console.log(c ? 'PASS' : 'FAIL', l, x);
 const admin = await mod.signJWT({ role: 'admin' }, 'x'), client = await mod.signJWT({ role: 'client', clientId: 'acme' }, 'x');

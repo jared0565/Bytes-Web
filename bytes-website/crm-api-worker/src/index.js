@@ -944,6 +944,49 @@ async function readPlatformModels(env) {
     return { ...out, updatedAt: stored?.updatedAt || 0, updatedBy: stored?.updatedBy || '' };
 }
 
+// ─── Model test before a save ────────────────────────────────────────────────
+// A save that changes a model, or the effort of a chosen model, first has the chatbot worker call
+// that exact model once (env.LLM.testModels). `wanted` is [{ label, model, effort, fallback? }]; an
+// empty model ("use the default") is skipped and the same model is tested once. Returns null when
+// nothing needed a test or every test passed, else { status, body } for the refusal: the caller
+// stores nothing. A test that cannot run is a refusal too, never a pass.
+async function refuseUntestedModels(env, wanted) {
+    const items = [];
+    for (const w of wanted) {
+        if (!w.model) continue;
+        const same = items.find(i => i.model === w.model && i.effort === w.effort && !!i.fallback === !!w.fallback);
+        if (same) same.label += ` and ${w.label.toLowerCase()}`;
+        else items.push({ ...w });
+    }
+    if (!items.length) return null;
+    const cannot = { status: 503, body: { error: 'The chatbot server could not be reached to test the model. Nothing was saved.', modelTest: true } };
+    if (!env.LLM || typeof env.LLM.testModels !== 'function') return cannot;
+    let results;
+    try {
+        results = await env.LLM.testModels(items.map(i => ({ model: i.model, effort: i.effort, ...(i.fallback ? { fallback: true } : {}) })));
+    } catch (err) {
+        console.error('[Model test] Error:', err);
+        return cannot;
+    }
+    if (!Array.isArray(results) || results.length !== items.length) return cannot;
+    const failed = items.map((item, n) => ({ item, result: results[n] })).filter(x => x.result?.ok !== true);
+    if (!failed.length) return null;
+    const why = failed.map(({ item, result }) => `${item.label} (${item.model}): ${String(result?.error || 'The test call failed.').slice(0, 300)}`).join(' ');
+    return { status: 400, body: { error: `The model test failed, so nothing was saved. ${why}`, modelTest: true } };
+}
+
+// The models a client-settings save changes: the chat model (also when only its effort changed) and
+// the two email models, which are called at medium effort
+function changedClientModels(prev, next) {
+    const out = [];
+    const effort = next.llmEffort || 'medium';
+    if (next.llmModel && (next.llmModel !== (prev.llmModel || '') || effort !== (prev.llmEffort || 'medium'))) out.push({ label: 'Chat model', model: next.llmModel, effort });
+    for (const [k, label] of [['draftModel', 'Email drafting model'], ['readModel', 'Reply reading model']]) {
+        if (next[k] && next[k] !== (prev[k] || '')) out.push({ label, model: next[k], effort: 'medium' });
+    }
+    return out;
+}
+
 // GET /api/admin/models — the four choices, and who last saved them
 app.get('/api/admin/models', requireAuth, async (c) => {
     if ((c.get('user') || {}).role !== 'admin') return c.json({ error: 'Admins only' }, 403);
@@ -951,8 +994,8 @@ app.get('/api/admin/models', requireAuth, async (c) => {
 });
 
 // POST /api/admin/models — { chatDefault, chatFallback, emailDefault, emailFallback }. The chatbot worker
-// checks the set (each model is in its list, has a key, a fallback is a direct supplier model); a refused
-// set is not stored.
+// checks the set (each model is in its list, has a key, a fallback is a direct supplier model), then
+// tests each changed choice with one real call; a refused set is not stored.
 app.post('/api/admin/models', requireAuth, async (c) => {
     if ((c.get('user') || {}).role !== 'admin') return c.json({ error: 'Admins only' }, 403);
     let body;
@@ -964,6 +1007,10 @@ app.post('/api/admin/models', requireAuth, async (c) => {
         const checked = await c.env.LLM.checkDefaults(wanted);
         if (!checked?.ok) return c.json({ error: checked?.error || 'These models cannot be used.' }, 400);
         const before = await readPlatformModels(c.env);
+        const labels = { chatDefault: 'Chat default', chatFallback: 'Chat fallback', emailDefault: 'Email default', emailFallback: 'Email fallback' };
+        const refused = await refuseUntestedModels(c.env, PLATFORM_MODEL_FIELDS.filter(f => checked.value[f] !== before[f])
+            .map(f => ({ label: labels[f], model: checked.value[f], effort: 'medium', fallback: f.endsWith('Fallback') })));
+        if (refused) return c.json(refused.body, refused.status);
         const by = await changedBy(c);
         const who = by.email || by.actor;
         const entry = { ...checked.value, updatedAt: Date.now(), updatedBy: who };
@@ -2222,6 +2269,8 @@ app.post('/api/config', requireAuth, async (c) => {
         delete merged.widgetAccentColor;
         delete merged.widgetAvatar;
     }
+    const refused = await refuseUntestedModels(c.env, changedClientModels(prev, merged));
+    if (refused) return c.json(refused.body, refused.status);
     await saveClientConfig(c.env, clientId, prev, merged, await changedBy(c));
     return c.json({ success: true });
 });
@@ -2356,6 +2405,8 @@ app.post('/api/site-settings', requireAuth, async (c) => {
     if (salesErr) return c.json({ error: salesErr }, 400);
     // Merge so fields this form doesn't manage survive
     const prev = JSON.parse(await c.env.CLIENT_SETTINGS.get(`client:${HOUSE_CLIENT_ID}`) || '{}');
+    const refused = await refuseUntestedModels(c.env, changedClientModels(prev, { ...prev, ...update }));
+    if (refused) return c.json(refused.body, refused.status);
     await saveClientConfig(c.env, HOUSE_CLIENT_ID, prev, { ...prev, ...update }, await changedBy(c));
     return c.json({ success: true, ...update });
 });

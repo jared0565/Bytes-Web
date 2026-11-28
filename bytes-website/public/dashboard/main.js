@@ -1164,6 +1164,7 @@ async function mcbLoad(cid) {
         if (modelCatalog) populateModelSelect(modelSel, data.llmModel || '');
         else { modelSel.innerHTML = '<option value="">Default model (could not load the model list)</option>'; delete modelSel.dataset.filled; }
         mcbEl('config-llm-effort').value = ['low', 'medium', 'high'].includes(data.llmEffort) ? data.llmEffort : 'medium';
+        mcbEl('config-llm-effort').dataset.saved = mcbEl('config-llm-effort').value;
         configPrompt.value = data.systemPrompt || '';
         mcbEl('config-domains').value = (data.allowedDomains || []).join('\n');
         configReferral.value = data.referralId || '';
@@ -1238,8 +1239,9 @@ saveConfigBtn.addEventListener('click', async () => {
         settings.widgetAvatar = avatar;
     }
 
+    const mcbChoices = [mcbEl('config-llm-model'), mcbEl('config-llm-effort'), document.getElementById('mc-sales-draft-model'), document.getElementById('mc-sales-read-model')];
     saveConfigBtn.disabled = true;
-    mcbStatus('Saving…');
+    mcbStatus(modelTestDue(...mcbChoices) ? MODEL_TEST_STATUS : 'Saving…');
     try {
         const res = await apiFetch(`${API_BASE}/api/config`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clientId: cid, settings }) });
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
@@ -1248,6 +1250,7 @@ saveConfigBtn.addEventListener('click', async () => {
             body: JSON.stringify({ clientId: cid, default_campaign_mode: configCampaignMode.value, auto_approve_campaigns: configAutoApprove.checked }),
         });
         if (!crmRes.ok) throw new Error(`chatbot saved, but campaign settings failed: ${(await crmRes.json().catch(() => ({}))).error || `HTTP ${crmRes.status}`}`);
+        choicesSaved(...mcbChoices);
         mcbEl('config-domains').value = settings.allowedDomains.join('\n');
         mcbSetDirty(false);
         mcbStatus('✓ Chatbot settings saved.', 'ok');
@@ -1874,6 +1877,7 @@ function populateModelSelect(select, savedValue) {
         groups.get(group).appendChild(opt);
     }
     select.dataset.filled = '1';
+    select.dataset.saved = savedValue || '';
     select.value = savedValue || '';
     if (select.value !== (savedValue || '')) {
         // The list only offers the newest model of each line, so a saved one drops out of it over time. Keep it
@@ -1894,6 +1898,14 @@ function modelEfforts(id) {
 // Limits an effort <select> to the chosen model's levels and says why under it. The saved level is
 // never changed here: a level the model lacks stays selected, with a note that it is not in use.
 // `off` is the bot mode's own reason to disable the control (a scripted bot uses no model).
+// A save that changes a model, or the effort of a chosen model, is tested by the server with one real
+// call before it is stored, which takes a few seconds: the status line says so. `saved` is what the
+// select was loaded with.
+const choiceChanged = (el) => !!el && el.dataset.saved !== undefined && el.value !== el.dataset.saved;
+const modelTestDue = (modelSel, effortSel, ...others) => (!!modelSel?.value && (choiceChanged(modelSel) || choiceChanged(effortSel))) || others.some(el => el?.value && choiceChanged(el));
+const choicesSaved = (...els) => els.forEach(el => { if (el && el.dataset.saved !== undefined) el.dataset.saved = el.value; });
+const MODEL_TEST_STATUS = 'Testing the model…';
+
 function syncEffortSelect(effortSel, modelId, off = false) {
     if (!effortSel) return;
     const levels = modelEfforts(modelId);
@@ -2987,6 +2999,7 @@ function pmFillFallback(select, saved, builtIn) {
         opt.disabled = !m.available;
         select.appendChild(opt);
     }
+    select.dataset.saved = saved || '';
     select.value = saved || '';
     if (select.value !== (saved || '')) { select.appendChild(new Option(`${saved} (no longer offered)`, saved)); select.value = saved; }
 }
@@ -3026,8 +3039,9 @@ async function loadPlatformModels(fresh = false) {
 PM('pm-save-btn')?.addEventListener('click', async () => {
     const st = PM('pm-status'), btn = PM('pm-save-btn');
     const body = Object.fromEntries(Object.entries(PM_SELECTS).map(([key, id]) => [key, PM(id).value]));
+    const pmChoices = Object.values(PM_SELECTS).map(id => PM(id));
     btn.disabled = true;
-    st.textContent = 'Checking and saving…'; st.style.color = 'var(--text-secondary)';
+    st.textContent = pmChoices.some(el => el.value && choiceChanged(el)) ? MODEL_TEST_STATUS : 'Checking and saving…'; st.style.color = 'var(--text-secondary)';
     try {
         const res = await apiFetch(`${API_BASE}/api/admin/models`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
@@ -3060,6 +3074,7 @@ async function loadSiteSettings() {
         document.getElementById('site-mode').value = cbMode(d.mode);
         servicesFill('site-services', d.services);
         document.getElementById('site-llm-effort').value = ['low', 'medium', 'high'].includes(d.llmEffort) ? d.llmEffort : 'medium';
+        document.getElementById('site-llm-effort').dataset.saved = document.getElementById('site-llm-effort').value;
         document.getElementById('site-domains').value = (d.allowedDomains || []).join('\n');
         document.getElementById('site-prompt').value = d.systemPrompt || '';
         document.querySelectorAll('#site-settings-view [data-social]').forEach(el => {
@@ -3108,8 +3123,9 @@ document.getElementById('site-save-btn')?.addEventListener('click', async () => 
     const sales = salesCollect('site-sales');
     if (sales.error) { status.textContent = sales.error; status.style.color = 'var(--error)'; sales.field.focus(); return; }
     Object.assign(body, sales.values);
+    const siteChoices = [modelSel, document.getElementById('site-llm-effort'), document.getElementById('site-sales-draft-model'), document.getElementById('site-sales-read-model')];
     btn.disabled = true;
-    status.textContent = 'Saving…';
+    status.textContent = modelTestDue(...siteChoices) ? MODEL_TEST_STATUS : 'Saving…';
     status.style.color = 'var(--text-secondary)';
     try {
         const res = await apiFetch(`${API_BASE}/api/site-settings`, {
@@ -3122,6 +3138,7 @@ document.getElementById('site-save-btn')?.addEventListener('click', async () => 
             (data.fields || []).forEach(f => document.getElementById(`site-social-${f}`)?.setAttribute('aria-invalid', 'true'));
             throw new Error(data.error || `HTTP ${res.status}`);
         }
+        choicesSaved(...siteChoices);
         if (data.socials) document.querySelectorAll('#site-settings-view [data-social]').forEach(el => { el.value = data.socials[el.dataset.social] || ''; });
         const dropped = body.allowedDomains.length - (data.allowedDomains || []).length;
         if (data.allowedDomains) document.getElementById('site-domains').value = data.allowedDomains.join('\n');

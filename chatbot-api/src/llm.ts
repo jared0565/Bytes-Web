@@ -193,7 +193,7 @@ export async function callGemini(env: LlmEnv, model: string, effort: Effort | nu
 		body: JSON.stringify({ system_instruction: { parts: [{ text: system }] }, contents, generationConfig }),
 	});
 	const data = (await res.json().catch(() => ({}))) as any;
-	if (!res.ok) throw new Error(`Gemini ${res.status}: ${JSON.stringify(data)}`);
+	if (!res.ok) throw new Error(`Gemini ${res.status}: ${data?.error?.message || JSON.stringify(data)}`);
 	const text = data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text || '').join('').trim();
 	if (!text) throw new Error('Gemini returned no text');
 	return text;
@@ -538,6 +538,59 @@ export const isGoogleModel = (id: string) => id.startsWith('gemini-');
 export async function callFallback(env: LlmEnv, model: string, system: string, contents: Turn[]): Promise<string> {
 	if (isGoogleModel(model)) return callGemini(env, model, null, system, contents);
 	return (await callChosenModel(env, model, 'low', system, contents)).text;
+}
+
+// ─── The test call before a model is saved ───────────────────────────────────
+// crm-api asks for this when a save changes a model or its effort. Each model is called once, as
+// itself, at the effort being saved, with a one-line prompt and a 20-second limit. No backup is
+// tried: the point is to learn whether this exact choice works. A fallback is called the way a
+// fallback is called (callFallback).
+export interface ModelTestResult { model: string; effort: string; ok: boolean; ms: number; error?: string }
+export const MAX_MODEL_TESTS = 8;
+const TEST_LIMIT_MS = 20 * 1000;
+const TEST_SYSTEM = 'This is a connection test. Reply with the single word: ready';
+const TEST_TURNS: Turn[] = [{ role: 'user', parts: [{ text: 'Say ready.' }] }];
+
+// The reason shown in the dashboard: the supplier's own message where there is one
+function testFailureReason(err: any): string {
+	const msg = String(err?.message || err || 'The call failed.');
+	const key = msg.match(/^No API key configured for (.+)$/);
+	if (key) return `No API key is set for ${key[1]}.`;
+	if (/^(Unknown model|Invalid OpenRouter model): /.test(msg)) return 'It is not a model the chatbot server knows.';
+	// The Anthropic SDK's error carries the response body; its message is that body as JSON
+	const inner = err?.error?.error?.message || err?.error?.message;
+	if (typeof inner === 'string' && inner && typeof err?.status === 'number') return `Anthropic ${err.status}: ${inner}`.slice(0, 300);
+	return msg.replace(/\s+/g, ' ').slice(0, 300);
+}
+
+export async function testModel(env: LlmEnv, item: unknown): Promise<ModelTestResult> {
+	const src = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
+	const model = typeof src.model === 'string' ? src.model : '';
+	const fallback = src.fallback === true;
+	const effort: Effort = EFFORTS.includes(src.effort as Effort) ? (src.effort as Effort) : 'medium';
+	const sent = fallback ? (isGoogleModel(model) ? 'none' : 'low') : effort;
+	const started = Date.now();
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	let error = '';
+	try {
+		if (!model) throw new Error('No model was given.');
+		if (fallback) {
+			// callFallback calls a Google model without looking it up, so the lookups are made here
+			const info = findModel(model);
+			if (!info) throw new Error(`Unknown model: ${model}`);
+			if (!providerAvailable(env, info.provider)) throw new Error(`No API key configured for ${PROVIDER_NAMES[info.provider]}`);
+		}
+		const call: Promise<unknown> = fallback ? callFallback(env, model, TEST_SYSTEM, TEST_TURNS) : callChosenModel(env, model, effort, TEST_SYSTEM, TEST_TURNS);
+		call.catch(() => {}); // a failure after the limit has already been reported as a timeout
+		await Promise.race([call, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('It did not answer within 20 seconds.')), TEST_LIMIT_MS); })]);
+	} catch (err: any) {
+		error = testFailureReason(err);
+	} finally {
+		if (timer) clearTimeout(timer);
+	}
+	const result: ModelTestResult = { model, effort: sent, ok: !error, ms: Date.now() - started, ...(error ? { error } : {}) };
+	console.log({ kind: 'model-test', ...result, ...(fallback ? { fallback: true } : {}) });
+	return result;
 }
 
 // Checks a set of choices before crm-api stores it. '' means "use the built-in model".
