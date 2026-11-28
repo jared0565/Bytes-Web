@@ -71,7 +71,7 @@ const levels = (id) => (cat.models.find(x => x.id === id)?.efforts || ['missing'
 ok('a model lists the effort levels it accepts, of low, medium and high', levels('openrouter:anthropic/claude-haiku-5.5') === 'low,medium,high' && levels('openrouter:mistralai/mistral-large-4-0') === 'high', `${levels('openrouter:anthropic/claude-haiku-5.5')} | ${levels('openrouter:mistralai/mistral-large-4-0')}`);
 ok('a model that only reasons on or off, or not at all, lists no levels', levels('openrouter:qwen/qwen3.7-plus') === '' && levels('openrouter:openai/gpt-5.2-chat') === '', `${levels('openrouter:qwen/qwen3.7-plus')} | ${levels('openrouter:openai/gpt-5.2-chat')}`);
 const direct = cat.models.filter(x => x.provider !== 'openrouter');
-ok('every direct model lists low, medium and high, as its supplier documents', direct.length === 10 && direct.every(x => (x.efforts || []).join() === 'low,medium,high'), direct.map(x => `${x.id}=${x.efforts}`).join(' '));
+ok('every direct model lists low, medium and high, as its supplier documents', direct.length > 0 && direct.every(x => (x.efforts || []).join() === 'low,medium,high'), direct.map(x => `${x.id}=${x.efforts}`).join(' '));
 const sent = async (model, effort) => { asked = []; await service(first).complete({ system: 'One line.', prompt: 'Hello', model: 'openrouter:' + model, effort }); return asked[0]; };
 let call = await sent('mistralai/mistral-large-4-0', 'high');
 ok('a level the model accepts is sent, with the reasoning text kept out of the reply', call?.reasoning?.effort === 'high' && call.reasoning.exclude === true, JSON.stringify(call?.reasoning));

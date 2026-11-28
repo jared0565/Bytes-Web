@@ -1,8 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 
-// Models offered in the dashboard's model picker. Prices are USD per 1M tokens (standard tier,
-// short prompts) as published by each provider in October 2026 — update here when they change;
-// the dashboard reads this list from GET /public/models.
+// Models called on their supplier's own API. The dashboard reads the list from GET /public/models.
 export type Provider = 'anthropic' | 'openai' | 'google' | 'openrouter';
 export type Effort = 'low' | 'medium' | 'high';
 
@@ -23,22 +21,50 @@ export const PROVIDER_NAMES: Record<Provider, string> = {
 	openrouter: 'OpenRouter',
 };
 
-// Effort: each model here accepts low, medium and high on its supplier's own API, read from the
-// suppliers' documentation on 27 November 2026 (Anthropic "Effort": all five levels on Opus 5.5,
-// Sonnet 5.5 and Haiku 5.5; OpenAI's model pages: low to max on GPT-6 Astra and GPT-6.1 Sol, none
-// to max on GPT-6 Luna; Google "Thinking": low, medium, high on Gemini 3.1 Pro and the 2.5 models).
-export const MODEL_CATALOG: ModelInfo[] = [
-	{ id: 'claude-opus-5-5', provider: 'anthropic', name: 'Claude Opus 5.5', inputPrice: 4.0, outputPrice: 20.0, efforts: EFFORTS },
-	{ id: 'claude-sonnet-5-5', provider: 'anthropic', name: 'Claude Sonnet 5.5', inputPrice: 2.0, outputPrice: 10.0, efforts: EFFORTS },
-	{ id: 'claude-haiku-5-5', provider: 'anthropic', name: 'Claude Haiku 5.5', inputPrice: 0.1, outputPrice: 0.5, efforts: EFFORTS },
-	{ id: 'gpt-6-astra', provider: 'openai', name: 'GPT-6 Astra', inputPrice: 10.0, outputPrice: 50.0, efforts: EFFORTS },
-	{ id: 'gpt-6.1-sol', provider: 'openai', name: 'GPT-6.1 Sol', inputPrice: 2.0, outputPrice: 10.0, efforts: EFFORTS },
-	{ id: 'gpt-6-luna', provider: 'openai', name: 'GPT-6 Luna', inputPrice: 0.1, outputPrice: 0.5, efforts: EFFORTS },
-	{ id: 'gemini-3.1-pro-preview', provider: 'google', name: 'Gemini 3.1 Pro (preview)', inputPrice: 2.0, outputPrice: 12.0, efforts: EFFORTS },
-	{ id: 'gemini-2.5-pro', provider: 'google', name: 'Gemini 2.5 Pro', inputPrice: 1.25, outputPrice: 10.0, efforts: EFFORTS },
-	{ id: 'gemini-2.5-flash', provider: 'google', name: 'Gemini 2.5 Flash', inputPrice: 0.3, outputPrice: 2.5, efforts: EFFORTS },
-	{ id: 'gemini-2.5-flash-lite', provider: 'google', name: 'Gemini 2.5 Flash-Lite', inputPrice: 0.1, outputPrice: 0.4, efforts: EFFORTS },
+// A direct model. Prices are USD per 1M tokens (standard tier, short prompts) from the supplier's own
+// pricing page, read on `priceRead`. The table is kept by hand: a supplier's model list has no prices.
+export interface DirectModel extends ModelInfo {
+	priceRead: string; // the day the price was read
+	retires?: string; // the supplier's shutdown date; left out of the picker from 30 days before it
+	superseded?: boolean; // a newer model of its line is in the table: kept so a bot already on it still works
+	priceChange?: { from: string; inputPrice: number; outputPrice: number }; // a price the supplier has announced
+}
+// Read on 28 November 2026 from platform.claude.com/docs/en/about-claude/pricing,
+// developers.openai.com/api/docs/pricing, and ai.google.dev/gemini-api/docs/pricing and /deprecations.
+// Effort: every model here accepts low, medium and high (Anthropic "Effort", OpenAI's model pages,
+// Google "Thinking"). Left out on purpose: coding, open-weight, voice and image models.
+const READ = '2026-11-28';
+const row = (provider: Provider, id: string, name: string, inputPrice: number, outputPrice: number, extra: Partial<DirectModel> = {}): DirectModel =>
+	({ id, provider, name, inputPrice, outputPrice, efforts: EFFORTS, priceRead: READ, ...extra });
+export const MODEL_CATALOG: DirectModel[] = [
+	row('anthropic', 'claude-fable-5-2', 'Claude Fable 5.2', 8.0, 40.0),
+	row('anthropic', 'claude-opus-5-5', 'Claude Opus 5.5', 4.0, 20.0),
+	row('anthropic', 'claude-sonnet-5-5', 'Claude Sonnet 5.5', 2.0, 10.0),
+	row('anthropic', 'claude-haiku-5-5', 'Claude Haiku 5.5', 0.1, 0.5), // prompts up to 100,000 tokens
+	row('openai', 'gpt-6.2-astra', 'GPT-6.2 Astra', 8.0, 40.0),
+	row('openai', 'gpt-6.2-sol', 'GPT-6.2 Sol', 2.0, 10.0),
+	row('openai', 'gpt-6.1-terra', 'GPT-6.1 Terra', 1.0, 5.0),
+	row('openai', 'gpt-6-luna', 'GPT-6 Luna', 0.1, 0.5),
+	row('openai', 'gpt-6-astra', 'GPT-6 Astra', 10.0, 50.0, { superseded: true }),
+	row('openai', 'gpt-6.1-sol', 'GPT-6.1 Sol', 2.0, 10.0, { superseded: true }),
+	row('google', 'gemini-4-neon', 'Gemini 4 Neon', 3.0, 15.0),
+	row('google', 'gemini-4-hydrogen', 'Gemini 4 Hydrogen', 1.5, 7.5),
+	row('google', 'gemini-4-carbon', 'Gemini 4 Carbon', 2.0, 10.0, { priceChange: { from: '2026-12-01', inputPrice: 4.0, outputPrice: 20.0 } }),
+	row('google', 'gemini-4-argon', 'Gemini 4 Argon', 2.0, 10.0, { priceChange: { from: '2026-12-01', inputPrice: 4.0, outputPrice: 20.0 } }),
+	row('google', 'gemini-3.8-flash', 'Gemini 3.8 Flash', 0.75, 3.75, { priceChange: { from: '2027-01-01', inputPrice: 1.5, outputPrice: 7.5 } }),
+	row('google', 'gemini-3.5-flash-lite', 'Gemini 3.5 Flash-Lite', 0.3, 2.5),
+	row('google', 'gemini-3.1-pro-preview', 'Gemini 3.1 Pro (preview)', 2.0, 12.0), // prompts up to 200,000 tokens
+	row('google', 'gemini-2.5-flash-lite', 'Gemini 2.5 Flash-Lite', 0.1, 0.4),
+	// Google routes calls for these two to newer models from 1 December 2026
+	row('google', 'gemini-2.5-pro', 'Gemini 2.5 Pro', 1.25, 10.0, { retires: '2026-12-01' }),
+	row('google', 'gemini-2.5-flash', 'Gemini 2.5 Flash', 0.3, 2.5, { retires: '2026-12-01' }),
 ];
+// A model with the price in force on the day: an announced change applies from its date
+const priced = (m: DirectModel, now: number): DirectModel =>
+	m.priceChange && now >= Date.parse(m.priceChange.from) ? { ...m, inputPrice: m.priceChange.inputPrice, outputPrice: m.priceChange.outputPrice } : m;
+const RETIRE_NOTICE_MS = 30 * 24 * 60 * 60 * 1000;
+// Offered in the picker: not replaced by a newer model of its line, and not within 30 days of retiring
+const offered = (m: DirectModel, now: number) => !m.superseded && !(m.retires && Date.parse(m.retires) - now < RETIRE_NOTICE_MS);
 
 // Default chat model, for a bot with no model chosen: Claude Haiku 5.5. It runs on Anthropic's own
 // API when that key is set, otherwise through OpenRouter. With neither key there is no default and
@@ -85,8 +111,10 @@ export function providerAvailable(env: LlmEnv, provider: Provider): boolean {
 	return !!env.GEMINI_API_KEY;
 }
 
-export function findModel(id: unknown): ModelInfo | undefined {
-	return MODEL_CATALOG.find((m) => m.id === id);
+// Any model in the table, offered or not, at today's price
+export function findModel(id: unknown, now = Date.now()): DirectModel | undefined {
+	const m = MODEL_CATALOG.find((x) => x.id === id);
+	return m && priced(m, now);
 }
 
 // Conversation turns in the widget's (Gemini) shape
@@ -148,9 +176,9 @@ async function callOpenAI(env: LlmEnv, model: string, effort: Effort | null, sys
 	return text;
 }
 
-// Gemini 3.x takes a thinking level (low/medium/high); 2.5 takes a token budget (Pro can't go below 128)
+// Gemini 3.x and 4 take a thinking level (low/medium/high); 2.5 takes a token budget (Pro can't go below 128)
 function geminiThinking(model: string, effort: Effort) {
-	if (model.startsWith('gemini-3')) return { thinkingLevel: effort };
+	if (!model.startsWith('gemini-2.5')) return { thinkingLevel: effort };
 	const isPro = model.includes('pro');
 	const budget = { low: isPro ? 128 : 0, medium: 1024, high: 8192 }[effort];
 	return { thinkingBudget: budget };
@@ -396,16 +424,89 @@ export async function platformModels(env: LlmEnv): Promise<PlatformModels> {
 	return value;
 }
 
-// Models that may serve as a fallback. Each is called on its supplier's own API, so a fallback does
-// not share OpenRouter's failures. Premium models are left out (a fallback answers every bot), and
-// so are the two Google retires on 1 December 2026. The first is the built-in first backup; its
-// price is Google's published one on 27 November 2026.
-const FALLBACK_ONLY: ModelInfo = { id: FALLBACK_MODELS[0], provider: 'google', name: 'Gemini 3.5 Flash-Lite', inputPrice: 0.3, outputPrice: 2.5, efforts: [] };
-const RETIRING = ['gemini-2.5-flash', 'gemini-2.5-pro'];
-export function fallbackChoices(env: LlmEnv) {
-	return [FALLBACK_ONLY, ...MODEL_CATALOG.filter((m) => !isPremium(m) && !RETIRING.includes(m.id))]
-		.map((m) => ({ ...m, providerName: PROVIDER_NAMES[m.provider], available: providerAvailable(env, m.provider) }));
+// Models that may serve as a fallback: the offered direct models that are not premium (a fallback
+// answers every bot). Each is called on its supplier's own API, so a fallback does not share
+// OpenRouter's failures.
+export function fallbackChoices(env: LlmEnv, now = Date.now()) {
+	return MODEL_CATALOG.filter((m) => offered(m, now)).map((m) => priced(m, now)).filter((m) => !isPremium(m))
+		.map(({ priceChange, superseded, ...m }) => ({ ...m, providerName: PROVIDER_NAMES[m.provider], available: providerAvailable(env, m.provider) }));
 }
+
+// ─── The suppliers' own model lists ──────────────────────────────────────────
+// Where a supplier's key is set, its model list is read hourly and a table model it no longer lists
+// leaves the picker. A failed or empty read keeps the last good list (this isolate's, or the copy in
+// KV), and a list naming none of a supplier's table models is not trusted: ids may have changed shape.
+type SupplierIds = Partial<Record<Provider, string[]>>;
+const SUPPLIER_STORE_KEY = 'cache:supplier-models';
+const SUPPLIERS: Provider[] = ['anthropic', 'openai', 'google'];
+let supplierCache: { until: number; ids: SupplierIds } | null = null;
+const distrusted = new Set<string>();
+
+async function readSupplierList(env: LlmEnv, provider: Provider): Promise<string[]> {
+	let res: Response;
+	if (provider === 'anthropic') res = await fetch('https://api.anthropic.com/v1/models?limit=1000', { headers: { 'x-api-key': env.ANTHROPIC_API_KEY || '', 'anthropic-version': '2023-06-01' } });
+	else if (provider === 'openai') res = await fetch('https://api.openai.com/v1/models', { headers: { Authorization: `Bearer ${env.OPENAI_API_KEY}` } });
+	else res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=${env.GEMINI_API_KEY}`);
+	if (!res.ok) throw new Error(`HTTP ${res.status}`);
+	const data = (await res.json()) as any;
+	const ids: string[] = provider === 'google'
+		? (data?.models || []).map((m: any) => String(m?.name || '').replace(/^models\//, ''))
+		: (data?.data || []).map((m: any) => String(m?.id || ''));
+	const clean = ids.filter(Boolean);
+	if (!clean.length) throw new Error('the list came back empty');
+	return clean;
+}
+
+async function supplierModelIds(env: LlmEnv): Promise<SupplierIds> {
+	const now = Date.now();
+	if (supplierCache && now < supplierCache.until) return supplierCache.ids;
+	let last: SupplierIds = supplierCache?.ids || {};
+	if (!supplierCache) {
+		try { const stored = JSON.parse((await env.CLIENT_SETTINGS?.get(SUPPLIER_STORE_KEY)) || 'null'); if (stored?.ids && typeof stored.ids === 'object') last = stored.ids; } catch { /* no stored copy */ }
+	}
+	const ids: SupplierIds = { ...last };
+	let failed = false, read = false;
+	await Promise.all(SUPPLIERS.filter((sup) => providerAvailable(env, sup)).map(async (sup) => {
+		try { ids[sup] = await readSupplierList(env, sup); read = true; }
+		catch (err: any) { failed = true; console.error(`[LLM] ${PROVIDER_NAMES[sup]} model list failed, keeping the last good one:`, err?.message || err); }
+	}));
+	supplierCache = { until: now + (failed ? OPENROUTER_RETRY_MS : OPENROUTER_TTL_MS), ids };
+	if (read) { try { await env.CLIENT_SETTINGS?.put(SUPPLIER_STORE_KEY, JSON.stringify({ at: now, ids })); } catch (e: any) { console.error('[LLM] Supplier model lists not stored:', e?.message || e); } }
+	return ids;
+}
+
+// The direct models for the picker: offered by the table rules and still on the supplier's own list.
+// A supplier may list a dated id (claude-haiku-5-5-20261007) for a table id.
+export async function listedDirectModels(env: LlmEnv, now = Date.now()): Promise<DirectModel[]> {
+	const lists = await supplierModelIds(env);
+	const onList = (m: DirectModel) => (lists[m.provider] || []).some((id) => id === m.id || id.startsWith(m.id + '-'));
+	const candidates = MODEL_CATALOG.filter((m) => offered(m, now));
+	return candidates.filter((m) => {
+		const list = providerAvailable(env, m.provider) ? lists[m.provider] : undefined;
+		if (!list?.length || onList(m)) return true;
+		const anyKnown = candidates.some((x) => x.provider === m.provider && onList(x));
+		if (!anyKnown) {
+			if (!distrusted.has(m.provider)) { distrusted.add(m.provider); console.warn(`[LLM] ${PROVIDER_NAMES[m.provider]}'s model list names none of the table's models; it is ignored`); }
+			return true;
+		}
+		return false;
+	}).map((m) => priced(m, now));
+}
+
+// A direct model's price is cross-checked against OpenRouter's for the same model; a difference is logged
+const priceFlags = new Set<string>();
+function crossCheckPrices(direct: DirectModel[], routed: OpenRouterModel[]) {
+	for (const m of direct) {
+		const slug = `${m.provider}/${m.provider === 'anthropic' ? m.id.replace(/-(\d+)-(\d+)$/, '-$1.$2') : m.id}`;
+		const r = routed.find((x) => x.id === OPENROUTER_PREFIX + slug);
+		if (!r || (r.inputPrice === m.inputPrice && r.outputPrice === m.outputPrice)) continue;
+		const key = `${m.id}|${r.inputPrice}|${r.outputPrice}`;
+		if (priceFlags.has(key)) continue;
+		priceFlags.add(key);
+		console.warn(`[LLM] Price check: ${m.id} is $${m.inputPrice} in / $${m.outputPrice} out in the table (read ${m.priceRead}), OpenRouter lists $${r.inputPrice} / $${r.outputPrice}`);
+	}
+}
+
 const usableFallback = (env: LlmEnv, id: string) => fallbackChoices(env).some((m) => m.id === id && m.available);
 
 // The chat default: the admin's choice unless it is premium (it answers bots that are not on AI Plus)
@@ -453,7 +554,8 @@ export async function checkPlatformModels(env: LlmEnv, input: unknown): Promise<
 	for (const f of ['chatDefault', 'emailDefault'] as const) {
 		const id = value[f];
 		if (!id) continue;
-		const m: ModelInfo | undefined = id.startsWith(OPENROUTER_PREFIX) ? routed.find((x) => x.id === id && x.listed) : findModel(id);
+		const table = findModel(id);
+		const m: ModelInfo | undefined = id.startsWith(OPENROUTER_PREFIX) ? routed.find((x) => x.id === id && x.listed) : table && offered(table, Date.now()) ? table : undefined;
 		if (!m) return { ok: false, error: `The ${labels[f]} is not in the model list.` };
 		if (!providerAvailable(env, m.provider)) return { ok: false, error: `The ${labels[f]} needs a ${PROVIDER_NAMES[m.provider]} API key, and none is set.` };
 		if (f === 'chatDefault' && isPremium(m)) return { ok: false, error: 'The chat default cannot be a premium model: it also answers bots that are not on AI Plus.' };
@@ -471,8 +573,12 @@ export async function checkPlatformModels(env: LlmEnv, input: unknown): Promise<
 // Catalog for the dashboard picker, with whether each provider has a key on this worker
 export async function publicCatalog(env: LlmEnv) {
 	// The picker gets the listed OpenRouter models only; the rest stay known to the server
-	const routed = (await openRouterModels(env)).filter((m) => m.listed).map(({ listed, ...m }) => m);
-	const models: ModelInfo[] = [...MODEL_CATALOG, ...routed];
+	const all = await openRouterModels(env);
+	const routed = all.filter((m) => m.listed).map(({ listed, ...m }) => m);
+	const directNow = await listedDirectModels(env);
+	crossCheckPrices(directNow, all);
+	const direct = directNow.map(({ priceChange, superseded, ...m }) => m);
+	const models: ModelInfo[] = [...direct, ...routed];
 	return {
 		defaultModel: (await chatDefaultModel(env)) || FALLBACK_MODELS[0],
 		emailDefaultModel: await emailDefaultModel(env),
