@@ -76,7 +76,7 @@ ok('reading the model list makes no test call', asked.length === 0, testedIds())
 
 // ─── The hourly job proves the new models ────────────────────────────────────
 await capture(() => a.hourly());
-ok('each new model both lists name gets one test call, and no other model does', testedIds() === 'claude-haiku-5-6,gpt-6.3-sol,gpt-7-nova,gpt-8-lux,gpt-9-broken', testedIds());
+ok('each new model both lists name gets one test call; the sixth call tests a table model that is a newer version (automove.mjs)', testedIds() === 'claude-haiku-5-6,gpt-6.2-astra,gpt-6.3-sol,gpt-7-nova,gpt-8-lux,gpt-9-broken', testedIds());
 ok('a model the supplier does not list is not tested (Gemma, and GPT-5.5 where only gpt-5.5-pro is listed)', !asked.some(x => /gemma|gpt-5\.5/.test(x.model)), testedIds());
 ok('a supplier model OpenRouter does not offer is not tested', !asked.some(x => /nova-mini|embedding/.test(x.model)), testedIds());
 const sent = (id) => asked.find(x => x.model === id)?.body || {};
@@ -124,8 +124,8 @@ ok('the fallback list holds no automatic model', (cat.fallbackModels || []).leng
 // ─── Later runs ──────────────────────────────────────────────────────────────
 asked = []; skew = 2 * HOUR;
 await capture(() => a.hourly());
-ok('a proven model is not tested again, and a failed one not within a day', asked.length === 0, testedIds());
-skew = 25 * HOUR; brokenWorks = true;
+ok('a proven model is not tested again, and a failed one not within a day: only the table model left over from the first run is tested', testedIds() === 'gpt-6.2-sol', testedIds());
+skew = 25 * HOUR; brokenWorks = true; asked = [];
 await capture(() => a.hourly());
 ok('a failed model is tried again after a day', testedIds() === 'gpt-9-broken', testedIds());
 cat = await a.catalog();
@@ -161,4 +161,4 @@ await capture(() => c.hourly());
 ok('one run tests at most six new models', asked.length === 6, String(asked.length));
 skew = 41 * HOUR + 60e3;
 await capture(() => c.hourly());
-ok('and the next run tests the rest', asked.length === 9 && new Set(asked.map(x => x.model)).size === 9, String(asked.length));
+ok('and the next run tests the rest, with the two table models that are newer versions', asked.length === 11 && new Set(asked.map(x => x.model)).size === 11 && many.every(id => asked.some(x => x.model === id)), String(asked.length));

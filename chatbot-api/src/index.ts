@@ -1,5 +1,5 @@
 import { WorkerEntrypoint } from 'cloudflare:workers';
-import { testModel, MAX_MODEL_TESTS, proveNewModels, callChosenModel, callGemini, publicCatalog, modelIsPremium, chatDefaultModel, emailDefaultModel, fallbackChain, leadReaderModel, callFallback, isGoogleModel, checkPlatformModels } from './llm';
+import { testModel, MAX_MODEL_TESTS, proveNewModels, movedModel, callChosenModel, callGemini, publicCatalog, modelIsPremium, chatDefaultModel, emailDefaultModel, fallbackChain, leadReaderModel, callFallback, isGoogleModel, checkPlatformModels } from './llm';
 // Message limits per bot mode come from the shared plan list (same file the website and dashboard show)
 import PLAN_DATA from '../../bytes-website/public/plans.json';
 
@@ -737,7 +737,8 @@ export default {
 			let chosenText: string | null = null;
 			// Premium models are for AI Plus only; on AI they quietly use the default model
 			const platformDefault = await chatDefaultModel(env);
-			let chosenModel = clientConfig?.llmModel || platformDefault;
+			// A saved model is answered by the newer version of its line once that is proven (movedModel)
+			let chosenModel = clientConfig?.llmModel ? await movedModel(env, clientConfig.llmModel, tier === 'ai_plus') : platformDefault;
 			if (tier !== 'ai_plus' && await modelIsPremium(chosenModel, env)) chosenModel = platformDefault;
 			try {
 				// No chosen model and no key for the default: the backup models below answer
@@ -817,7 +818,8 @@ export class LlmService extends WorkerEntrypoint<Env> {
 		const prompt = String(args?.prompt || '').slice(0, args?.maxChars || 60000);
 		const contents = [{ role: 'user', parts: [{ text: prompt }] }];
 		// The client's own email model, else the platform's email default; then the email backups
-		const wanted = typeof args?.model === 'string' && args.model ? args.model : await emailDefaultModel(env);
+		// A saved model moves to the newer version of its line; no plan is known here, so only an already premium model moves to a premium one
+		const wanted = typeof args?.model === 'string' && args.model ? await movedModel(env, args.model, false) : await emailDefaultModel(env);
 		const backups = await fallbackChain(env, 'email');
 		const tries = [wanted, ...backups.filter((m) => m !== wanted)];
 		let lastErr: unknown = null;
