@@ -1857,12 +1857,14 @@ async function ensureModelCatalog(fresh = false) {
 
 // Fills a model <select> with "Default" + one optgroup per provider, in catalog order. OpenRouter's
 // models get one group per vendor ("OpenRouter: Anthropic"), since it lists every vendor's current lines.
-function populateModelSelect(select, savedValue) {
+// Every model picker in the dashboard is built here, so they all read the same; `models` is the list a
+// picker offers, which is shorter for a fallback.
+function populateModelSelect(select, savedValue, models = modelCatalog.models) {
     const def = modelCatalog.models.find(m => m.id === modelCatalog.defaultModel);
     select.innerHTML = '';
     select.appendChild(new Option(`Default: ${def ? def.name : modelCatalog.defaultModel}`, ''));
     const groups = new Map();
-    for (const m of modelCatalog.models) {
+    for (const m of models) {
         const group = m.vendorName ? `${m.providerName}: ${m.vendorName}` : m.providerName;
         if (!groups.has(group)) {
             const og = document.createElement('optgroup');
@@ -1968,6 +1970,13 @@ function modelCostHtml(id) {
         + `Cost: <strong>${formatPrice(m.inputPrice)}</strong> per 1M input tokens · <strong>${formatPrice(m.outputPrice)}</strong> per 1M output tokens`
         + modelPriceNotes(m).map(n => `<br><span${n.warn ? ' style="color:var(--warning, #f59e0b);"' : ''}>${escapeHtml(n.text)}</span>`).join('')
         + (m.available ? '' : `<br><span style="color:var(--warning, #f59e0b);">No ${escapeHtml(m.providerName)} API key is set on the chatbot server, so replies will use the default model.</span>`);
+}
+
+// Fills the cost line under a picker: the element whose id is the picker's id plus "-cost". `emptyId`
+// is the model the picker's empty choice stands for (the chat default when not given).
+function showModelCost(select, emptyId) {
+    const el = select && document.getElementById(select.id + '-cost');
+    if (el) el.innerHTML = modelCatalog ? modelCostHtml(select.value || emptyId) : '';
 }
 
 function renderModelCost() {
@@ -3015,18 +3024,15 @@ const PM_SELECTS = { chatDefault: 'pm-chat-default', chatFallback: 'pm-chat-fall
 // The empty choice leaves the model built into the chatbot server in place
 const PM_BUILT_IN = { chatDefault: 'Built-in: Claude Haiku 5.5', chatFallback: 'Built-in: Gemini 3.5 Flash-Lite', emailDefault: 'Built-in: GPT-6 Luna', emailFallback: 'Built-in: Gemini 3.5 Flash-Lite' };
 
-// A fallback picker offers only direct supplier models; one whose supplier has no key is shown but cannot be picked
+// The model each empty choice stands for, for the cost line under it
+const PM_BUILT_IN_ID = { chatDefault: 'claude-haiku-5-5', chatFallback: 'gemini-3.5-flash-lite', emailDefault: 'gpt-6-luna', emailFallback: 'gemini-3.5-flash-lite' };
+
+// A fallback picker is the same picker with a shorter list: direct supplier models that are not premium.
+// Each is shown as the main list shows it, so its price and marks are the same in both places.
 function pmFillFallback(select, saved, builtIn) {
-    select.innerHTML = '';
-    select.appendChild(new Option(builtIn, ''));
-    for (const m of modelCatalog.fallbackModels || []) {
-        const opt = new Option(`${m.providerName}: ${m.name}${m.available ? '' : ' (no API key)'}`, m.id);
-        opt.disabled = !m.available;
-        select.appendChild(opt);
-    }
-    select.dataset.saved = saved || '';
-    select.value = saved || '';
-    if (select.value !== (saved || '')) { select.appendChild(new Option(`${saved} (no longer offered)`, saved)); select.value = saved; }
+    const direct = (modelCatalog.fallbackModels || []).map(f => modelCatalog.models.find(x => x.id === f.id) || f);
+    populateModelSelect(select, saved, direct);
+    select.options[0].textContent = builtIn;
 }
 
 async function loadPlatformModels(fresh = false) {
@@ -3048,6 +3054,7 @@ async function loadPlatformModels(fresh = false) {
             if (m && m.premium) { opt.disabled = true; opt.textContent += ' (premium: cannot be the default)'; }
         }
         for (const key of ['chatFallback', 'emailFallback']) pmFillFallback(PM(PM_SELECTS[key]), d[key] || '', PM_BUILT_IN[key]);
+        for (const [key, id] of Object.entries(PM_SELECTS)) showModelCost(PM(id), PM_BUILT_IN_ID[key]);
         PM('pm-saved').textContent = d.updatedAt
             ? `Last saved by ${d.updatedBy || 'an admin'} on ${new Date(d.updatedAt).toLocaleString()}.`
             : 'Nothing is saved yet: the built-in models are in use.';
@@ -3060,6 +3067,8 @@ async function loadPlatformModels(fresh = false) {
 }
 
 ['input', 'change'].forEach(ev => PM('pm-card')?.addEventListener(ev, (e) => { if (e.isTrusted && !e.target.closest('button')) PM('pm-card').classList.add('cb-dirty'); }));
+
+for (const [key, id] of Object.entries(PM_SELECTS)) PM(id)?.addEventListener('change', (e) => showModelCost(e.target, PM_BUILT_IN_ID[key]));
 
 PM('pm-save-btn')?.addEventListener('click', async () => {
     const st = PM('pm-status'), btn = PM('pm-save-btn');
@@ -4114,10 +4123,12 @@ function salesFieldsHtml(p) {
             <div class="form-group">
                 <label for="${p}-draft-model">Email drafting model <span class="site-hint">Writes questions and closing emails</span></label>
                 <select id="${p}-draft-model"><option value="">${SALES_DEFAULT_LABEL}</option></select>
+                <p id="${p}-draft-model-cost" class="site-cost"></p>
             </div>
             <div class="form-group">
                 <label for="${p}-read-model">Reply reading model <span class="site-hint">Reads need, budget and timeline from replies</span></label>
                 <select id="${p}-read-model"><option value="">${SALES_DEFAULT_LABEL}</option></select>
+                <p id="${p}-read-model-cost" class="site-cost"></p>
             </div>
         </div>
         <div class="sales-offers">
@@ -4162,6 +4173,8 @@ function parseProofLines(text) {
     });
 }
 document.querySelectorAll('[data-sales]').forEach(el => { el.innerHTML = salesFieldsHtml(el.dataset.sales); });
+// The empty choice of an email model picker stands for the platform's email default
+document.querySelectorAll('[data-sales] .sales-models select').forEach(sel => sel.addEventListener('change', () => showModelCost(sel, modelCatalog?.emailDefaultModel)));
 
 async function salesFill(p, d = {}) {
     const q = (s) => document.getElementById(`${p}-${s}`);
@@ -4182,6 +4195,7 @@ async function salesFill(p, d = {}) {
         const sel = q(id);
         if (modelCatalog) { populateModelSelect(sel, d[key] || ''); sel.options[0].textContent = salesDefaultLabel(); }
         else { sel.innerHTML = `<option value="">${SALES_DEFAULT_LABEL}</option>`; delete sel.dataset.filled; }
+        showModelCost(sel, modelCatalog?.emailDefaultModel);
     }
     salesTrackingNote(p);
 }
